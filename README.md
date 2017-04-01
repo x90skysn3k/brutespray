@@ -9,4 +9,4 @@ First do an nmap scan with '-oA nmap.gnmap'.
 
 Command: python brutemap.py -h
 
-Example: python brutemap.py --file nmap.gnmap --services all --threads 3
+Example: python brutemap.py --file nmap.gnmap --services all --threads 3 --hosts 5
