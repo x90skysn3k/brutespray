@@ -31,7 +31,7 @@ banner = colors.green + r"""
 
 def do_all():
     brute_ssh()
-
+    brute_ftp()
 
 def ip_by_port(port):
     with open(args.file, 'r') as nmap_file:
@@ -48,6 +48,13 @@ def brute_ssh():
     outputlist = ip_by_port(port)
     for ip in outputlist:
         subprocess.call(['medusa', '-h', ip, '-U', 'wordlist/ssh/user', '-P', 'wordlist/ssh/password', '-M', 'ssh', '-t', args.threads])
+
+def brute_ftp():
+    port = 21
+    outputlist = ip_by_port(port)
+    for ip in outputlist:
+        subprocess.call(['medusa', '-h', ip, '-U', 'wordlist/ftp/user', '-P', 'wordlist/ftp/password', '-M', 'ftp', '-t', args.threads])
+        
 
 
 def parse_args():
@@ -80,8 +87,9 @@ if __name__ == "__main__":
     
     if args.service == 'ssh':
         brute_ssh()    
-   
-    if args.service == 'all':
+    elif args.service == 'ftp':
+        brute_ftp() 
+    elif args.service == 'all':
         do_all()
 
 
