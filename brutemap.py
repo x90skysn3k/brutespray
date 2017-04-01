@@ -4,6 +4,8 @@ import subprocess
 import re
 import argparse
 import argcomplete
+from multiprocessing import Process
+
 
 timestr = time.strftime("%Y%m%d-%H%M")
 
@@ -25,13 +27,14 @@ banner = colors.green + r"""
 
 
 """+'\n' \
-+ '\n brutemap.py v0.01' \
++ '\n brutemap.py v0.02' \
 + '\n Created by: Jacob Robles/@shellfail && Shane Young/@x90skysn3k' + '\n' + colors.normal + '\n'
 
 
 def do_all():
     brute_ssh()
     brute_ftp()
+    brute_telnet()
 
 def ip_by_port(port):
     with open(args.file, 'r') as nmap_file:
@@ -55,13 +58,17 @@ def brute_ftp():
     for ip in outputlist:
         subprocess.call(['medusa', '-h', ip, '-U', 'wordlist/ftp/user', '-P', 'wordlist/ftp/password', '-M', 'ftp', '-t', args.threads])
         
+def brute_telnet():
+    port = 23
+    outputlist = ip_by_port(port)
+    for ip in outputlist:
+        subprocess.call(['medusa', '-h', ip, '-U', 'wordlist/telnet/user', '-P', 'wordlist/telnet/password', '-M', 'telnet', '-t', args.threads])
 
 
 def parse_args():
     
     parser = argparse.ArgumentParser(formatter_class=RawTextHelpFormatter, description=\
-
-    banner + 
+ 
     "Usage: python brutemap.py <OPTIONS> \n")
 
     menu_group = parser.add_argument_group(colors.lightblue + 'Menu Options' + colors.normal)
@@ -85,11 +92,19 @@ if __name__ == "__main__":
     print(banner)
     args,output = parse_args()
     
+    p_ssh = Process(target = brute_ssh)
+    p_ftp = Process(target = brute_ftp)
+    p_telnet = Process(target = brute_telnet)
+    
     if args.service == 'ssh':
         brute_ssh()    
     elif args.service == 'ftp':
         brute_ftp() 
+    elif args.service == 'telnet':
+        brute_telnet()
     elif args.service == 'all':
-        do_all()
+        p_ssh.start()
+        p_ftp.start()
+        p_telnet.start()
 
 
