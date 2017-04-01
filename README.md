@@ -7,4 +7,4 @@ BruteMap takes nmap GNMAP output and automatically brute-forces services with de
 # Usage
 Command: python brutemap.py -h
 
-Example: python brutemap.py --file nmap.gnmap --services all
+Example: python brutemap.py --file nmap.gnmap --services all --threads 3
