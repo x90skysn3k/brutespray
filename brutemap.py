@@ -31,10 +31,6 @@ banner = colors.green + r"""
 + '\n Created by: Jacob Robles/@shellfail && Shane Young/@x90skysn3k' + '\n' + colors.normal + '\n'
 
 
-def do_all():
-    brute_ssh()
-    brute_ftp()
-    brute_telnet()
 
 def ip_by_port(port):
     with open(args.file, 'r') as nmap_file:
@@ -47,22 +43,34 @@ def ip_by_port(port):
 
 
 def brute_ssh():                    
-    port = 22
+    if not args.port:
+        port = 22
+    else:
+        port = args.port
+
     outputlist = ip_by_port(port)
     for ip in outputlist:
-        subprocess.call(['medusa', '-h', ip, '-U', 'wordlist/ssh/user', '-P', 'wordlist/ssh/password', '-M', 'ssh', '-t', args.threads])
+        subprocess.call(['medusa', '-h', ip, '-U', 'wordlist/ssh/user', '-P', 'wordlist/ssh/password', '-M', 'ssh', '-t', args.threads, '-n', port])
 
 def brute_ftp():
-    port = 21
+    if not args.port:
+        port = 21
+    else:
+        port = args.port
+
     outputlist = ip_by_port(port)
     for ip in outputlist:
-        subprocess.call(['medusa', '-h', ip, '-U', 'wordlist/ftp/user', '-P', 'wordlist/ftp/password', '-M', 'ftp', '-t', args.threads])
+        subprocess.call(['medusa', '-h', ip, '-U', 'wordlist/ftp/user', '-P', 'wordlist/ftp/password', '-M', 'ftp', '-t', args.threads, '-n', port])
         
 def brute_telnet():
-    port = 23
+    if not args.port:
+        port = 23
+    else:
+        port = args.port
+
     outputlist = ip_by_port(port)
     for ip in outputlist:
-        subprocess.call(['medusa', '-h', ip, '-U', 'wordlist/telnet/user', '-P', 'wordlist/telnet/password', '-M', 'telnet', '-t', args.threads])
+        subprocess.call(['medusa', '-h', ip, '-U', 'wordlist/telnet/user', '-P', 'wordlist/telnet/password', '-M', 'telnet', '-t', args.threads, '-n', port])
 
 
 def parse_args():
@@ -79,10 +87,15 @@ def parse_args():
 
     menu_group.add_argument('-t', '--threads', help="number of medusa threads", default="2")    
 
+    menu_group.add_argument('-p', '--port', help="specify custom port for service to try") 
+
     argcomplete.autocomplete(parser)    
    
     args = parser.parse_args()
 
+    if args.port and args.service == "all":
+        parser.error("--port requires --service to be specified")    
+    
     output = None
 
     return args,output
@@ -91,6 +104,7 @@ def parse_args():
 if __name__ == "__main__":
     print(banner)
     args,output = parse_args()
+    
     
     p_ssh = Process(target = brute_ssh)
     p_ftp = Process(target = brute_ftp)
