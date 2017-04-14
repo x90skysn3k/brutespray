@@ -27,7 +27,7 @@ banner = colors.green + r"""
 
 
 """+'\n' \
-+ '\n brutemap.py v0.02' \
++ '\n brutemap.py v0.1' \
 + '\n Created by: Jacob Robles/@shellfail && Shane Young/@x90skysn3k' + '\n' + colors.normal + '\n'
 
 
@@ -52,7 +52,6 @@ def brute_ssh():
         outputlist = ip_by_port(port)
         f.write('\n'.join(outputlist))
         f.write('\n')
-    
     
     subprocess.call(['medusa', '-H', tmp, '-U', 'wordlist/ssh/user', '-P', 'wordlist/ssh/password', '-M', 'ssh', '-t', args.threads, '-n', port, '-T', args.hosts])
     
@@ -138,6 +137,22 @@ def brute_mysql():
 
     os.remove(tmp)
 
+def brute_postgres():
+    if not args.port:
+        port = "5432"
+    else:
+        port = args.port
+
+    tmp = "tmp/tmppost"
+    with open(tmp, 'w+') as f:
+        outputlist = ip_by_port(port)
+        f.write('\n'.join(outputlist))
+        f.write('\n')
+        
+    subprocess.call(['medusa', '-H', tmp, '-U', 'wordlist/postgresql/user', '-P', 'wordlist/postgresql/password', '-M', 'postgres', '-t', args.threads, '-n', port, '-T' , args.hosts])
+
+    os.remove(tmp)
+
 def parse_args():
     
     parser = argparse.ArgumentParser(formatter_class=RawTextHelpFormatter, description=\
@@ -184,9 +199,10 @@ if __name__ == "__main__":
     p_ftp = Process(target = brute_ftp)
     p_telnet = Process(target = brute_telnet)
     p_vnc = Process(target = brute_vnc)
-    p_mssql = Process (target = brute_mssql)
-    p_mysql = Process (target = brute_mysql)
-    
+    p_mssql = Process(target = brute_mssql)
+    p_mysql = Process(target = brute_mysql)
+    p_post = Process(target = brute_postgres)   
+ 
     if args.service == 'ssh':
         brute_ssh()    
     elif args.service == 'ftp':
@@ -199,6 +215,8 @@ if __name__ == "__main__":
         brute_mssql()
     elif args.service == 'mysql':
         brute_mysql()
+    elif args.service == 'postgres':
+        brute_postgres()
     elif args.service == 'all':
         p_ssh.start()
         p_ftp.start()
@@ -206,5 +224,6 @@ if __name__ == "__main__":
         p_vnc.start()
         p_mssql.start()
         p_mysql.start()
+        p_post.start()
 
 
