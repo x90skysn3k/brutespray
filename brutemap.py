@@ -106,6 +106,38 @@ def brute_vnc():
 
     os.remove(tmp)
 
+def brute_mssql():
+    if not args.port:
+        port = "1433"
+    else:
+        port = args.port
+
+    tmp = "tmp/tmpmssql"
+    with open(tmp, 'w+') as f:
+        outputlist = ip_by_port(port)
+        f.write('\n'.join(outputlist))
+        f.write('\n')
+        
+    subprocess.call(['medusa', '-H', tmp, '-U', 'wordlist/mssql/user', '-P', 'wordlist/mssql/password', '-M', 'mssql', '-t', args.threads, '-n', port, '-T' , args.hosts])
+
+    os.remove(tmp)
+
+def brute_mysql():
+    if not args.port:
+        port = "3306"
+    else:
+        port = args.port
+
+    tmp = "tmp/tmpmysql"
+    with open(tmp, 'w+') as f:
+        outputlist = ip_by_port(port)
+        f.write('\n'.join(outputlist))
+        f.write('\n')
+        
+    subprocess.call(['medusa', '-H', tmp, '-U', 'wordlist/mysql/user', '-P', 'wordlist/mysql/password', '-M', 'mysql', '-t', args.threads, '-n', port, '-T' , args.hosts])
+
+    os.remove(tmp)
+
 def parse_args():
     
     parser = argparse.ArgumentParser(formatter_class=RawTextHelpFormatter, description=\
@@ -151,6 +183,9 @@ if __name__ == "__main__":
     p_ssh = Process(target = brute_ssh)
     p_ftp = Process(target = brute_ftp)
     p_telnet = Process(target = brute_telnet)
+    p_vnc = Process(target = brute_vnc)
+    p_mssql = Process (target = brute_mssql)
+    p_mysql = Process (target = brute_mysql)
     
     if args.service == 'ssh':
         brute_ssh()    
@@ -158,9 +193,18 @@ if __name__ == "__main__":
         brute_ftp() 
     elif args.service == 'telnet':
         brute_telnet()
+    elif args.service == 'vnc':
+        brute_vnc()
+    elif args.service == 'mssql':
+        brute_mssql()
+    elif args.service == 'mysql':
+        brute_mysql()
     elif args.service == 'all':
         p_ssh.start()
         p_ftp.start()
         p_telnet.start()
+        p_vnc.start()
+        p_mssql.start()
+        p_mysql.start()
 
 
