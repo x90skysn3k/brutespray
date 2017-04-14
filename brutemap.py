@@ -52,7 +52,8 @@ def brute_ssh():
         outputlist = ip_by_port(port)
         f.write('\n'.join(outputlist))
         f.write('\n')
-        
+    
+    
     subprocess.call(['medusa', '-H', tmp, '-U', 'wordlist/ssh/user', '-P', 'wordlist/ssh/password', '-M', 'ssh', '-t', args.threads, '-n', port, '-T', args.hosts])
     
     os.remove(tmp)
@@ -86,6 +87,22 @@ def brute_telnet():
         f.write('\n')
         
     subprocess.call(['medusa', '-H', tmp, '-U', 'wordlist/telnet/user', '-P', 'wordlist/telnet/password', '-M', 'telnet', '-t', args.threads, '-n', port, '-T' , args.hosts])
+
+    os.remove(tmp)
+
+def brute_vnc():
+    if not args.port:
+        port = "5900"
+    else:
+        port = args.port
+
+    tmp = "tmp/tmpvnc"
+    with open(tmp, 'w+') as f:
+        outputlist = ip_by_port(port)
+        f.write('\n'.join(outputlist))
+        f.write('\n')
+        
+    subprocess.call(['medusa', '-H', tmp, '-U', 'wordlist/vnc/user', '-P', 'wordlist/vnc/password', '-M', 'vnc', '-t', args.threads, '-n', port, '-T' , args.hosts])
 
     os.remove(tmp)
 
