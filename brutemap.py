@@ -27,8 +27,8 @@ banner = colors.green + r"""
 
 
 """+'\n' \
-+ '\n brutemap.py v0.1' \
-+ '\n Created by: Jacob Robles/@shellfail && Shane Young/@x90skysn3k' + '\n' + colors.normal + '\n'
++ '\n brutemap.py v0.2' \
++ '\n Created by: Shane Young/@x90skysn3k' + '\n' + ' Contributors: Jacob Robles/@shellfail' + colors.normal + '\n'
 
 
 
@@ -42,7 +42,8 @@ def ip_by_port(port):
     return iplist
 
 
-def brute_ssh():                    
+def brute_ssh():    
+    name = 'ssh'                
     if not args.port:
         port = "22"
     else:
@@ -53,11 +54,25 @@ def brute_ssh():
         f.write('\n'.join(outputlist))
         f.write('\n')
     
-    subprocess.call(['medusa', '-H', tmp, '-U', 'wordlist/ssh/user', '-P', 'wordlist/ssh/password', '-M', 'ssh', '-t', args.threads, '-n', port, '-T', args.hosts])
+    p = subprocess.Popen(['medusa', '-H', tmp, '-U', 'wordlist/ssh/user', '-P', 'wordlist/ssh/password', '-M', 'ssh', '-t', args.threads, '-n', port, '-T', args.hosts], stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=1)
+
+    out = "[" + colors.green + "+" + colors.normal + "] "
+    output = outpath + name + '-success.txt'
+
+    for line in iter(p.stdout.readline, b''):
+        print line,        
+        if '[SUCCESS]' in line:
+            with open(output, 'a') as f:
+                f.write(out + line)
+                f.close()
+            
+    p.stdout.close()
+    p.wait()
     
     os.remove(tmp)
 
 def brute_ftp():
+    name = 'ftp'
     if not args.port:
         port = "21"
     else:
@@ -69,11 +84,24 @@ def brute_ftp():
         f.write('\n'.join(outputlist))
         f.write('\n')
         
-    subprocess.call(['medusa', '-H', tmp, '-U', 'wordlist/ftp/user', '-P', 'wordlist/ftp/password', '-M', 'ftp', '-t', args.threads, '-n', port, '-T', args.hosts])
+    p = subprocess.Popen(['medusa', '-H', tmp, '-U', 'wordlist/ftp/user', '-P', 'wordlist/ftp/password', '-M', 'ftp', '-t', args.threads, '-n', port, '-T', args.hosts], stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=1)
         
+    out = "[" + colors.green + "+" + colors.normal + "] "
+    output = outpath + name + '-success.txt'
+
+    for line in iter(p.stdout.readline, b''):
+        print line,        
+        if '[SUCCESS]' in line:
+            with open(output, 'a') as f:
+                f.write(out + line)
+                f.close()
+            
+    p.stdout.close()
+    p.wait()
     os.remove(tmp)
 
 def brute_telnet():
+    name = 'telnet'
     if not args.port:
         port = "23"
     else:
@@ -85,11 +113,24 @@ def brute_telnet():
         f.write('\n'.join(outputlist))
         f.write('\n')
         
-    subprocess.call(['medusa', '-H', tmp, '-U', 'wordlist/telnet/user', '-P', 'wordlist/telnet/password', '-M', 'telnet', '-t', args.threads, '-n', port, '-T' , args.hosts])
+    p = subprocess.Popen(['medusa', '-H', tmp, '-U', 'wordlist/telnet/user', '-P', 'wordlist/telnet/password', '-M', 'telnet', '-t', args.threads, '-n', port, '-T' , args.hosts], stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=1)
 
+    out = "[" + colors.green + "+" + colors.normal + "] "
+    output = outpath + name + '-success.txt'
+
+    for line in iter(p.stdout.readline, b''):
+        print line,        
+        if '[SUCCESS]' in line:
+            with open(output, 'a') as f:
+                f.write(out + line)
+                f.close()
+            
+    p.stdout.close()
+    p.wait()
     os.remove(tmp)
 
 def brute_vnc():
+    name = 'vnc'
     if not args.port:
         port = "5900"
     else:
@@ -101,11 +142,24 @@ def brute_vnc():
         f.write('\n'.join(outputlist))
         f.write('\n')
         
-    subprocess.call(['medusa', '-H', tmp, '-U', 'wordlist/vnc/user', '-P', 'wordlist/vnc/password', '-M', 'vnc', '-t', args.threads, '-n', port, '-T' , args.hosts])
+    p = subprocess.Popen(['medusa', '-H', tmp, '-U', 'wordlist/vnc/user', '-P', 'wordlist/vnc/password', '-M', 'vnc', '-t', args.threads, '-n', port, '-T' , args.hosts], stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=1)
 
+    out = "[" + colors.green + "+" + colors.normal + "] "
+    output = outpath + name + '-success.txt'
+
+    for line in iter(p.stdout.readline, b''):
+        print line,        
+        if '[SUCCESS]' in line:
+            with open(output, 'a') as f:
+                f.write(out + line)
+                f.close()
+            
+    p.stdout.close()
+    p.wait()
     os.remove(tmp)
 
 def brute_mssql():
+    name = 'mssql'
     if not args.port:
         port = "1433"
     else:
@@ -117,11 +171,24 @@ def brute_mssql():
         f.write('\n'.join(outputlist))
         f.write('\n')
         
-    subprocess.call(['medusa', '-H', tmp, '-U', 'wordlist/mssql/user', '-P', 'wordlist/mssql/password', '-M', 'mssql', '-t', args.threads, '-n', port, '-T' , args.hosts])
+    p = subprocess.Popen(['medusa', '-H', tmp, '-U', 'wordlist/mssql/user', '-P', 'wordlist/mssql/password', '-M', 'mssql', '-t', args.threads, '-n', port, '-T' , args.hosts], stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=1)
 
+    out = "[" + colors.green + "+" + colors.normal + "] "
+    output = outpath + name + '-success.txt'
+
+    for line in iter(p.stdout.readline, b''):
+        print line,        
+        if '[SUCCESS]' in line:
+            with open(output, 'a') as f:
+                f.write(out + line)
+                f.close()
+            
+    p.stdout.close()
+    p.wait()
     os.remove(tmp)
 
 def brute_mysql():
+    name = 'mysql'
     if not args.port:
         port = "3306"
     else:
@@ -133,11 +200,24 @@ def brute_mysql():
         f.write('\n'.join(outputlist))
         f.write('\n')
         
-    subprocess.call(['medusa', '-H', tmp, '-U', 'wordlist/mysql/user', '-P', 'wordlist/mysql/password', '-M', 'mysql', '-t', args.threads, '-n', port, '-T' , args.hosts])
+    p = subprocess.Popen(['medusa', '-H', tmp, '-U', 'wordlist/mysql/user', '-P', 'wordlist/mysql/password', '-M', 'mysql', '-t', args.threads, '-n', port, '-T' , args.hosts], stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=1)
 
+    out = "[" + colors.green + "+" + colors.normal + "] "
+    output = outpath + name + '-success.txt'
+
+    for line in iter(p.stdout.readline, b''):
+        print line,        
+        if '[SUCCESS]' in line:
+            with open(output, 'a') as f:
+                f.write(out + line)
+                f.close()
+            
+    p.stdout.close()
+    p.wait()
     os.remove(tmp)
 
 def brute_postgres():
+    name = 'postgres'
     if not args.port:
         port = "5432"
     else:
@@ -149,8 +229,20 @@ def brute_postgres():
         f.write('\n'.join(outputlist))
         f.write('\n')
         
-    subprocess.call(['medusa', '-H', tmp, '-U', 'wordlist/postgresql/user', '-P', 'wordlist/postgresql/password', '-M', 'postgres', '-t', args.threads, '-n', port, '-T' , args.hosts])
+    p = subprocess.Popen(['medusa', '-H', tmp, '-U', 'wordlist/postgresql/user', '-P', 'wordlist/postgresql/password', '-M', 'postgres', '-t', args.threads, '-n', port, '-T' , args.hosts], stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=1)
 
+    out = "[" + colors.green + "+" + colors.normal + "] "
+    output = outpath + name + '-success.txt'
+
+    for line in iter(p.stdout.readline, b''):
+        print line,        
+        if '[SUCCESS]' in line:
+            with open(output, 'a') as f:
+                f.write(out + line)
+                f.close()
+            
+    p.stdout.close()
+    p.wait()
     os.remove(tmp)
 
 def parse_args():
@@ -192,6 +284,9 @@ if __name__ == "__main__":
     filelist = os.listdir(tmppath)
     for filename in filelist:
         os.remove(tmppath+filename)
+    if not os.path.exists("output/"):
+        os.mkdir("output/")
+    outpath = "output/"
    
 
  
