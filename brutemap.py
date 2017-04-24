@@ -28,7 +28,7 @@ banner = colors.green + r"""
 
 """+'\n' \
 + '\n brutemap.py v0.2' \
-+ '\n Created by: Shane Young/@x90skysn3k' + '\n' + ' Contributors: Jacob Robles/@shellfail' + colors.normal + '\n'
++ '\n Created by: Shane Young/@x90skysn3k && Jacob Robles/@shellfail' + colors.normal + '\n'
 
 
 

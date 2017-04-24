@@ -1,7 +1,5 @@
 # BruteMap
-Created by: Shane Young/@x90skysn3k
-
-Contributors: Jacob Robles/@shellfail 
+Created by: Shane Young/@x90skysn3k && Jacob Robles/@shellfail 
 
 # Description
 BruteMap takes nmap GNMAP output and automatically brute-forces services with default credentials using Medusa. 
