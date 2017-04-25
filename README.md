@@ -28,7 +28,6 @@ Alpha v0.3
 * nntp
 * pcanywhere
 * pop3
-* rdp
 * rexec
 * rlogin
 * smbnt

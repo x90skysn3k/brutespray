@@ -62,7 +62,7 @@ def make_dic():
     port = None
     with open(args.file, 'r') as nmap_file:
         for line in nmap_file:
-            supported = ['ssh','ftp','postgres','telnet','mysql','mssql','rsh','vnc','imap','nntp','pcanywhere','pop3','rdp','rexec','rlogin','smbnt','smtp','svn','vmauthd']
+            supported = ['ssh','ftp','postgres','telnet','mysql','mssql','rsh','vnc','imap','nntp','pcanywhere','pop3','rexec','rlogin','smbnt','smtp','svn','vmauthd']
             for name in supported:
                 matches = re.compile(r'([0-9][0-9]*)/open/[a-z][a-z]*//' + name)
                 try:
@@ -85,7 +85,7 @@ def make_dic():
 def brute(service,port):   
     userlist = 'wordlist/'+service+'/user'
     passlist = 'wordlist/'+service+'/password'
- 
+    print service 
     p = subprocess.Popen(['medusa', '-H', 'tmp/tmp.txt', '-U', userlist, '-P', passlist, '-M', service, '-t', args.threads, '-n', port, '-T', args.hosts], stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=-1)
 
     out = "[" + colors.green + "+" + colors.normal + "] "
