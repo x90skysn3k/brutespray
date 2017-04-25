@@ -66,19 +66,41 @@ def ip_by_port(port):
                 iplist += ip
     return iplist
 
+def get_ip_by_service(name):
+    with open(args.file, 'r') as nmap_file:
+        iplist = []
+        for line in nmap_file:
+            if '/' + name + '/' in line:
+                ip = re.findall( r'[0-9]+(?:\.[0-9]+){3}', line)
+                iplist += ip
+    return iplist
 
-def brute_ssh():    
-    name = 'ssh'                
-    if not args.port:
-        port = "22"
-    else:
+def get_port(name):
+    port = None
+    with open(args.file, 'r') as nmap_file:
+        for line in nmap_file:
+            if '/' + name + '/' in line:
+                matches = re.compile(r'([0-9][0-9]*)/open/(tcp|udp)//' + name)
+                port =  matches.findall(line)[0][0]               
+    return port
+
+def brute_ssh():   
+    name = 'ssh'        
+    port = get_port(name)
+    if args.port:
         port = args.port
+    
     tmp = "tmp/tmpssh"
     with open(tmp, 'w+') as f:
-        outputlist = ip_by_port(port)
+        outputlist = get_ip_by_service(name)
         f.write('\n'.join(outputlist))
         f.write('\n')
-    
+    if not outputlist:
+        print 'No ' + name + ' services found!'
+        sys.exit(0)
+    else:
+        print 'Brute-Forcing ' + colors.green + name + colors.normal + '!'
+ 
     p = subprocess.Popen(['medusa', '-H', tmp, '-U', 'wordlist/ssh/user', '-P', 'wordlist/ssh/password', '-M', 'ssh', '-t', args.threads, '-n', port, '-T', args.hosts], stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=1)
 
     out = "[" + colors.green + "+" + colors.normal + "] "
@@ -98,17 +120,21 @@ def brute_ssh():
 
 def brute_ftp():
     name = 'ftp'
-    if not args.port:
+    port = get_port(name)
+    if args.port:
         port = "21"
-    else:
-        port = args.port
-
+    
     tmp = "tmp/tmpftp"
     with open(tmp, 'w+') as f:
-        outputlist = ip_by_port(port)
+        outputlist = get_ip_by_service(name)
         f.write('\n'.join(outputlist))
         f.write('\n')
-        
+    if not outputlist:
+        print 'No ' + name + ' services found!'
+        sys.exit(0)
+    else:
+        print 'Brute-Forcing ' + colors.green + name + colors.normal + '!'
+    
     p = subprocess.Popen(['medusa', '-H', tmp, '-U', 'wordlist/ftp/user', '-P', 'wordlist/ftp/password', '-M', 'ftp', '-t', args.threads, '-n', port, '-T', args.hosts], stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=1)
         
     out = "[" + colors.green + "+" + colors.normal + "] "
@@ -127,17 +153,22 @@ def brute_ftp():
 
 def brute_telnet():
     name = 'telnet'
-    if not args.port:
+    port = get_port(name)
+    if args.port:
         port = "23"
-    else:
-        port = args.port
+    
 
     tmp = "tmp/tmptel"
     with open(tmp, 'w+') as f:
-        outputlist = ip_by_port(port)
+        outputlist = get_ip_by_service(name)
         f.write('\n'.join(outputlist))
         f.write('\n')
-        
+    if not outputlist:
+        print 'No ' + name + ' services found!'
+        sys.exit(0)
+    else:
+        print 'Brute-Forcing ' + colors.green + name + colors.normal + '!'
+
     p = subprocess.Popen(['medusa', '-H', tmp, '-U', 'wordlist/telnet/user', '-P', 'wordlist/telnet/password', '-M', 'telnet', '-t', args.threads, '-n', port, '-T' , args.hosts], stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=1)
 
     out = "[" + colors.green + "+" + colors.normal + "] "
@@ -156,16 +187,21 @@ def brute_telnet():
 
 def brute_vnc():
     name = 'vnc'
-    if not args.port:
+    port = get_port(name)
+    if args.port:
         port = "5900"
-    else:
-        port = args.port
+    
 
     tmp = "tmp/tmpvnc"
     with open(tmp, 'w+') as f:
-        outputlist = ip_by_port(port)
+        outputlist = get_ip_by_service(name)
         f.write('\n'.join(outputlist))
         f.write('\n')
+    if not outputlist:
+        print 'No ' + name + ' services found!'
+        sys.exit(0)
+    else:
+        print 'Brute-Forcing ' + colors.green + name + colors.normal + '!'
         
     p = subprocess.Popen(['medusa', '-H', tmp, '-U', 'wordlist/vnc/user', '-P', 'wordlist/vnc/password', '-M', 'vnc', '-t', args.threads, '-n', port, '-T' , args.hosts], stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=1)
 
@@ -185,16 +221,21 @@ def brute_vnc():
 
 def brute_mssql():
     name = 'mssql'
-    if not args.port:
+    port = get_port(name)
+    if args.port:
         port = "1433"
-    else:
-        port = args.port
+    
 
     tmp = "tmp/tmpmssql"
     with open(tmp, 'w+') as f:
-        outputlist = ip_by_port(port)
+        outputlist = get_ip_by_service(name)
         f.write('\n'.join(outputlist))
         f.write('\n')
+    if not outputlist:
+        print 'No ' + name + ' services found!'
+        sys.exit(0)
+    else:
+        print 'Brute-Forcing ' + colors.green + name + colors.normal + '!'
         
     p = subprocess.Popen(['medusa', '-H', tmp, '-U', 'wordlist/mssql/user', '-P', 'wordlist/mssql/password', '-M', 'mssql', '-t', args.threads, '-n', port, '-T' , args.hosts], stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=1)
 
@@ -214,16 +255,21 @@ def brute_mssql():
 
 def brute_mysql():
     name = 'mysql'
-    if not args.port:
+    port = get_port(name)
+    if args.port:
         port = "3306"
-    else:
-        port = args.port
+    
 
     tmp = "tmp/tmpmysql"
     with open(tmp, 'w+') as f:
-        outputlist = ip_by_port(port)
+        outputlist = get_ip_by_service(name)
         f.write('\n'.join(outputlist))
         f.write('\n')
+    if not outputlist:
+        print 'No ' + name + ' services found!'
+        sys.exit(0)
+    else:
+        print 'Brute-Forcing ' + colors.green + name + colors.normal + '!'
         
     p = subprocess.Popen(['medusa', '-H', tmp, '-U', 'wordlist/mysql/user', '-P', 'wordlist/mysql/password', '-M', 'mysql', '-t', args.threads, '-n', port, '-T' , args.hosts], stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=1)
 
@@ -242,17 +288,22 @@ def brute_mysql():
     os.remove(tmp)
 
 def brute_postgres():
-    name = 'postgres'
-    if not args.port:
+    name = 'postgresql'
+    port = get_port(name)
+    if args.port:
         port = "5432"
-    else:
-        port = args.port
+    
 
     tmp = "tmp/tmppost"
     with open(tmp, 'w+') as f:
-        outputlist = ip_by_port(port)
+        outputlist = get_ip_by_service(name)
         f.write('\n'.join(outputlist))
         f.write('\n')
+    if not outputlist:
+        print 'No ' + name + ' services found!'
+        sys.exit(0)
+    else:
+        print 'Brute-Forcing ' + colors.green + name + colors.normal + '!'
         
     p = subprocess.Popen(['medusa', '-H', tmp, '-U', 'wordlist/postgresql/user', '-P', 'wordlist/postgresql/password', '-M', 'postgres', '-t', args.threads, '-n', port, '-T' , args.hosts], stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=1)
 
@@ -272,16 +323,21 @@ def brute_postgres():
 
 def brute_rsh():
     name = 'rsh'
-    if not args.port:
+    port = get_port(name)
+    if args.port:
         port = "514"
-    else:
-        port = args.port
+    
 
     tmp = "tmp/tmprsh"
     with open(tmp, 'w+') as f:
-        outputlist = ip_by_port(port)
+        outputlist = get_ip_by_service(name)
         f.write('\n'.join(outputlist))
         f.write('\n')
+    if not outputlist:
+        print 'No ' + name + ' services found!'
+        sys.exit(0)
+    else:
+        print 'Brute-Forcing ' + colors.green + name + colors.normal + '!'
         
     p = subprocess.Popen(['medusa', '-H', tmp, '-U', 'wordlist/rsh/user', '-P', 'wordlist/rsh/password', '-M', 'rsh', '-t', args.threads, '-n', port, '-T' , args.hosts], stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=1)
 
@@ -341,8 +397,6 @@ if __name__ == "__main__":
     if not os.path.exists("output/"):
         os.mkdir("output/")
     outpath = "output/"
-   
-
  
     p_ssh = Process(target = brute_ssh)
     p_ftp = Process(target = brute_ftp)
