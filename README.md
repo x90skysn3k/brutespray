@@ -23,6 +23,7 @@ Alpha v0.2
 * mssql
 * mysql
 * postgresql
+* rsh
 
 # Coming Soon
 
@@ -33,7 +34,6 @@ Alpha v0.2
 * rdp
 * rexec
 * rlogin
-* rsh
 * smbnt
 * smtp
 * snmp
