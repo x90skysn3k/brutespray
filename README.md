@@ -24,9 +24,6 @@ Alpha v0.2
 * mysql
 * postgresql
 * rsh
-
-# Coming Soon
-
 * imap
 * nntp
 * pcanywhere

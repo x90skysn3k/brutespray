@@ -62,7 +62,7 @@ def make_dic():
     port = None
     with open(args.file, 'r') as nmap_file:
         for line in nmap_file:
-            supported = ['ssh','ftp','postgres','telnet','mysql','mssql','rsh','vnc']
+            supported = ['ssh','ftp','postgres','telnet','mysql','mssql','rsh','vnc','imap','nntp','pcanywhere','pop3','rdp','rexec','rlogin','smbnt','smtp','svn','vmauthd']
             for name in supported:
                 matches = re.compile(r'([0-9][0-9]*)/open/[a-z][a-z]*//' + name)
                 try:
@@ -86,18 +86,18 @@ def brute(service,port):
     userlist = 'wordlist/'+service+'/user'
     passlist = 'wordlist/'+service+'/password'
  
-    p = subprocess.Popen(['medusa', '-H', 'tmp/tmp.txt', '-U', userlist, '-P', passlist, '-M', service, '-t', args.threads, '-n', port, '-T', args.hosts], stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=1)
+    p = subprocess.Popen(['medusa', '-H', 'tmp/tmp.txt', '-U', userlist, '-P', passlist, '-M', service, '-t', args.threads, '-n', port, '-T', args.hosts], stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=-1)
 
     out = "[" + colors.green + "+" + colors.normal + "] "
     output = 'output/' + service + '-success.txt'
+    
 
     for line in iter(p.stdout.readline, b''):
-        print line,        
+        print line,
         if '[SUCCESS]' in line:
             with open(output, 'a') as f:
                 f.write(out + line)
                 f.close()
-            
 
 def parse_args():
     
