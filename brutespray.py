@@ -82,11 +82,11 @@ def make_dic():
                         services[name] = {tmp_port:ip}
 
 
-def brute(service,port):   
+def brute(service,port,fname):   
     userlist = 'wordlist/'+service+'/user'
     passlist = 'wordlist/'+service+'/password'
     print service 
-    p = subprocess.Popen(['medusa', '-H', 'tmp/tmp.txt', '-U', userlist, '-P', passlist, '-M', service, '-t', args.threads, '-n', port, '-T', args.hosts], stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=-1)
+    p = subprocess.Popen(['medusa', '-H', fname, '-U', userlist, '-P', passlist, '-M', service, '-t', args.threads, '-n', port, '-T', args.hosts], stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=-1)
 
     out = "[" + colors.green + "+" + colors.normal + "] "
     output = 'output/' + service + '-success.txt'
@@ -95,9 +95,14 @@ def brute(service,port):
     for line in iter(p.stdout.readline, b''):
         print line,
         if '[SUCCESS]' in line:
+            f = open(output, 'a')
+            f.write(out + line)
+            f.close()
+            '''
             with open(output, 'a') as f:
                 f.write(out + line)
                 f.close()
+            '''
 
 def parse_args():
     
@@ -140,10 +145,11 @@ if __name__ == "__main__":
     for service in services:
         if service in to_scan or to_scan == ['all']:
             for port in services[service]:
+                fname = 'tmp/'+service + '-' + port
                 iplist = services[service][port]
-                f = open('tmp/tmp.txt', 'w+')
+                f = open(fname, 'w+')
                 for ip in iplist:
                     f.write(ip + '\n')
                 f.close()
-                brute_process = Process(target = brute, args=(service,port))
+                brute_process = Process(target = brute, args=(service,port,fname))
                 brute_process.start()
