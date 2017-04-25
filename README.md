@@ -12,7 +12,7 @@ Command: python brutespray.py -h
 Example: python brutespray.py --file nmap.gnmap --services all --threads 3 --hosts 5
 
 # Status
-Alpha v0.2
+Alpha v0.3
 
 # Supported Services
 
