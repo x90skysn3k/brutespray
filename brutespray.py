@@ -98,11 +98,6 @@ def brute(service,port,fname):
             f = open(output, 'a')
             f.write(out + line)
             f.close()
-            '''
-            with open(output, 'a') as f:
-                f.write(out + line)
-                f.close()
-            '''
 
 def parse_args():
     
