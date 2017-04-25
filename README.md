@@ -37,4 +37,5 @@ Alpha v0.3
 * svn
 * vmauthd
 
-
+# Notes
+Feel free to update wordlists.
