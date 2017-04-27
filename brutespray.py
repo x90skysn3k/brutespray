@@ -5,6 +5,8 @@ import subprocess
 import re
 import argparse
 import argcomplete
+import itertools
+import threading
 from multiprocessing import Process
 
 
@@ -81,23 +83,33 @@ def make_dic():
                    else:
                         services[name] = {tmp_port:ip}
 
-
 def brute(service,port,fname):   
     userlist = 'wordlist/'+service+'/user'
     passlist = 'wordlist/'+service+'/password'
-    print service 
     p = subprocess.Popen(['medusa', '-H', fname, '-U', userlist, '-P', passlist, '-M', service, '-t', args.threads, '-n', port, '-T', args.hosts], stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=-1)
 
     out = "[" + colors.green + "+" + colors.normal + "] "
     output = 'output/' + service + '-success.txt'
     
-
+ 
     for line in iter(p.stdout.readline, b''):
         print line,
+        sys.stdout.flush()
+        time.sleep(0.0001)
         if '[SUCCESS]' in line:
             f = open(output, 'a')
             f.write(out + line)
-            f.close()
+            f.close()    
+   
+def animate():
+        t_end = time.time() + 3
+        for c in itertools.cycle(['|', '/', '-', '\\']):
+            if not time.time() < t_end:
+                break
+            sys.stdout.write('\rStarting to brute, please make sure to use the right amount of threads(-t) and parallel hosts(-T)...  ' + c)
+            sys.stdout.flush()
+            time.sleep(0.1)
+        sys.stdout.write('\rBrute-Forcing!     \n') 
 
 def parse_args():
     
@@ -136,6 +148,8 @@ if __name__ == "__main__":
         os.mkdir("output/")
 
     make_dic() 
+    animate()
+    
     to_scan = args.service.split(',')
     for service in services:
         if service in to_scan or to_scan == ['all']:
