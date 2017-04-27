@@ -102,14 +102,15 @@ def brute(service,port,fname):
             f.close()    
    
 def animate():
-        t_end = time.time() + 3
+        t_end = time.time() + 2
         for c in itertools.cycle(['|', '/', '-', '\\']):
             if not time.time() < t_end:
                 break
             sys.stdout.write('\rStarting to brute, please make sure to use the right amount of threads(-t) and parallel hosts(-T)...  ' + c)
             sys.stdout.flush()
             time.sleep(0.1)
-        sys.stdout.write('\rBrute-Forcing!     \n') 
+        sys.stdout.write('\n\nBrute-Forcing...     \n') 
+        time.sleep(1)
 
 def parse_args():
     
