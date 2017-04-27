@@ -6,13 +6,9 @@ import re
 import argparse
 import argcomplete
 import itertools
-import threading
 from multiprocessing import Process
 
-
 services = {}
-timestr = time.strftime("%Y%m%d-%H%M")
-
 
 class colors:
     white = "\033[1;37m"
@@ -21,7 +17,6 @@ class colors:
     blue = "\033[1;34m"
     green = "\033[1;32m"
     lightblue = "\033[0;34m"
-
 
 banner = colors.red + r"""
               #@                           @/              
