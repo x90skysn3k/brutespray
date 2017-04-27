@@ -53,7 +53,7 @@ banner = colors.red + r"""
 ╚═════╝ ╚═╝  ╚═╝ ╚═════╝    ╚═╝   ╚══════╝╚══════╝╚═╝     ╚═╝  ╚═╝╚═╝  ╚═╝   ╚═╝   
                                                                                    
 """+'\n' \
-+ '\n brutespray.py v0.3' \
++ '\n brutespray.py v1.0' \
 + '\n Created by: Shane Young/@x90skysn3k && Jacob Robles/@shellfail' + colors.normal + '\n'
 #ascii art by Cara Pearson
 
