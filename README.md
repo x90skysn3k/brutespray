@@ -2,7 +2,7 @@
 Created by: Shane Young/@x90skysn3k && Jacob Robles/@shellfail 
 
 # Description
-BruteSpray takes nmap GNMAP output and automatically brute-forces services with default credentials using Medusa. 
+BruteSpray takes nmap GNMAP output and automatically brute-forces services with default credentials using Medusa. BruteSpray can even find non-standard ports by using the -sV inside Nmap.  
 
 # Usage
 First do an nmap scan with '-oA nmap.gnmap'.
