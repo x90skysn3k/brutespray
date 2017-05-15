@@ -52,7 +52,8 @@ banner = colors.red + r"""
                                                                                    
 """+'\n' \
 + '\n brutespray.py v1.0' \
-+ '\n Created by: Shane Young/@x90skysn3k && Jacob Robles/@shellfail' + colors.normal + '\n'
++ '\n Created by: Shane Young/@x90skysn3k && Jacob Robles/@shellfail' \
++ '\n Insipired by: Leon Johnson/@sho-luv' + colors.normal + '\n'
 #ascii art by Cara Pearson
 
 def make_dic():

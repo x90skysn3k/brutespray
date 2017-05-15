@@ -1,5 +1,6 @@
 # BruteSpray
 Created by: Shane Young/@x90skysn3k && Jacob Robles/@shellfail 
+Inspired by: Leon Johnson/@sho-luv
 
 # Description
 BruteSpray takes nmap GNMAP output and automatically brute-forces services with default credentials using Medusa. BruteSpray can even find non-standard ports by using the -sV inside Nmap.  
