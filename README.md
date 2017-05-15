@@ -1,5 +1,6 @@
 # BruteSpray
 Created by: Shane Young/@x90skysn3k && Jacob Robles/@shellfail 
+
 Inspired by: Leon Johnson/@sho-luv
 
 # Description
