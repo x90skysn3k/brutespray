@@ -12,7 +12,7 @@ https://youtu.be/C-CVLbSEe_g
 # Description
 BruteSpray takes nmap GNMAP output and automatically brute-forces services with default credentials using Medusa. BruteSpray can even find non-standard ports by using the -sV inside Nmap.  
 
-<img src="http://i.imgur.com/ofdKXGB.png" width="500">
+<img src="http://i.imgur.com/k9BDB5R.png" width="500">
 
 
 
