@@ -46,4 +46,4 @@ v1.3
 * v1.3
     * added the ability to stop on success
     * added the ability to reference custom userlists and passlists
-    * added the ability to specify specific user & passwords
+    * added the ability to specify specific users & passwords
