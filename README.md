@@ -18,7 +18,7 @@ Command: python brutespray.py -h
 Example: python brutespray.py --file nmap.gnmap --services all --threads 3 --hosts 5
 
 # Version
-v1.0
+v1.3
 
 # Supported Services
 
@@ -42,5 +42,8 @@ v1.0
 * svn
 * vmauthd
 
-# Notes
-Feel free to update wordlists.
+# Changelog
+* v1.3
+    * added the ability to stop on success
+    * added the ability to reference custom userlists and passlists
+    * added the ability to specify specific user & passwords

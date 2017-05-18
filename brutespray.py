@@ -51,7 +51,7 @@ banner = colors.red + r"""
 ╚═════╝ ╚═╝  ╚═╝ ╚═════╝    ╚═╝   ╚══════╝╚══════╝╚═╝     ╚═╝  ╚═╝╚═╝  ╚═╝   ╚═╝   
                                                                                    
 """+'\n' \
-+ '\n brutespray.py v1.0' \
++ '\n brutespray.py v1.3' \
 + '\n Created by: Shane Young/@x90skysn3k && Jacob Robles/@shellfail' \
 + '\n Inspired by: Leon Johnson/@sho-luv' + colors.normal + '\n'
 #ascii art by Cara Pearson
@@ -80,10 +80,34 @@ def make_dic():
                    else:
                         services[name] = {tmp_port:ip}
 
-def brute(service,port,fname):   
-    userlist = 'wordlist/'+service+'/user'
-    passlist = 'wordlist/'+service+'/password'
-    p = subprocess.Popen(['medusa', '-H', fname, '-U', userlist, '-P', passlist, '-M', service, '-t', args.threads, '-n', port, '-T', args.hosts], stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=-1)
+def brute(service,port,fname):  
+
+    if args.userlist is None and args.username is None:
+        userlist = 'wordlist/'+service+'/user'
+        uarg = '-U'
+    elif args.userlist:
+        userlist = args.userlist
+        uarg = '-U'
+    elif args.username:
+        userlist = args.username
+        uarg = '-u'
+
+    if args.passlist is None and args.password is None:
+        passlist = 'wordlist/'+service+'/password'
+        parg = '-P'
+    elif args.passlist:
+        passlist = args.passlist
+        parg = '-P'
+    elif args.password:
+        passlist = args.password
+        parg = '-p'
+    
+    if args.continuous:
+        cont = ''
+    else:
+        cont = '-F'
+    
+    p = subprocess.Popen(['medusa', '-H', fname, uarg, userlist, parg, passlist, '-M', service, '-t', args.threads, '-n', port, '-T', args.hosts, cont], stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=-1)
 
     out = "[" + colors.green + "+" + colors.normal + "] "
     output = 'output/' + service + '-success.txt'
@@ -123,8 +147,18 @@ def parse_args():
 
     menu_group.add_argument('-t', '--threads', help="number of medusa threads", default="2")
     
-    menu_group.add_argument('-T', '--hosts', help="number of hosts to test concurrently", default="1")    
+    menu_group.add_argument('-T', '--hosts', help="number of hosts to test concurrently", default="1")
 
+    menu_group.add_argument('-U', '--userlist', help="reference a custom username file", default=None)
+
+    menu_group.add_argument('-P', '--passlist', help="reference a custom password file", default=None)
+
+    menu_group.add_argument('-u', '--username', help="specify a single username", default=None)
+    
+    menu_group.add_argument('-p', '--password', help="specify a single password", default=None)
+
+    menu_group.add_argument('-c', '--continuous', help="keep brute-forcing after success", default=False, action='store_true')
+    
     argcomplete.autocomplete(parser)    
    
     args = parser.parse_args()
@@ -144,7 +178,7 @@ if __name__ == "__main__":
         os.remove(tmppath+filename)
     if not os.path.exists("output/"):
         os.mkdir("output/")
-
+    
     make_dic() 
     animate()
     
