@@ -19,19 +19,19 @@ Command: ```python brutespray.py --file nmap.gnmap```
 
 ## Examples
 
-Using Custom Wordlists:
+#### Using Custom Wordlists:
 
 ```python brutespray.py --file nmap.gnmap -U /usr/share/wordlist/user.txt -P /usr/share/wordlist/pass.txt --threads 5 --hosts 5```
 
-Brute-Forcing Specific Services:
+#### Brute-Forcing Specific Services:
 
 ```python brutespray.py --file nmap.gnmap --service ftp,ssh,telnet --threads 5 --hosts 5```
 
-Specific Credentials:
+#### Specific Credentials:
    
 ```python brutespray.py --file nmap.gnmap -u admin -p password --threads 5 --hosts 5```
 
-Continue After Success:
+#### Continue After Success:
 
 ```python brutespray.py --file nmap.gnmap --threads 5 --hosts 5 -c```
 
