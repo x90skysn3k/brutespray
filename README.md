@@ -1,7 +1,9 @@
 # BruteSpray
+
 Created by: Shane Young/@x90skysn3k && Jacob Robles/@shellfail 
 
 Inspired by: Leon Johnson/@sho-luv
+
 
 # Demo
 
@@ -10,12 +12,18 @@ https://youtu.be/C-CVLbSEe_g
 # Description
 BruteSpray takes nmap GNMAP output and automatically brute-forces services with default credentials using Medusa. BruteSpray can even find non-standard ports by using the -sV inside Nmap.  
 
+<img src="http://i.imgur.com/ofdKXGB.png" width="500">
+
+
+
 # Usage
 First do an nmap scan with '-oA nmap.gnmap'.
 
 Command: ```python brutespray.py -h```
 
 Command: ```python brutespray.py --file nmap.gnmap```
+
+<img src="http://i.imgur.com/jDzT0sT.png" width="400">
 
 ## Examples
 
