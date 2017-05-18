@@ -4,6 +4,7 @@ Created by: Shane Young/@x90skysn3k && Jacob Robles/@shellfail
 
 Inspired by: Leon Johnson/@sho-luv
 
+### Version - v1.3
 
 # Demo
 
@@ -42,9 +43,6 @@ Command: ```python brutespray.py --file nmap.gnmap```
 #### Continue After Success:
 
 ```python brutespray.py --file nmap.gnmap --threads 5 --hosts 5 -c```
-
-# Version
-v1.3
 
 # Supported Services
 
