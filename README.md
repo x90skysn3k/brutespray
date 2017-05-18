@@ -23,7 +23,7 @@ Command: ```python brutespray.py -h```
 
 Command: ```python brutespray.py --file nmap.gnmap```
 
-<img src="http://i.imgur.com/jDzT0sT.png" width="400">
+<img src="http://i.imgur.com/jDzT0sT.png" width="450">
 
 ## Examples
 
