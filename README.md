@@ -17,7 +17,7 @@ Command: ```python brutespray.py -h```
 
 Command: ```python brutespray.py --file nmap.gnmap```
 
-## Eamples
+## Examples
 
 Using Custom Wordlists:
 
