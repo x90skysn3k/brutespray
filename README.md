@@ -13,9 +13,17 @@ BruteSpray takes nmap GNMAP output and automatically brute-forces services with 
 # Usage
 First do an nmap scan with '-oA nmap.gnmap'.
 
-Command: python brutespray.py -h
+Command: ```python brutespray.py -h```
 
-Example: python brutespray.py --file nmap.gnmap --services all --threads 3 --hosts 5
+Command: ```python brutespray.py --file nmap.gnmap```
+
+## Eamples
+
+Using Custom Wordlists:
+
+```python brutespray.py --file nmap.gnmap --service ftp,ssh,telnet -U /usr/share/wordlist/user.txt -P /usr/share/wordlist/pass.txt --threads 5 --hosts 5```
+
+
 
 # Version
 v1.3
