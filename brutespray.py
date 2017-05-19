@@ -62,7 +62,7 @@ def make_dic_gnmap():
     port = None
     with open(args.file, 'r') as nmap_file:
         for line in nmap_file:
-            supported = ['ssh','ftp','postgres','telnet','mysql','mssql','rsh','vnc','imap','nntp','pcanywhere','pop3','rexec','rlogin','smbnt','smtp','svn','vmauthd']
+            supported = ['ssh','ftp','postgres','telnet','mysql','ms-sql-s','rsh','vnc','imap','nntp','pcanywhere','pop3','rexec','rlogin','microsoft-ds','smtp','svn','vmauthd']
             for name in supported:
                 matches = re.compile(r'([0-9][0-9]*)/open/[a-z][a-z]*//' + name)
                 try:
@@ -74,6 +74,10 @@ def make_dic_gnmap():
                 tmp_ports = matches.findall(line)
                 for tmp_port in tmp_ports:
                    if name in services:
+                        if name =="ms-sql-s":
+                            name = "mssql"
+                        if name == "microsoft-ds":
+                            name = "smbnt"
                         if tmp_port in services[name]:
                             services[name][tmp_port] += ip
                         else:
