@@ -4,7 +4,7 @@ Created by: Shane Young/@x90skysn3k && Jacob Robles/@shellfail
 
 Inspired by: Leon Johnson/@sho-luv
 
-Credit to Medusa: JoMo-Kun / Foofus Networks <jmk@foofus.net> - [http://www.foofus.net]
+Credit to Medusa: JoMo-Kun / Foofus Networks - http://www.foofus.net
 
 #### Version - 1.4
 
