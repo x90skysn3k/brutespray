@@ -54,7 +54,8 @@ banner = colors.red + r"""
 """+'\n' \
 + '\n brutespray.py v1.4' \
 + '\n Created by: Shane Young/@x90skysn3k && Jacob Robles/@shellfail' \
-+ '\n Inspired by: Leon Johnson/@sho-luv' + colors.normal + '\n'
++ '\n Inspired by: Leon Johnson/@sho-luv' \
++ '\n Credit to Medusa: JoMo-Kun / Foofus Networks <jmk@foofus.net>\n' + colors.normal
 #ascii art by: Cara Pearson
 
 def make_dic_gnmap():
