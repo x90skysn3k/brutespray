@@ -84,7 +84,7 @@ def make_dic_gnmap():
 
 def make_dic_xml():
     global services
-    supported = ['ssh','ftp','postgresql','telnet','mysql','mssql','rsh','vnc','imap','nntp','pcanywhere','pop3','rexec','rlogin','smbnt','smtp','svn','vmauthd']
+    supported = ['ssh','ftp','postgresql','telnet','mysql','ms-sql-s','rsh','vnc','imap','nntp','pcanywhere','pop3','rexec','rlogin','microsoft-ds','smtp','svn','vmauthd']
     doc = xml.dom.minidom.parse(args.file)
 
     for host in doc.getElementsByTagName("host"):
@@ -126,6 +126,10 @@ def make_dic_xml():
                 if name in supported:
                     if name == "postgresql":
                         name = "postgres"
+                    if name =="ms-sql-s":
+                        name = "mssql"
+                    if name == "microsoft-ds":
+                        name = "smbnt"
                     if name in services:
                         if tmp_port in services[name]:
                             services[name][tmp_port] += iplist
