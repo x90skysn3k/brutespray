@@ -73,7 +73,6 @@ def make_dic_gnmap():
                 ip = re.findall( r'[0-9]+(?:\.[0-9]+){3}', line)
                 tmp_ports = matches.findall(line)
                 for tmp_port in tmp_ports:
-                   if name in services:
                         if name =="ms-sql-s":
                             name = "mssql"
                         if name == "microsoft-ds":
@@ -94,12 +93,13 @@ def make_dic_gnmap():
                             name = "pop3"
                         if name == "iss-realsecure":
                             name = "vmauthd"
-                        if tmp_port in services[name]:
-                            services[name][tmp_port] += ip
+                        if name in services:
+                            if tmp_port in services[name]:
+                                services[name][tmp_port] += ip
+                            else:
+                                services[name][tmp_port] = ip
                         else:
-                            services[name][tmp_port] = ip
-                   else:
-                        services[name] = {tmp_port:ip}
+                            services[name] = {tmp_port:ip}
 
 
 def make_dic_xml():
