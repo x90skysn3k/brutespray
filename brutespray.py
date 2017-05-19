@@ -212,7 +212,7 @@ def brute(service,port,fname):
         print line,
         sys.stdout.flush()
         time.sleep(0.0001)
-        if '[SUCCESS]' in line:
+        if 'SUCCESS' in line:
             f = open(output, 'a')
             f.write(out + line)
             f.close()    
