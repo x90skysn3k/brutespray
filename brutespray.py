@@ -62,7 +62,7 @@ def make_dic_gnmap():
     port = None
     with open(args.file, 'r') as nmap_file:
         for line in nmap_file:
-            supported = ['ssh','ftp','postgres','telnet','mysql','ms-sql-s','rsh','vnc','imap','nntp','pcanywhere','pop3','rexec','rlogin','microsoft-ds','smtp','svn','vmauthd']
+            supported = ['ssh','ftp','postgres','telnet','mysql','ms-sql-s','shell','vnc','imap','imaps','nntp','pcanywheredata','pop3','pop3s','exec','login','microsoft-ds','smtp', 'smtps','submission','svn','iss-realsecure']
             for name in supported:
                 matches = re.compile(r'([0-9][0-9]*)/open/[a-z][a-z]*//' + name)
                 try:
@@ -78,6 +78,22 @@ def make_dic_gnmap():
                             name = "mssql"
                         if name == "microsoft-ds":
                             name = "smbnt"
+                        if name == "pcanywheredata":
+                            name = "pcanywhere"
+                        if name == "shell":
+                            name = "rsh"
+                        if name == "exec":
+                            name = "rexec"
+                        if name == "login":
+                            name = "rlogin"
+                        if name == "smtps" or name == "submission":
+                            name = "smtp"
+                        if name == "imaps":
+                            name = "imap"
+                        if name == "pop3s":
+                            name = "pop3"
+                        if name == "iss-realsecure":
+                            name = "vmauthd"
                         if tmp_port in services[name]:
                             services[name][tmp_port] += ip
                         else:
@@ -88,7 +104,7 @@ def make_dic_gnmap():
 
 def make_dic_xml():
     global services
-    supported = ['ssh','ftp','postgresql','telnet','mysql','ms-sql-s','rsh','vnc','imap','nntp','pcanywhere','pop3','rexec','rlogin','microsoft-ds','smtp','svn','vmauthd']
+    supported = ['ssh','ftp','postgresql','telnet','mysql','ms-sql-s','rsh','vnc','imap','imaps','nntp','pcanywheredata','pop3','pop3s','exec','login','microsoft-ds','smtp','smtps','submission','svn','iss-realsecure']
     doc = xml.dom.minidom.parse(args.file)
 
     for host in doc.getElementsByTagName("host"):
@@ -134,6 +150,22 @@ def make_dic_xml():
                         name = "mssql"
                     if name == "microsoft-ds":
                         name = "smbnt"
+                    if name == "pcanywheredata":
+                        name = "pcanywhere"
+                    if name == "shell":
+                        name = "rsh"
+                    if name == "exec":
+                        name = "rexec"
+                    if name == "login":
+                        name = "rlogin"
+                    if name == "smtps" or name == "submission":
+                        name = "smtp"
+                    if name == "imaps":
+                        name = "imap"
+                    if name == "pop3s":
+                        name = "pop3"
+                    if name == "iss-realsecure":
+                        name = "vmauthd"
                     if name in services:
                         if tmp_port in services[name]:
                             services[name][tmp_port] += iplist

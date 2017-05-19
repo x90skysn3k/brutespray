@@ -68,7 +68,6 @@ Command: ```python brutesrpay.py --file nmap.xml```
 * rlogin
 * smbnt
 * smtp
-* snmp
 * svn
 * vmauthd
 
