@@ -196,7 +196,7 @@ def parse_args():
 
     menu_group = parser.add_argument_group(colors.lightblue + 'Menu Options' + colors.normal)
     
-    menu_group.add_argument('-f', '--file', help="Gnmap file to parse", required=True)
+    menu_group.add_argument('-f', '--file', help="GNMAP or XML file to parse", required=True)
     
     menu_group.add_argument('-s', '--service', help="specify service to attack", default="all")
 
