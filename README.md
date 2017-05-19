@@ -4,14 +4,14 @@ Created by: Shane Young/@x90skysn3k && Jacob Robles/@shellfail
 
 Inspired by: Leon Johnson/@sho-luv
 
-#### Version - 1.3
+#### Version - 1.4
 
 # Demo
 
 https://youtu.be/C-CVLbSEe_g
 
 # Description
-BruteSpray takes nmap GNMAP output and automatically brute-forces services with default credentials using Medusa. BruteSpray can even find non-standard ports by using the -sV inside Nmap.  
+BruteSpray takes nmap GNMAP/XML output and automatically brute-forces services with default credentials using Medusa. BruteSpray can even find non-standard ports by using the -sV inside Nmap.  
 
 <img src="http://i.imgur.com/k9BDB5R.png" width="500">
 
@@ -23,6 +23,8 @@ First do an nmap scan with '-oA nmap.gnmap'.
 Command: ```python brutespray.py -h```
 
 Command: ```python brutespray.py --file nmap.gnmap```
+
+Command: ```python brutesrpay.py --file nmap.xml```
 
 <img src="http://i.imgur.com/jDzT0sT.png" width="450">
 
@@ -67,6 +69,8 @@ Command: ```python brutespray.py --file nmap.gnmap```
 * vmauthd
 
 # Changelog
+* v1.4
+    * added ability to use nmap XML 
 * v1.3
     * added the ability to stop on success
     * added the ability to reference custom userlists and passlists

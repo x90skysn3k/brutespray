@@ -3,6 +3,7 @@
 from argparse import RawTextHelpFormatter
 import sys, time, os
 import subprocess
+import xml.dom.minidom
 import re
 import argparse
 import argcomplete
@@ -51,12 +52,12 @@ banner = colors.red + r"""
         ╚═════╝ ╚═╝  ╚═╝ ╚═════╝    ╚═╝   ╚══════╝╚══════╝╚═╝     ╚═╝  ╚═╝╚═╝  ╚═╝   ╚═╝   
                                                                                    
 """+'\n' \
-+ '\n brutespray.py v1.3' \
++ '\n brutespray.py v1.4' \
 + '\n Created by: Shane Young/@x90skysn3k && Jacob Robles/@shellfail' \
 + '\n Inspired by: Leon Johnson/@sho-luv' + colors.normal + '\n'
-#ascii art by Cara Pearson
+#ascii art by: Cara Pearson
 
-def make_dic():
+def make_dic_gnmap():
     global services
     port = None
     with open(args.file, 'r') as nmap_file:
@@ -79,6 +80,60 @@ def make_dic():
                             services[name][tmp_port] = ip
                    else:
                         services[name] = {tmp_port:ip}
+
+
+def make_dic_xml():
+    global services
+    supported = ['ssh','ftp','postgresql','telnet','mysql','mssql','rsh','vnc','imap','nntp','pcanywhere','pop3','rexec','rlogin','smbnt','smtp','svn','vmauthd']
+    doc = xml.dom.minidom.parse(args.file)
+
+    for host in doc.getElementsByTagName("host"):
+        try:
+            address = host.getElementsByTagName("address")[0]
+            ip = address.getAttribute("addr")
+            eip = ip.encode("utf8")
+            iplist = eip.split(',')
+        except:
+            # move to the next host
+            continue
+        try:
+            status = host.getElementsByTagName("status")[0]
+            state = status.getAttribute("state")
+        except:
+            state = ""
+        try:
+            ports = host.getElementsByTagName("ports")[0]
+            ports = ports.getElementsByTagName("port")
+        except:
+            continue
+
+        for port in ports:
+            pn = port.getAttribute("portid")
+            state_el = port.getElementsByTagName("state")[0]
+            state = state_el.getAttribute("state")
+            if state == "open":
+                try:
+                    service = port.getElementsByTagName("service")[0]
+                    port_name = service.getAttribute("name")
+                except:
+                    service = ""
+                    port_name = ""
+                    product_descr = ""
+                    product_ver = ""
+                    product_extra = ""
+                name = port_name.encode("utf-8")
+                tmp_port = pn.encode("utf-8")
+                if name in supported:
+                    if name == "postgresql":
+                        name = "postgres"
+                    if name in services:
+                        if tmp_port in services[name]:
+                            services[name][tmp_port] += iplist
+                        else:   
+                         services[name][tmp_port] = iplist
+                    else:
+                        services[name] = {tmp_port:iplist}
+
 
 def brute(service,port,fname):  
 
@@ -162,7 +217,6 @@ def parse_args():
     argcomplete.autocomplete(parser)    
    
     args = parser.parse_args()
-
     
     return args
 
@@ -178,8 +232,12 @@ if __name__ == "__main__":
         os.remove(tmppath+filename)
     if not os.path.exists("output/"):
         os.mkdir("output/")
-    
-    make_dic() 
+
+    try:
+        doc = xml.dom.minidom.parse(args.file)
+        make_dic_xml()
+    except:
+        make_dic_gnmap()
     animate()
     
     to_scan = args.service.split(',')
