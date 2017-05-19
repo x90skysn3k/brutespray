@@ -18,7 +18,7 @@ BruteSpray takes nmap GNMAP/XML output and automatically brute-forces services w
 
 
 # Usage
-First do an nmap scan with '-oA nmap.gnmap'.
+First do an nmap scan with ```-oG nmap.gnmap``` or ```-oX nmap.xml```.
 
 Command: ```python brutespray.py -h```
 
@@ -45,6 +45,10 @@ Command: ```python brutesrpay.py --file nmap.xml```
 #### Continue After Success:
 
 ```python brutespray.py --file nmap.gnmap --threads 5 --hosts 5 -c```
+
+#### Use Nmap XML Output
+
+```python brutespray.py --file nmap.xml --threads 5 --hosts 5```
 
 # Supported Services
 
