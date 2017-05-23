@@ -79,8 +79,9 @@ def interactive():
             srv = serv
             for prt in services[serv]:
                 iplist = services[serv][prt]
+                port = prt
                 plist = len(iplist)
-                print "Service: " + colors.green + str(serv) + colors.normal + " with number of hosts: " + colors.red + str(plist) + colors.normal
+                print "Service: " + colors.green + str(serv) + colors.normal + " on port " + colors.red + str(port) + colors.normal + " with " + colors.red + str(plist) + colors.normal + " hosts"
 
         args.service = raw_input('\n' + colors.lightblue + 'Enter services you want to brute - default all (ssh,ftp,etc): ' + colors.red)
         
