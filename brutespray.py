@@ -53,7 +53,7 @@ banner = colors.red + r"""
         ╚═════╝ ╚═╝  ╚═╝ ╚═════╝    ╚═╝   ╚══════╝╚══════╝╚═╝     ╚═╝  ╚═╝╚═╝  ╚═╝   ╚═╝   
                                                                                    
 """+'\n' \
-+ '\n brutespray.py v1.4' \
++ '\n brutespray.py v1.5' \
 + '\n Created by: Shane Young/@x90skysn3k && Jacob Robles/@shellfail' \
 + '\n Inspired by: Leon Johnson/@sho-luv' \
 + '\n Credit to Medusa: JoMo-Kun / Foofus Networks <jmk@foofus.net>\n' + colors.normal
@@ -70,15 +70,17 @@ def interactive():
     t = tabCompleter()
     singluser = ""
     if args.interactive is True:
-        print "Welcome to interactive mode\n\n"
+        print colors.white + "Welcome to interactive mode!\n\n" + colors.normal
+        print colors.red + "WANRING:" + colors.white + " Leaving an option blank will leave it empty and refer to default\n\n" + colors.normal
         print "Available services to brute-force:"
-        srv = []
         for serv in services:
-            srv.append(serv)
-        
-        print colors.green + '\n'.join(srv) + colors.normal + '\n'
-        
-        args.service = raw_input(colors.lightblue + 'Enter services you want to brute - default all (ssh,ftp,etc): ' + colors.red)
+            srv = serv
+            for prt in services[serv]:
+                iplist = services[serv][prt]
+                plist = len(iplist)
+                print "Service: " + colors.green + str(serv) + colors.normal + " with number of hosts: " + colors.red + str(plist) + colors.normal
+
+        args.service = raw_input('\n' + colors.lightblue + 'Enter services you want to brute - default all (ssh,ftp,etc): ' + colors.red)
         
         args.threads = raw_input(colors.lightblue + 'Enter the number of parrell threads (default is 2): ' + colors.red)
 
@@ -91,11 +93,11 @@ def interactive():
             readline.parse_and_bind("tab: complete")
             readline.set_completer(t.pathCompleter)
             if args.userlist is None and args.username is None:
-                args.userlist = raw_input(colors.lightblue + 'Enter the wordlist you would like to use: ' + colors.red)
+                args.userlist = raw_input(colors.lightblue + 'Enter a userlist you would like to use: ' + colors.red)
                 if args.userlist == "":
                     args.userlist = None
             if args.passlist is None and args.password is None:
-                args.passlist = raw_input(colors.lightblue + 'Enter the passlist you would like to use: ' + colors.red)
+                args.passlist = raw_input(colors.lightblue + 'Enter a passlist you would like to use: ' + colors.red)
                 if args.passlist == "":
                     args.passlist = None
             
@@ -110,9 +112,6 @@ def interactive():
                 args.password = raw_input(colors.lightblue + 'Enter a password: ' + colors.red)
                 if args.password == "":
                     args.password = None
-
-        
-
 
         if args.service == "":
             args.service = "all"

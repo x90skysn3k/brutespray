@@ -6,7 +6,7 @@ Inspired by: Leon Johnson/@sho-luv
 
 Credit to Medusa: JoMo-Kun / Foofus Networks - http://www.foofus.net
 
-#### Version - 1.4
+#### Version - 1.5
 
 # Demo
 
@@ -28,9 +28,15 @@ Command: ```python brutespray.py --file nmap.gnmap```
 
 Command: ```python brutesrpay.py --file nmap.xml```
 
+Command: ```python brutespray.py --file nmap.xml -i```
+
 <img src="http://i.imgur.com/jDzT0sT.png" width="450">
 
 ## Examples
+
+#### Interactive Mode
+
+```python brutespray.py --file nmap.xml -i```
 
 #### Using Custom Wordlists:
 
