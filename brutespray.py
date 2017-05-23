@@ -85,9 +85,9 @@ def interactive():
 
         args.service = raw_input('\n' + colors.lightblue + 'Enter services you want to brute - default all (ssh,ftp,etc): ' + colors.red)
         
-        args.threads = raw_input(colors.lightblue + 'Enter the number of parrell threads (default is 2): ' + colors.red)
+        args.threads = raw_input(colors.lightblue + 'Enter the number of parallel threads (default is 2): ' + colors.red)
 
-        args.hosts = raw_input(colors.lightblue + 'Enter the number of parrell hosts to scan per service (default is 1): ' + colors.red)
+        args.hosts = raw_input(colors.lightblue + 'Enter the number of parallel hosts to scan per service (default is 1): ' + colors.red)
 
         if args.passlist is None or args.userlist is None:
             customword = raw_input(colors.lightblue + 'Would you like to specify a wordlist? (y/n): ' + colors.red)
