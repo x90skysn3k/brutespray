@@ -82,6 +82,8 @@ Command: ```python brutespray.py --file nmap.xml -i```
 * vmauthd
 
 # Changelog
+* v1.5
+    * added interactive mode
 * v1.4
     * added ability to use nmap XML 
 * v1.3
