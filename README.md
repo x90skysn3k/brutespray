@@ -58,7 +58,10 @@ Command: ```python brutespray.py --file nmap.xml -i```
 
 ```python brutespray.py --file nmap.xml -i```
 
+<<<<<<< HEAD
 <img src="https://i.imgur.com/1GksEuL.png" width="600">
+=======
+>>>>>>> 9bb929fdc4233d418d70cdc930008ace4f5d5693
 
 # Supported Services
 
