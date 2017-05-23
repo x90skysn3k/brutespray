@@ -30,13 +30,9 @@ Command: ```python brutesrpay.py --file nmap.xml```
 
 Command: ```python brutespray.py --file nmap.xml -i```
 
-<img src="http://i.imgur.com/jDzT0sT.png" width="450">
+<img src="https://i.imgur.com/25rfMAB.png" width="450">
 
 ## Examples
-
-#### Interactive Mode
-
-```python brutespray.py --file nmap.xml -i```
 
 #### Using Custom Wordlists:
 
@@ -57,6 +53,12 @@ Command: ```python brutespray.py --file nmap.xml -i```
 #### Use Nmap XML Output
 
 ```python brutespray.py --file nmap.xml --threads 5 --hosts 5```
+
+#### Interactive Mode
+
+```python brutespray.py --file nmap.xml -i```
+
+<img src="https://i.imgur.com/OlziTN8.png" width="500">
 
 # Supported Services
 
