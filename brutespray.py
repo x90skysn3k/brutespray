@@ -8,10 +8,12 @@ import xml.dom.minidom
 import re
 import argparse
 import argcomplete
+import threading
 import itertools
 from multiprocessing import Process
 
 services = {}
+loading = False
 
 class colors:
     white = "\033[1;37m"
@@ -70,8 +72,8 @@ def interactive():
     t = tabCompleter()
     singluser = ""
     if args.interactive is True:
-        print colors.white + "Welcome to interactive mode!\n\n" + colors.normal
-        print colors.red + "WANRING:" + colors.white + " Leaving an option blank will leave it empty and refer to default\n\n" + colors.normal
+        print colors.white + "\n\nWelcome to interactive mode!\n\n" + colors.normal
+        print colors.red + "WARNING:" + colors.white + " Leaving an option blank will leave it empty and refer to default\n\n" + colors.normal
         print "Available services to brute-force:"
         for serv in services:
             srv = serv
@@ -123,6 +125,7 @@ def interactive():
     print colors.normal
 
 def make_dic_gnmap():
+    global loading
     global services
     port = None
     with open(args.file, 'r') as nmap_file:
@@ -166,12 +169,13 @@ def make_dic_gnmap():
                         else:
                             services[name] = {tmp_port:ip}
 
+    loading = True
 
 def make_dic_xml():
+    global loading
     global services
     supported = ['ssh','ftp','postgresql','telnet','mysql','ms-sql-s','rsh','vnc','imap','imaps','nntp','pcanywheredata','pop3','pop3s','exec','login','microsoft-ds','smtp','smtps','submission','svn','iss-realsecure']
     doc = xml.dom.minidom.parse(args.file)
-
     for host in doc.getElementsByTagName("host"):
         try:
             address = host.getElementsByTagName("address")[0]
@@ -238,6 +242,7 @@ def make_dic_xml():
                          services[name][tmp_port] = iplist
                     else:
                         services[name] = {tmp_port:iplist}
+    loading = True        
 
 
 def brute(service,port,fname):  
@@ -293,6 +298,14 @@ def animate():
         sys.stdout.write('\n\nBrute-Forcing...     \n') 
         time.sleep(1)
 
+def loading():
+    for c in itertools.cycle(['|', '/', '-', '\\']):
+        if loading == True:
+            break
+        sys.stdout.write('\rLoading File: ' + c)
+        sys.stdout.flush()
+        time.sleep(0.01)
+
 def parse_args():
     
     parser = argparse.ArgumentParser(formatter_class=RawTextHelpFormatter, description=\
@@ -341,6 +354,8 @@ if __name__ == "__main__":
         os.mkdir("output/")
 
     try:
+        t = threading.Thread(target=loading)
+        t.start()
         doc = xml.dom.minidom.parse(args.file)
         make_dic_xml()
     except:
