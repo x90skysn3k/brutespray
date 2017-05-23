@@ -1,6 +1,7 @@
 #!/usr/bin/env python2
 # -*- coding: utf-8 -*-
 from argparse import RawTextHelpFormatter
+import readline, glob
 import sys, time, os
 import subprocess
 import xml.dom.minidom
@@ -57,6 +58,70 @@ banner = colors.red + r"""
 + '\n Inspired by: Leon Johnson/@sho-luv' \
 + '\n Credit to Medusa: JoMo-Kun / Foofus Networks <jmk@foofus.net>\n' + colors.normal
 #ascii art by: Cara Pearson
+
+class tabCompleter(object):
+
+    def pathCompleter(self,text,state):
+        line   = readline.get_line_buffer().split()
+
+        return [x for x in glob.glob(text+'*')][state]
+
+def interactive():
+    t = tabCompleter()
+    singluser = ""
+    if args.interactive is True:
+        print "Welcome to interactive mode\n\n"
+        print "Available services to brute-force:"
+        srv = []
+        for serv in services:
+            srv.append(serv)
+        
+        print colors.green + '\n'.join(srv) + colors.normal + '\n'
+        
+        args.service = raw_input(colors.lightblue + 'Enter services you want to brute - default all (ssh,ftp,etc): ' + colors.red)
+        
+        args.threads = raw_input(colors.lightblue + 'Enter the number of parrell threads (default is 2): ' + colors.red)
+
+        args.hosts = raw_input(colors.lightblue + 'Enter the number of parrell hosts to scan per service (default is 1): ' + colors.red)
+
+        if args.passlist is None or args.userlist is None:
+            customword = raw_input(colors.lightblue + 'Would you like to specify a wordlist? (y/n): ' + colors.red)
+        if customword == "y":
+            readline.set_completer_delims('\t')
+            readline.parse_and_bind("tab: complete")
+            readline.set_completer(t.pathCompleter)
+            if args.userlist is None and args.username is None:
+                args.userlist = raw_input(colors.lightblue + 'Enter the wordlist you would like to use: ' + colors.red)
+                if args.userlist == "":
+                    args.userlist = None
+            if args.passlist is None and args.password is None:
+                args.passlist = raw_input(colors.lightblue + 'Enter the passlist you would like to use: ' + colors.red)
+                if args.passlist == "":
+                    args.passlist = None
+            
+        if args.username is None or args.password is None: 
+            singluser = raw_input(colors.lightblue + 'Would to specify a single username or password (y/n): ' + colors.red)
+        if singluser == "y":
+            if args.username is None and args.userlist is None:
+                args.username = raw_input(colors.lightblue + 'Enter a username: ' + colors.red)
+                if args.username == "":
+                    args.username = None
+            if args.password is None and args.passlist is None:
+                args.password = raw_input(colors.lightblue + 'Enter a password: ' + colors.red)
+                if args.password == "":
+                    args.password = None
+
+        
+
+
+        if args.service == "":
+            args.service = "all"
+        if args.threads == "":
+            args.threads = "2"
+        if args.hosts == "":
+            args.hosts = "1"
+
+    print colors.normal
 
 def make_dic_gnmap():
     global services
@@ -255,6 +320,8 @@ def parse_args():
 
     menu_group.add_argument('-c', '--continuous', help="keep brute-forcing after success", default=False, action='store_true')
     
+    menu_group.add_argument('-i', '--interactive', help="enable interactive mode", default=False, action='store_true')    
+
     argcomplete.autocomplete(parser)    
    
     args = parser.parse_args()
@@ -279,6 +346,10 @@ if __name__ == "__main__":
         make_dic_xml()
     except:
         make_dic_gnmap()
+    
+    if args.interactive is True:
+        interactive()
+    
     animate()
     
     to_scan = args.service.split(',')
