@@ -354,6 +354,10 @@ if __name__ == "__main__":
     if not os.path.exists("output/"):
         os.mkdir("output/")
 
+    if os.system("command -v medusa > /dev/null") != 0:
+        sys.stderr.write("Command medusa not found. Please install medusa before using brutespray")
+        exit(3)
+        
     try:
         t = threading.Thread(target=loading)
         t.start()
