@@ -333,7 +333,7 @@ def parse_args():
 
     menu_group.add_argument('-c', '--continuous', help="keep brute-forcing after success", default=False, action='store_true')
     
-    menu_group.add_argument('-i', '--interactive', help="enable interactive mode", default=False, action='store_true')    
+    menu_group.add_argument('-i', '--interactive', help="interactive mode", default=False, action='store_true')    
 
     argcomplete.autocomplete(parser)    
    
