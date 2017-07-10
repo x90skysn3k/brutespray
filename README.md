@@ -6,7 +6,7 @@ Inspired by: Leon Johnson/@sho-luv
 
 Credit to Medusa: JoMo-Kun / Foofus Networks - http://www.foofus.net
 
-#### Version - 1.5
+#### Version - 1.5.1
 
 # Demo
 
@@ -82,6 +82,8 @@ Command: ```python brutespray.py --file nmap.xml -i```
 * vmauthd
 
 # Changelog
+* v1.5.1
+    * added check for no services
 * v1.5
     * added interactive mode
 * v1.4
