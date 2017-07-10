@@ -371,6 +371,9 @@ if __name__ == "__main__":
     
     animate()
     
+    if services == {}:
+        print "\nNo brutable services found.\n Please check your Nmap file."
+ 
     to_scan = args.service.split(',')
     for service in services:
         if service in to_scan or to_scan == ['all']:
