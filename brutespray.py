@@ -311,7 +311,7 @@ def parse_args():
     
     parser = argparse.ArgumentParser(formatter_class=RawTextHelpFormatter, description=\
  
-    "Usage: python brutemap.py <OPTIONS> \n")
+    "Usage: python brutespray.py <OPTIONS> \n")
 
     menu_group = parser.add_argument_group(colors.lightblue + 'Menu Options' + colors.normal)
     

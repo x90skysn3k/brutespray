@@ -1,0 +1,7 @@
+argcomplete==1.8.1
+pyscreenshot==0.4.2
+pytesseract==0.1.7
+lxml==3.8.0
+requests==2.12.4
+Pillow==4.2.1
+beautifulsoup4==4.6.0

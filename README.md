@@ -17,7 +17,9 @@ BruteSpray takes nmap GNMAP/XML output and automatically brute-forces services w
 
 <img src="http://i.imgur.com/k9BDB5R.png" width="500">
 
+# Installation
 
+```pip install -r requirements.txt```
 
 # Usage
 First do an nmap scan with ```-oG nmap.gnmap``` or ```-oX nmap.xml```.
