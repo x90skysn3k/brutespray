@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/python
 # -*- coding: utf-8 -*-
 from argparse import RawTextHelpFormatter
 import readline, glob
@@ -10,6 +10,8 @@ import argparse
 import argcomplete
 import threading
 import itertools
+import tempfile
+import shutil
 from multiprocessing import Process
 
 services = {}
@@ -246,7 +248,7 @@ def make_dic_xml():
     loading = True        
 
 
-def brute(service,port,fname):  
+def brute(service,port,fname,output):
 
     if args.userlist is None and args.username is None:
         userlist = 'wordlist/'+service+'/user'
@@ -276,7 +278,7 @@ def brute(service,port,fname):
     p = subprocess.Popen(['medusa', '-H', fname, uarg, userlist, parg, passlist, '-M', service, '-t', args.threads, '-n', port, '-T', args.hosts, cont], stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=-1)
 
     out = "[" + colors.green + "+" + colors.normal + "] "
-    output = 'output/' + service + '-success.txt'
+    output_file = output + '/' + service + '-success.txt'
     
  
     for line in iter(p.stdout.readline, b''):
@@ -284,7 +286,7 @@ def brute(service,port,fname):
         sys.stdout.flush()
         time.sleep(0.0001)
         if 'SUCCESS' in line:
-            f = open(output, 'a')
+            f = open(output_file, 'a')
             f.write(out + line)
             f.close()    
    
@@ -316,43 +318,35 @@ def parse_args():
     menu_group = parser.add_argument_group(colors.lightblue + 'Menu Options' + colors.normal)
     
     menu_group.add_argument('-f', '--file', help="GNMAP or XML file to parse", required=True)
-    
+    menu_group.add_argument('-o', '--output', help="Directory containing successful attempts", default="brutespray-output")
     menu_group.add_argument('-s', '--service', help="specify service to attack", default="all")
-
     menu_group.add_argument('-t', '--threads', help="number of medusa threads", default="2")
-    
     menu_group.add_argument('-T', '--hosts', help="number of hosts to test concurrently", default="1")
-
     menu_group.add_argument('-U', '--userlist', help="reference a custom username file", default=None)
-
     menu_group.add_argument('-P', '--passlist', help="reference a custom password file", default=None)
-
     menu_group.add_argument('-u', '--username', help="specify a single username", default=None)
-    
     menu_group.add_argument('-p', '--password', help="specify a single password", default=None)
-
     menu_group.add_argument('-c', '--continuous', help="keep brute-forcing after success", default=False, action='store_true')
-    
     menu_group.add_argument('-i', '--interactive', help="interactive mode", default=False, action='store_true')    
 
     argcomplete.autocomplete(parser)    
-   
     args = parser.parse_args()
     
     return args
 
-
 if __name__ == "__main__":
     print(banner)
     args = parse_args()
-    if not os.path.exists("tmp/"):
-        os.mkdir("tmp/")
-    tmppath = "tmp/"
-    filelist = os.listdir(tmppath)
-    for filename in filelist:
-        os.remove(tmppath+filename)
-    if not os.path.exists("output/"):
-        os.mkdir("output/")
+
+    #temporary directory for ip addresses
+    try:
+        tmppath = tempfile.mkdtemp(prefix="brutespray-tmp")
+    except:
+        sys.stderr.write("\nError while creating brutespray temp directory.")
+        exit(4)
+
+    if not os.path.exists(args.output):
+        os.mkdir(args.output)
 
     if os.system("command -v medusa > /dev/null") != 0:
         sys.stderr.write("Command medusa not found. Please install medusa before using brutespray")
@@ -378,11 +372,14 @@ if __name__ == "__main__":
     for service in services:
         if service in to_scan or to_scan == ['all']:
             for port in services[service]:
-                fname = 'tmp/'+service + '-' + port
+                fname = tmppath + '/' +service + '-' + port
                 iplist = services[service][port]
                 f = open(fname, 'w+')
                 for ip in iplist:
                     f.write(ip + '\n')
                 f.close()
-                brute_process = Process(target = brute, args=(service,port,fname))
+                brute_process = Process(target=brute, args=(service,port,fname,args.output))
                 brute_process.start()
+
+    #need to wait for all of the processes to run...
+    #shutil.rmtree(tmppath, ignore_errors=False, onerror=None)
