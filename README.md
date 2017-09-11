@@ -21,6 +21,10 @@ BruteSpray takes nmap GNMAP/XML output and automatically brute-forces services w
 
 ```pip install -r requirements.txt```
 
+On Kali:
+
+```apt-get install brutespray```
+
 # Usage
 First do an nmap scan with ```-oG nmap.gnmap``` or ```-oX nmap.xml```.
 
