@@ -6,7 +6,7 @@ Inspired by: Leon Johnson/@sho-luv
 
 Credit to Medusa: JoMo-Kun / Foofus Networks - http://www.foofus.net
 
-#### Version - 1.5.3
+#### Version - 1.6.0
 
 # Demo
 
@@ -86,8 +86,11 @@ Command: ```python brutespray.py --file nmap.xml -i```
 * smtp
 * svn
 * vmauthd
+* snmp
 
 # Changelog
+* v1.6.0
+    * added support for SNMP
 * v1.5.3
     * adjustments to wordlists
 * v1.5.2

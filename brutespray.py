@@ -57,7 +57,7 @@ banner = colors.red + r"""
         ╚═════╝ ╚═╝  ╚═╝ ╚═════╝    ╚═╝   ╚══════╝╚══════╝╚═╝     ╚═╝  ╚═╝╚═╝  ╚═╝   ╚═╝   
                                                                                    
 """+'\n' \
-+ '\n brutespray.py v1.5.3' \
++ '\n brutespray.py v1.6.0' \
 + '\n Created by: Shane Young/@x90skysn3k && Jacob Robles/@shellfail' \
 + '\n Inspired by: Leon Johnson/@sho-luv' \
 + '\n Credit to Medusa: JoMo-Kun / Foofus Networks <jmk@foofus.net>\n' + colors.normal
@@ -133,7 +133,7 @@ def make_dic_gnmap():
     port = None
     with open(args.file, 'r') as nmap_file:
         for line in nmap_file:
-            supported = ['ssh','ftp','postgres','telnet','mysql','ms-sql-s','shell','vnc','imap','imaps','nntp','pcanywheredata','pop3','pop3s','exec','login','microsoft-ds','smtp', 'smtps','submission','svn','iss-realsecure']
+            supported = ['ssh','ftp','postgres','telnet','mysql','ms-sql-s','shell','vnc','imap','imaps','nntp','pcanywheredata','pop3','pop3s','exec','login','microsoft-ds','smtp', 'smtps','submission','svn','iss-realsecure','snmptrap','snmp']
             for name in supported:
                 matches = re.compile(r'([0-9][0-9]*)/open/[a-z][a-z]*//' + name)
                 try:
@@ -164,6 +164,8 @@ def make_dic_gnmap():
                             name = "pop3"
                         if name == "iss-realsecure":
                             name = "vmauthd"
+                        if name == "snmptrap":
+                            name = "snmp"
                         if name in services:
                             if tmp_port in services[name]:
                                 services[name][tmp_port] += ip
@@ -177,7 +179,7 @@ def make_dic_gnmap():
 def make_dic_xml():
     global loading
     global services
-    supported = ['ssh','ftp','postgresql','telnet','mysql','ms-sql-s','rsh','vnc','imap','imaps','nntp','pcanywheredata','pop3','pop3s','exec','login','microsoft-ds','smtp','smtps','submission','svn','iss-realsecure']
+    supported = ['ssh','ftp','postgresql','telnet','mysql','ms-sql-s','rsh','vnc','imap','imaps','nntp','pcanywheredata','pop3','pop3s','exec','login','microsoft-ds','smtp','smtps','submission','svn','iss-realsecure','snmptrap','snmp']
     doc = xml.dom.minidom.parse(args.file)
     for host in doc.getElementsByTagName("host"):
         try:
@@ -238,6 +240,8 @@ def make_dic_xml():
                         name = "pop3"
                     if name == "iss-realsecure":
                         name = "vmauthd"
+                    if name == "snmptrap":
+                        name = "snmp"
                     if name in services:
                         if tmp_port in services[name]:
                             services[name][tmp_port] += iplist
