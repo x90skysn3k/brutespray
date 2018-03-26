@@ -6,7 +6,7 @@ Inspired by: Leon Johnson/@sho-luv
 
 Credit to Medusa: JoMo-Kun / Foofus Networks - http://www.foofus.net
 
-#### Version - 1.6.0
+#### Version - 1.6.1
 
 # Demo
 
@@ -89,6 +89,9 @@ Command: ```python brutespray.py --file nmap.xml -i```
 * snmp
 
 # Changelog
+* v1.6.1
+    * added output folder location verbage
+    * -m dumps modules available
 * v1.6.0
     * added support for SNMP
 * v1.5.3
