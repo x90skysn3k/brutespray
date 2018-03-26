@@ -36,7 +36,7 @@ Command: ```python brutesrpay.py --file nmap.xml```
 
 Command: ```python brutespray.py --file nmap.xml -i```
 
-<img src="https://i.imgur.com/25rfMAB.png" width="450">
+<img src="https://i.imgur.com/PgXEw36.png" width="450">
 
 ## Examples
 
