@@ -92,6 +92,7 @@ Command: ```python brutespray.py --file nmap.xml -i```
 * v1.6.1
     * added output folder location verbage
     * -m dumps modules available
+    * error checking when loading file
 * v1.6.0
     * added support for SNMP
 * v1.5.3

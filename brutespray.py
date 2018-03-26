@@ -322,7 +322,7 @@ def parse_args():
 
     menu_group = parser.add_argument_group(colors.lightblue + 'Menu Options' + colors.normal)
     
-    menu_group.add_argument('-f', '--file', help="GNMAP or XML file to parse", required=False)
+    menu_group.add_argument('-f', '--file', help="GNMAP or XML file to parse", required=True)
     menu_group.add_argument('-o', '--output', help="Directory containing successful attempts", default="brutespray-output")
     menu_group.add_argument('-s', '--service', help="specify service to attack", default="all")
     menu_group.add_argument('-t', '--threads', help="number of medusa threads", default="2")
@@ -365,7 +365,8 @@ if __name__ == "__main__":
     if os.system("command -v medusa > /dev/null") != 0:
         sys.stderr.write("Command medusa not found. Please install medusa before using brutespray")
         exit(3)
-    if args.file:        
+    
+    if os.path.exists(args.file):        
         try:
             t = threading.Thread(target=loading)
             t.start()
@@ -381,6 +382,8 @@ if __name__ == "__main__":
     
         if services == {}:
             print "\nNo brutable services found.\n Please check your Nmap file."
+    else:
+        print "\nError loading file, please check your filename."
  
     to_scan = args.service.split(',')
     for service in services:
