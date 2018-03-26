@@ -6,7 +6,7 @@ Inspired by: Leon Johnson/@sho-luv
 
 Credit to Medusa: JoMo-Kun / Foofus Networks - http://www.foofus.net
 
-#### Version - 1.6.0
+#### Version - 1.6.1
 
 # Demo
 
@@ -36,7 +36,7 @@ Command: ```python brutesrpay.py --file nmap.xml```
 
 Command: ```python brutespray.py --file nmap.xml -i```
 
-<img src="https://i.imgur.com/25rfMAB.png" width="450">
+<img src="https://i.imgur.com/PgXEw36.png" width="450">
 
 ## Examples
 
@@ -89,6 +89,10 @@ Command: ```python brutespray.py --file nmap.xml -i```
 * snmp
 
 # Changelog
+* v1.6.1
+    * added output folder location verbage
+    * -m dumps modules available
+    * error checking when loading file
 * v1.6.0
     * added support for SNMP
 * v1.5.3
