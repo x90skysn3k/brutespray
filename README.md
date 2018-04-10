@@ -91,6 +91,7 @@ Command: ```python brutespray.py --file nmap.xml -i```
 # Changelog
 * v1.6.2
     * added file and path error checking
+    * smtp auth args added
 * v1.6.1
     * added output folder location verbage
     * -m dumps modules available
