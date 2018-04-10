@@ -369,7 +369,8 @@ if __name__ == "__main__":
     if args.file is None:
         sys.exit(0)
 
-    if os.path.exists(args.file):        
+    if os.path.isfile(args.file):        
+    #if os.path.exists(args.file):        
         try:
             t = threading.Thread(target=loading)
             t.start()
