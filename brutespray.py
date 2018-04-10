@@ -57,7 +57,7 @@ banner = colors.red + r"""
         ╚═════╝ ╚═╝  ╚═╝ ╚═════╝    ╚═╝   ╚══════╝╚══════╝╚═╝     ╚═╝  ╚═╝╚═╝  ╚═╝   ╚═╝   
                                                                                    
 """+'\n' \
-+ '\n brutespray.py v1.6.1' \
++ '\n brutespray.py v1.6.2' \
 + '\n Created by: Shane Young/@x90skysn3k && Jacob Robles/@shellfail' \
 + '\n Inspired by: Leon Johnson/@sho-luv' \
 + '\n Credit to Medusa: JoMo-Kun / Foofus Networks <jmk@foofus.net>\n' + colors.normal
@@ -253,7 +253,6 @@ def make_dic_xml():
 
 
 def brute(service,port,fname,output):
-
     if args.userlist is None and args.username is None:
         userlist = 'wordlist/'+service+'/user'
         uarg = '-U'
@@ -368,6 +367,14 @@ if __name__ == "__main__":
     
     if args.file is None:
         sys.exit(0)
+
+    if args.passlist and not os.path.isfile(args.passlist):
+        sys.stderr.write("Passlist given does not exist. Please check your file or path\n")
+        exit(3)
+    
+    if args.userlist and not os.path.isfile(args.userlist):
+        sys.stderr.write("Userlist given does not exist. Please check your file or path\n")
+        exit(3)
 
     if os.path.isfile(args.file):        
         try:
