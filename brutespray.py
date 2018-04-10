@@ -370,7 +370,6 @@ if __name__ == "__main__":
         sys.exit(0)
 
     if os.path.isfile(args.file):        
-    #if os.path.exists(args.file):        
         try:
             t = threading.Thread(target=loading)
             t.start()
