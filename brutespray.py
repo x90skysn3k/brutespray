@@ -57,7 +57,7 @@ banner = colors.red + r"""
         ╚═════╝ ╚═╝  ╚═╝ ╚═════╝    ╚═╝   ╚══════╝╚══════╝╚═╝     ╚═╝  ╚═╝╚═╝  ╚═╝   ╚═╝   
                                                                                    
 """+'\n' \
-+ '\n brutespray.py v1.6.2' \
++ '\n brutespray.py v1.6.3' \
 + '\n Created by: Shane Young/@x90skysn3k && Jacob Robles/@shellfail' \
 + '\n Inspired by: Leon Johnson/@sho-luv' \
 + '\n Credit to Medusa: JoMo-Kun / Foofus Networks <jmk@foofus.net>\n' + colors.normal
@@ -281,8 +281,8 @@ def brute(service,port,fname,output):
         aarg = "-m"
         auth = "AUTH:LOGIN"
     else:
-        aarg = None
-        auth = None
+        aarg = ''
+        auth = ''
     
     p = subprocess.Popen(['medusa', '-H', fname, uarg, userlist, parg, passlist, '-M', service, '-t', args.threads, '-n', port, '-T', args.hosts, cont, aarg, auth], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=-1)
 
