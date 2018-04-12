@@ -6,7 +6,7 @@ Inspired by: Leon Johnson/@sho-luv
 
 Credit to Medusa: JoMo-Kun / Foofus Networks - http://www.foofus.net
 
-#### Version - 1.6.2
+#### Version - 1.6.3
 
 # Demo
 
@@ -89,6 +89,8 @@ Command: ```python brutespray.py --file nmap.xml -i```
 * snmp
 
 # Changelog
+* v1.6.3
+    * changes default smtp values
 * v1.6.2
     * added file and path error checking
     * smtp auth args added
