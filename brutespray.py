@@ -473,7 +473,7 @@ if __name__ == "__main__":
             exit(3)
     else:
         if os.system("command -v patator > /dev/null") != 0:
-            sys.stderr.write("Command patator not found. Please install medusa before using brutespray")
+            sys.stderr.write("Command patator not found. Please install patator before using brutespray")
             exit(3)
 
     if args.file is None:
