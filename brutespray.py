@@ -382,17 +382,16 @@ def brute(service, port, fname, output):
 
     out = "[" + colors.green + "+" + colors.normal + "] "
     output_file = output + '/' + port + '-' + service + '-success.txt'
-    try:
-        for line in iter(p.stdout.readline, b''):
-            print line,
-            sys.stdout.flush()
-            time.sleep(0.0001)
-            if 'SUCCESS' in line:
-                f = open(output_file, 'a')
-                f.write(out + line)
-                f.close()
-    except:
-        pass
+
+    for line in iter(p.stdout.readline, b''):
+        print line,
+        sys.stdout.flush()
+        time.sleep(0.0001)
+        if 'SUCCESS' in line:
+            f = open(output_file, 'a')
+            f.write(out + line)
+            f.close()
+
 def animate():
     sys.stdout.write(
         '\rStarting to brute, please make sure to use the right amount of ' + colors.green + 'threads(-t)' + colors.normal + ' and ' + colors.green + 'parallel hosts(-T)' + colors.normal + '...  \n')
