@@ -193,6 +193,8 @@ def make_dic_gnmap():
                             name = "mssql"
                         if name == "microsoft-ds":
                             name = "smb_login"
+                        if name == "ftp":
+                            name = "ftp_login"
                         # if name == "pcanywheredata":
                         #     name = "pcanywhere"
                         # if name == "shell":
@@ -303,6 +305,8 @@ def make_dic_xml():
                             name = "mssql"
                         if name == "microsoft-ds":
                             name = "smb_login"
+                        if name == "ftp":
+                            name = "ftp_login"
                         if name == "login":
                             name = "rlogin_login"
                         if name == "smtps" or name == "submission":
@@ -366,28 +370,29 @@ def brute(service, port, fname, output):
                               '-T', args.hosts, cont, aarg, auth
                               ], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=-1)
     else:
-        for host in fname:
-            p = subprocess.Popen(['patator',
-                                  service,
-                                  'host=', host,
-                                  'port=', port,
-                                  'user=', userlist,
-                                  'auth_key=' if service == "snmp_login" else "password=", passlist,
+	host = open(fname,'r')
+        for line in host:
+            p = subprocess.Popen(['patator', service,
+                                  'host='+ line[:-1],
+                                  'port='+ port,
+                                  'user=' + userlist,
+                                  ('auth_key=' if service == "snmp_login" else 'password=' + passlist),
+                                  '-l '+output
                                   ], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=-1)
 
     out = "[" + colors.green + "+" + colors.normal + "] "
     output_file = output + '/' + port + '-' + service + '-success.txt'
-
-    for line in iter(p.stdout.readline, b''):
-        print line,
-        sys.stdout.flush()
-        time.sleep(0.0001)
-        if 'SUCCESS' in line:
-            f = open(output_file, 'a')
-            f.write(out + line)
-            f.close()
-
-
+    try:
+        for line in iter(p.stdout.readline, b''):
+            print line,
+            sys.stdout.flush()
+            time.sleep(0.0001)
+            if 'SUCCESS' in line:
+                f = open(output_file, 'a')
+                f.write(out + line)
+                f.close()
+    except:
+        pass
 def animate():
     sys.stdout.write(
         '\rStarting to brute, please make sure to use the right amount of ' + colors.green + 'threads(-t)' + colors.normal + ' and ' + colors.green + 'parallel hosts(-T)' + colors.normal + '...  \n')
