@@ -370,7 +370,7 @@ def brute(service, port, fname, output):
                               '-T', args.hosts, cont, aarg, auth
                               ], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=-1)
     else:
-	host = open(fname,'r')
+        host = open(fname,'r')
         for line in host:
             p = subprocess.Popen(['patator', service,
                                   'host='+ line[:-1],
