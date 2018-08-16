@@ -127,6 +127,20 @@ def interactive():
 
     print colors.normal
 
+NAME_MAP = {"ms-sql-s":"mssql",
+            "microsoft-ds": "smbnt",
+            "pcanywheredata": "pcanywheredata",
+            "postgressql":"postgres",
+            "shell": "rsh",
+            "exec": "rexec",
+            "login": "rlogin",
+            "smtps": "smtp",
+            "submission": "smtp",
+            "imaps": "imap",
+            "pop3s": "pop3",
+            "iss-realsecure": "vmauthd",
+            "snmptrap": "snmp"}
+
 def make_dic_gnmap():
     global loading
     global services
@@ -136,18 +150,6 @@ def make_dic_gnmap():
                  'exec','login','microsoft-ds','smtp', 'smtps','submission',
                  'svn','iss-realsecure','snmptrap','snmp']
 
-    name_map = {"ms-sql-s":"mssql",
-                "microsoft-ds": "smbnt",
-                "pcanywheredata": "pcanywheredata",
-                "shell": "rsh",
-                "exec": "rexec",
-                "login": "rlogin",
-                "smtps": "smtp",
-                "submission": "smtp",
-                "imaps": "imap",
-                "pop3s": "pop3",
-                "iss-realsecure": "vmauthd",
-                "snmptrap": "snmp"}
 
     port = None
     with open(args.file, 'r') as nmap_file:
@@ -163,7 +165,8 @@ def make_dic_gnmap():
                 tmp_ports = matches.findall(line)
 
                 for tmp_port in tmp_ports:
-                    name = name_map.get(name, name)
+
+                    name = NAME_MAP.get(name, name)
 
                     if name in services:
                         if tmp_port in services[name]:
@@ -178,7 +181,10 @@ def make_dic_gnmap():
 def make_dic_xml():
     global loading
     global services
-    supported = ['ssh','ftp','postgresql','telnet','mysql','ms-sql-s','rsh','vnc','imap','imaps','nntp','pcanywheredata','pop3','pop3s','exec','login','microsoft-ds','smtp','smtps','submission','svn','iss-realsecure','snmptrap','snmp']
+    supported = ['ssh','ftp','postgresql','telnet','mysql','ms-sql-s','rsh',
+                 'vnc','imap','imaps','nntp','pcanywheredata','pop3','pop3s',
+                 'exec','login','microsoft-ds','smtp','smtps','submission',
+                 'svn','iss-realsecure','snmptrap','snmp']
     doc = xml.dom.minidom.parse(args.file)
     for host in doc.getElementsByTagName("host"):
         try:
@@ -216,31 +222,10 @@ def make_dic_xml():
                     product_extra = ""
                 name = port_name.encode("utf-8")
                 tmp_port = pn.encode("utf-8")
+
                 if name in supported:
-                    if name == "postgresql":
-                        name = "postgres"
-                    if name =="ms-sql-s":
-                        name = "mssql"
-                    if name == "microsoft-ds":
-                        name = "smbnt"
-                    if name == "pcanywheredata":
-                        name = "pcanywhere"
-                    if name == "shell":
-                        name = "rsh"
-                    if name == "exec":
-                        name = "rexec"
-                    if name == "login":
-                        name = "rlogin"
-                    if name == "smtps" or name == "submission":
-                        name = "smtp"
-                    if name == "imaps":
-                        name = "imap"
-                    if name == "pop3s":
-                        name = "pop3"
-                    if name == "iss-realsecure":
-                        name = "vmauthd"
-                    if name == "snmptrap":
-                        name = "snmp"
+
+                    name = NAME_MAP.get(name, name)
                     if name in services:
                         if tmp_port in services[name]:
                             services[name][tmp_port] += iplist
