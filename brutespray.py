@@ -173,11 +173,10 @@ def make_dic_gnmap():
                             else:
                                 services[name][tmp_port] = ip
                         else:
-                            services[name] = {tmp_port: ip}
+                            services[name] = {tmp_port:ip}
                     else:
                         if name == "mssql_login":
                             name = "mssql"
-                        #     TODO: smb_login wont always work
                         if name == "microsoft-ds":
                             name = "smb_login"
                         if name == "ftp":
