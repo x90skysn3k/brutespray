@@ -127,10 +127,10 @@ def interactive():
 
     print colors.normal
 
-NAME_MAP = {"ms-sql-s":"mssql",
+NAME_MAP = {"ms-sql-s": "mssql",
             "microsoft-ds": "smbnt",
             "pcanywheredata": "pcanywheredata",
-            "postgressql":"postgres",
+            "postgressql": "postgres",
             "shell": "rsh",
             "exec": "rexec",
             "login": "rlogin",
