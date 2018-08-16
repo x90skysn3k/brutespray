@@ -143,36 +143,30 @@ def make_dic_gnmap():
     
                 ip = re.findall( r'[0-9]+(?:\.[0-9]+){3}', line)
                 tmp_ports = matches.findall(line)
+
+                name_map = {"ms-sql-s":"mssql",
+                            "microsoft-ds": "smbnt",
+                            "pcanywheredata": "pcanywheredata",
+                            "shell": "rsh",
+                            "exec": "rexec",
+                            "login": "rlogin",
+                            "smtps": "smtp",
+                            "submission": "smtp",
+                            "imaps": "imap",
+                            "pop3s": "pop3",
+                            "iss-realsecure": "vmauthd",
+                            "snmptrap": "snmp"}
+
                 for tmp_port in tmp_ports:
-                        if name =="ms-sql-s":
-                            name = "mssql"
-                        if name == "microsoft-ds":
-                            name = "smbnt"
-                        if name == "pcanywheredata":
-                            name = "pcanywhere"
-                        if name == "shell":
-                            name = "rsh"
-                        if name == "exec":
-                            name = "rexec"
-                        if name == "login":
-                            name = "rlogin"
-                        if name == "smtps" or name == "submission":
-                            name = "smtp"
-                        if name == "imaps":
-                            name = "imap"
-                        if name == "pop3s":
-                            name = "pop3"
-                        if name == "iss-realsecure":
-                            name = "vmauthd"
-                        if name == "snmptrap":
-                            name = "snmp"
-                        if name in services:
-                            if tmp_port in services[name]:
-                                services[name][tmp_port] += ip
-                            else:
-                                services[name][tmp_port] = ip
+                    name = name_map.get(name, name)
+
+                    if name in services:
+                        if tmp_port in services[name]:
+                            services[name][tmp_port] += ip
                         else:
-                            services[name] = {tmp_port:ip}
+                            services[name][tmp_port] = ip
+                    else:
+                        services[name] = {tmp_port:ip}
 
     loading = True
 
