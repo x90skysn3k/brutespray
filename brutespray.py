@@ -130,10 +130,28 @@ def interactive():
 def make_dic_gnmap():
     global loading
     global services
+
+    supported = ['ssh','ftp','postgres','telnet','mysql','ms-sql-s','shell',
+                 'vnc','imap','imaps','nntp','pcanywheredata','pop3','pop3s',
+                 'exec','login','microsoft-ds','smtp', 'smtps','submission',
+                 'svn','iss-realsecure','snmptrap','snmp']
+
+    name_map = {"ms-sql-s":"mssql",
+                "microsoft-ds": "smbnt",
+                "pcanywheredata": "pcanywheredata",
+                "shell": "rsh",
+                "exec": "rexec",
+                "login": "rlogin",
+                "smtps": "smtp",
+                "submission": "smtp",
+                "imaps": "imap",
+                "pop3s": "pop3",
+                "iss-realsecure": "vmauthd",
+                "snmptrap": "snmp"}
+
     port = None
     with open(args.file, 'r') as nmap_file:
         for line in nmap_file:
-            supported = ['ssh','ftp','postgres','telnet','mysql','ms-sql-s','shell','vnc','imap','imaps','nntp','pcanywheredata','pop3','pop3s','exec','login','microsoft-ds','smtp', 'smtps','submission','svn','iss-realsecure','snmptrap','snmp']
             for name in supported:
                 matches = re.compile(r'([0-9][0-9]*)/open/[a-z][a-z]*//' + name)
                 try:
@@ -143,19 +161,6 @@ def make_dic_gnmap():
     
                 ip = re.findall( r'[0-9]+(?:\.[0-9]+){3}', line)
                 tmp_ports = matches.findall(line)
-
-                name_map = {"ms-sql-s":"mssql",
-                            "microsoft-ds": "smbnt",
-                            "pcanywheredata": "pcanywheredata",
-                            "shell": "rsh",
-                            "exec": "rexec",
-                            "login": "rlogin",
-                            "smtps": "smtp",
-                            "submission": "smtp",
-                            "imaps": "imap",
-                            "pop3s": "pop3",
-                            "iss-realsecure": "vmauthd",
-                            "snmptrap": "snmp"}
 
                 for tmp_port in tmp_ports:
                     name = name_map.get(name, name)
