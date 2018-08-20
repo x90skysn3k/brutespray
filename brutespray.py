@@ -86,7 +86,7 @@ def interactive():
                 print "Service: " + colors.green + str(serv) + colors.normal + " on port " + colors.red + str(port) + colors.normal + " with " + colors.red + str(plist) + colors.normal + " hosts"
 
         args.service = raw_input('\n' + colors.lightblue + 'Enter services you want to brute - default all (ssh,ftp,etc): ' + colors.red)
-        
+
         args.threads = raw_input(colors.lightblue + 'Enter the number of parallel threads (default is 2): ' + colors.red)
 
         args.hosts = raw_input(colors.lightblue + 'Enter the number of parallel hosts to scan per service (default is 1): ' + colors.red)
@@ -105,7 +105,7 @@ def interactive():
                 args.passlist = raw_input(colors.lightblue + 'Enter a passlist you would like to use: ' + colors.red)
                 if args.passlist == "":
                     args.passlist = None
-            
+
         if args.username is None or args.password is None: 
             singluser = raw_input(colors.lightblue + 'Would to specify a single username or password (y/n): ' + colors.red)
         if singluser == "y":
@@ -129,8 +129,8 @@ def interactive():
 
 NAME_MAP = {"ms-sql-s": "mssql",
             "microsoft-ds": "smbnt",
-            "pcanywheredata": "pcanywheredata",
-            "postgressql": "postgres",
+            "pcanywheredata": "pcanywhere",
+            "postgresql": "postgres",
             "shell": "rsh",
             "exec": "rexec",
             "login": "rlogin",
@@ -160,7 +160,7 @@ def make_dic_gnmap():
                     port =  matches.findall(line)[0]
                 except:
                     continue
-    
+
                 ip = re.findall( r'[0-9]+(?:\.[0-9]+){3}', line)
                 tmp_ports = matches.findall(line)
 
@@ -229,11 +229,11 @@ def make_dic_xml():
                     if name in services:
                         if tmp_port in services[name]:
                             services[name][tmp_port] += iplist
-                        else:   
-                         services[name][tmp_port] = iplist
+                        else:
+                            services[name][tmp_port] = iplist
                     else:
                         services[name] = {tmp_port:iplist}
-    loading = True        
+    loading = True
 
 
 def brute(service,port,fname,output):
@@ -256,7 +256,7 @@ def brute(service,port,fname,output):
     elif args.password:
         passlist = args.password
         parg = '-p'
-    
+
     if args.continuous:
         cont = ''
     else:
@@ -267,7 +267,7 @@ def brute(service,port,fname,output):
     else:
         aarg = ''
         auth = ''
-    
+
     p = subprocess.Popen(['medusa', '-H', fname, uarg, userlist, parg, passlist, '-M', service, '-t', args.threads, '-n', port, '-T', args.hosts, cont, aarg, auth], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=-1)
 
     out = "[" + colors.green + "+" + colors.normal + "] "
@@ -281,19 +281,19 @@ def brute(service,port,fname,output):
         if 'SUCCESS' in line:
             f = open(output_file, 'a')
             f.write(out + line)
-            f.close()    
-   
+            f.close()
+
 def animate():
-        sys.stdout.write('\rStarting to brute, please make sure to use the right amount of ' + colors.green + 'threads(-t)' + colors.normal + ' and ' + colors.green + 'parallel hosts(-T)' + colors.normal + '...  \n')
-        t_end = time.time() + 2
-        for c in itertools.cycle(['|', '/', '-', '\\']):
-            if not time.time() < t_end:
-                break
-            sys.stdout.write('\rOutput will be written to the folder: ./' + colors.green + args.output + colors.normal + "/ "+ c)
-            sys.stdout.flush()
-            time.sleep(0.1)
-        sys.stdout.write('\n\nBrute-Forcing...     \n') 
-        time.sleep(1)
+    sys.stdout.write('\rStarting to brute, please make sure to use the right amount of ' + colors.green + 'threads(-t)' + colors.normal + ' and ' + colors.green + 'parallel hosts(-T)' + colors.normal + '...  \n')
+    t_end = time.time() + 2
+    for c in itertools.cycle(['|', '/', '-', '\\']):
+        if not time.time() < t_end:
+            break
+        sys.stdout.write('\rOutput will be written to the folder: ./' + colors.green + args.output + colors.normal + "/ "+ c)
+        sys.stdout.flush()
+        time.sleep(0.1)
+    sys.stdout.write('\n\nBrute-Forcing...     \n')
+    time.sleep(1)
 
 def loading():
     for c in itertools.cycle(['|', '/', '-', '\\']):
@@ -304,13 +304,13 @@ def loading():
         time.sleep(0.01)
 
 def parse_args():
-    
+
     parser = argparse.ArgumentParser(formatter_class=RawTextHelpFormatter, description=\
- 
+
     "Usage: python brutespray.py <OPTIONS> \n")
 
     menu_group = parser.add_argument_group(colors.lightblue + 'Menu Options' + colors.normal)
-    
+
     menu_group.add_argument('-f', '--file', help="GNMAP or XML file to parse", required=False, default=None)
     menu_group.add_argument('-o', '--output', help="Directory containing successful attempts", default="brutespray-output")
     menu_group.add_argument('-s', '--service', help="specify service to attack", default="all")
@@ -324,9 +324,9 @@ def parse_args():
     menu_group.add_argument('-i', '--interactive', help="interactive mode", default=False, action='store_true')    
     menu_group.add_argument('-m', '--modules', help="dump a list of available modules to brute", default=False, action='store_true')    
 
-    argcomplete.autocomplete(parser)    
+    argcomplete.autocomplete(parser)
     args = parser.parse_args()
-    
+
     if args.file is None and args.modules is False:
         parser.error("argument -f/--file is required")
     return args
@@ -335,7 +335,10 @@ if __name__ == "__main__":
     print(banner)
     args = parse_args()
 
-    supported = ['ssh','ftp','telnet','vnc','mssql','mysql','postgresql','rsh','imap','nntp','pcanywhere','pop3','rexec','rlogin','smbnt','smtp','svn','vmauthd','snmp']
+    supported = ['ssh','ftp','telnet','vnc','mssql','mysql','postgresql','rsh',
+                'imap','nntp','pcanywhere','pop3',
+                'rexec','rlogin','smbnt','smtp',
+                'svn','vmauthd','snmp']
     #temporary directory for ip addresses
 
     if args.modules is True:
@@ -354,14 +357,14 @@ if __name__ == "__main__":
     if os.system("command -v medusa > /dev/null") != 0:
         sys.stderr.write("Command medusa not found. Please install medusa before using brutespray")
         exit(3)
-    
+
     if args.file is None:
         sys.exit(0)
 
     if args.passlist and not os.path.isfile(args.passlist):
         sys.stderr.write("Passlist given does not exist. Please check your file or path\n")
         exit(3)
-    
+
     if args.userlist and not os.path.isfile(args.userlist):
         sys.stderr.write("Userlist given does not exist. Please check your file or path\n")
         exit(3)
@@ -374,17 +377,17 @@ if __name__ == "__main__":
             make_dic_xml()
         except:
             make_dic_gnmap()
-    
+
         if args.interactive is True:
             interactive()
-    
+
         animate()
-    
+
         if services == {}:
             print "\nNo brutable services found.\n Please check your Nmap file."
     else:
         print "\nError loading file, please check your filename."
- 
+
     to_scan = args.service.split(',')
     for service in services:
         if service in to_scan or to_scan == ['all']:
