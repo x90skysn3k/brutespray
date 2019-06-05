@@ -12,6 +12,7 @@ import threading
 import itertools
 import tempfile
 import shutil
+import json
 from multiprocessing import Process
 
 services = {}
@@ -140,6 +141,33 @@ NAME_MAP = {"ms-sql-s": "mssql",
             "pop3s": "pop3",
             "iss-realsecure": "vmauthd",
             "snmptrap": "snmp"}
+
+
+# {"host":"127.0.0.1","port":"3306","service":"mysql"}
+def make_dic_json():
+    global loading
+    global services
+
+    supported = ['ssh','ftp','postgres','telnet','mysql','ms-sql-s','shell',
+                 'vnc','imap','imaps','nntp','pcanywheredata','pop3','pop3s',
+                 'exec','login','microsoft-ds','smtp', 'smtps','submission',
+                 'svn','iss-realsecure','snmptrap','snmp']
+
+    # read json 
+    with open("data_file.json", "r") as jsonlines_file:
+        for line in jsonlines_file:
+            data = json.load(line)
+            
+            host, port, name = data["host"], data["port"], data["service"]
+            if None in [host,port,service]:
+                sys.stderr.write("\nError Please provide 'host', 'port' and 'service' the json fields. ")
+                continue
+
+            if name in supported:
+                services[name][port] += host
+    loading = True 
+
+
 
 def make_dic_gnmap():
     global loading
@@ -311,7 +339,7 @@ def parse_args():
 
     menu_group = parser.add_argument_group(colors.lightblue + 'Menu Options' + colors.normal)
 
-    menu_group.add_argument('-f', '--file', help="GNMAP or XML file to parse", required=False, default=None)
+    menu_group.add_argument('-f', '--file', help="GNMAP, JSON or XML file to parse", required=False, default=None)
     menu_group.add_argument('-o', '--output', help="Directory containing successful attempts", default="brutespray-output")
     menu_group.add_argument('-s', '--service', help="specify service to attack", default="all")
     menu_group.add_argument('-t', '--threads', help="number of medusa threads", default="2")
@@ -373,10 +401,17 @@ if __name__ == "__main__":
         try:
             t = threading.Thread(target=loading)
             t.start()
-            doc = xml.dom.minidom.parse(args.file)
-            make_dic_xml()
+
+            in_format = getInput(args.file)
+            {
+                "gnmap": make_dic_gnmap,
+                "xml":   make_dic_xml,
+                "json":  make_dic_json
+            }[in_format]()
+
+          
         except:
-            make_dic_gnmap()
+            print("\nFormat failed ! ")
 
         if args.interactive is True:
             interactive()
@@ -403,3 +438,30 @@ if __name__ == "__main__":
 
     #need to wait for all of the processes to run...
     #shutil.rmtree(tmppath, ignore_errors=False, onerror=None)
+
+
+def getInput(filename):
+    in_format = None
+    if filename.endswith("gnmap"):
+        in_format = "gnmap"
+    if filename.endswith("json"):
+        in_format = "json"
+    if filename.endswith("xml"):
+        in_format = "xml"
+    if in_format == None:
+        in_format = detectFormat(filename)
+
+    return in_format or  "xml"
+
+# detectFormat returns 
+def detectFormat(filename):
+    in_format = None
+    with open(filename) as f:
+        first_line = f.readline()
+        if first_line.startwith("{"):
+            in_format = "json"
+        if first_line.startswith("# Nmap") and first_line.contains(" -oG "):
+            in_format = "gnmap"
+        if first_line.startswith("<?xml "):
+            in_format = "xml"
+    return in_format 
