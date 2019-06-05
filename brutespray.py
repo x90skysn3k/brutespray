@@ -144,7 +144,7 @@ NAME_MAP = {"ms-sql-s": "mssql",
 
 
 # {"host":"127.0.0.1","port":"3306","service":"mysql"}
-def make_dic_json():
+def make_dic_json(filename):
     global loading
     global services
 
@@ -154,22 +154,29 @@ def make_dic_json():
                  'svn','iss-realsecure','snmptrap','snmp']
 
     # read json 
-    with open("data_file.json", "r") as jsonlines_file:
+    with open(filename, "r") as jsonlines_file:
         for line in jsonlines_file:
-            data = json.load(line)
-            
-            host, port, name = data["host"], data["port"], data["service"]
-            if None in [host,port,service]:
-                sys.stderr.write("\nError Please provide 'host', 'port' and 'service' the json fields. ")
-                continue
+            data = json.loads(line)
+            try:
+                host, port, name = data["host"], data["port"], data["service"]
+                
+                if name in supported:
+                    if name not in services:
+                        services[name] = {}
+                    if port not in services[name]:
+                        services[name][port] = []
 
-            if name in supported:
-                services[name][port] += host
+                    services[name][port].append(host)
+                
+            except KeyError as e:
+                sys.stderr.write("\n[!] Field: " + str(e) + "is missing")
+                sys.stderr.write("\n[!] Please provide the json fields. ")
+                continue
     loading = True 
 
 
 
-def make_dic_gnmap():
+def make_dic_gnmap(filename):
     global loading
     global services
 
@@ -180,7 +187,7 @@ def make_dic_gnmap():
 
 
     port = None
-    with open(args.file, 'r') as nmap_file:
+    with open(filename, 'r') as nmap_file:
         for line in nmap_file:
             for name in supported:
                 matches = re.compile(r'([0-9][0-9]*)/open/[a-z][a-z]*//' + name)
@@ -206,14 +213,14 @@ def make_dic_gnmap():
 
     loading = True
 
-def make_dic_xml():
+def make_dic_xml(filename):
     global loading
     global services
     supported = ['ssh','ftp','postgresql','telnet','mysql','ms-sql-s','rsh',
                  'vnc','imap','imaps','nntp','pcanywheredata','pop3','pop3s',
                  'exec','login','microsoft-ds','smtp','smtps','submission',
                  'svn','iss-realsecure','snmptrap','snmp']
-    doc = xml.dom.minidom.parse(args.file)
+    doc = xml.dom.minidom.parse(filename)
     for host in doc.getElementsByTagName("host"):
         try:
             address = host.getElementsByTagName("address")[0]
@@ -359,6 +366,32 @@ def parse_args():
         parser.error("argument -f/--file is required")
     return args
 
+def getInput(filename):
+    in_format = None
+    if filename.endswith("gnmap"):
+        in_format = "gnmap"
+    if filename.endswith("json"):
+        in_format = "json"
+    if filename.endswith("xml"):
+        in_format = "xml"
+    if in_format == None:
+        in_format = detectFormat(filename)
+
+    return in_format or  "xml"
+
+# detectFormat returns 
+def detectFormat(filename):
+    in_format = None
+    with open(filename) as f:
+        first_line = f.readline()
+        if first_line.startwith("{"):
+            in_format = "json"
+        if first_line.startswith("# Nmap") and first_line.contains(" -oG "):
+            in_format = "gnmap"
+        if first_line.startswith("<?xml "):
+            in_format = "xml"
+    return in_format 
+
 if __name__ == "__main__":
     print(banner)
     args = parse_args()
@@ -398,20 +431,22 @@ if __name__ == "__main__":
         exit(3)
 
     if os.path.isfile(args.file):        
+       
+        # --[Parse Input based on input]--
         try:
+            in_format = getInput(args.file)
+            print("\nParsing "+in_format + " File ")
+            
             t = threading.Thread(target=loading)
             t.start()
-
-            in_format = getInput(args.file)
             {
                 "gnmap": make_dic_gnmap,
                 "xml":   make_dic_xml,
                 "json":  make_dic_json
-            }[in_format]()
-
-          
+            }[in_format](args.file) 
         except:
             print("\nFormat failed ! ")
+            exit(3)
 
         if args.interactive is True:
             interactive()
@@ -424,6 +459,7 @@ if __name__ == "__main__":
         print ("\nError loading file, please check your filename.")
 
     to_scan = args.service.split(',')
+    
     for service in services:
         if service in to_scan or to_scan == ['all']:
             for port in services[service]:
@@ -438,30 +474,3 @@ if __name__ == "__main__":
 
     #need to wait for all of the processes to run...
     #shutil.rmtree(tmppath, ignore_errors=False, onerror=None)
-
-
-def getInput(filename):
-    in_format = None
-    if filename.endswith("gnmap"):
-        in_format = "gnmap"
-    if filename.endswith("json"):
-        in_format = "json"
-    if filename.endswith("xml"):
-        in_format = "xml"
-    if in_format == None:
-        in_format = detectFormat(filename)
-
-    return in_format or  "xml"
-
-# detectFormat returns 
-def detectFormat(filename):
-    in_format = None
-    with open(filename) as f:
-        first_line = f.readline()
-        if first_line.startwith("{"):
-            in_format = "json"
-        if first_line.startswith("# Nmap") and first_line.contains(" -oG "):
-            in_format = "gnmap"
-        if first_line.startswith("<?xml "):
-            in_format = "xml"
-    return in_format 
