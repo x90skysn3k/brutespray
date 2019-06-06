@@ -273,7 +273,7 @@ def make_dic_xml(filename):
 
 
 def brute(service,port,fname,output):
-    if args.userlist is None and args.username is None:
+    if args.userlist is None and args.username is None and args.combo is None:
         userlist = 'wordlist/'+service+'/user'
         uarg = '-U'
     elif args.userlist:
@@ -282,8 +282,12 @@ def brute(service,port,fname,output):
     elif args.username:
         userlist = args.username
         uarg = '-u'
+    elif args.combo:
+        userlist = args.combo
+        uarg = "-C"
 
-    if args.passlist is None and args.password is None:
+
+    if args.passlist is None and args.password is None and args.combo is None:
         passlist = 'wordlist/'+service+'/password'
         parg = '-P'
     elif args.passlist:
@@ -292,6 +296,9 @@ def brute(service,port,fname,output):
     elif args.password:
         passlist = args.password
         parg = '-p'
+    elif args.combo:
+        parg = ''
+        passlist = ''
 
     if args.continuous:
         cont = ''
@@ -356,6 +363,7 @@ def parse_args():
     menu_group.add_argument('-P', '--passlist', help="reference a custom password file", default=None)
     menu_group.add_argument('-u', '--username', help="specify a single username", default=None)
     menu_group.add_argument('-p', '--password', help="specify a single password", default=None)
+    menu_group.add_argument('-C', '--combo', help="specify a combo input (host:user:password)", default=None)
     menu_group.add_argument('-c', '--continuous', help="keep brute-forcing after success", default=False, action='store_true')
     menu_group.add_argument('-i', '--interactive', help="interactive mode", default=False, action='store_true')    
     menu_group.add_argument('-m', '--modules', help="dump a list of available modules to brute", default=False, action='store_true')    
