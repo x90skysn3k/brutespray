@@ -260,6 +260,9 @@ def brute(service,port,fname,output):
     elif args.password:
         passlist = args.password
         parg = '-p'
+    elif args.combo:
+        parg = ''
+        passlist = ''
 
     if args.continuous:
         cont = ''
