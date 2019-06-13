@@ -347,7 +347,7 @@ def parse_args():
 
     menu_group = parser.add_argument_group(colors.lightblue + 'Menu Options' + colors.normal)
 
-    menu_group.add_argument('-f', '--file', help="GNMAP, JSON or XML file to parse", required=False, default=None)
+    menu_group.add_argument('-f', '--file', help="GNMAP, JSON-LINES or XML file to parse", required=False, default=None)
     menu_group.add_argument('-o', '--output', help="Directory containing successful attempts", default="brutespray-output")
     menu_group.add_argument('-s', '--service', help="specify service to attack", default="all")
     menu_group.add_argument('-t', '--threads', help="number of medusa threads", default="2")
@@ -373,6 +373,8 @@ def getInput(filename):
         in_format = "gnmap"
     if filename.endswith("json"):
         in_format = "json"
+    if filename.endswith("jsonl"):
+        in_format = "json"
     if filename.endswith("xml"):
         in_format = "xml"
     if in_format == None:
@@ -387,7 +389,7 @@ def detectFormat(filename):
         first_line = f.readline()
         if first_line.startwith("{"):
             in_format = "json"
-        if first_line.startswith("# Nmap") and first_line.contains(" -oG "):
+        if first_line.startswith("# Nmap"):
             in_format = "gnmap"
         if first_line.startswith("<?xml "):
             in_format = "xml"
