@@ -7,7 +7,6 @@ import subprocess
 import xml.dom.minidom
 import re
 import argparse
-import argcomplete
 import threading
 import itertools
 import tempfile
@@ -85,36 +84,36 @@ def interactive():
                 plist = len(iplist)
                 print ("Service: " + colors.green + str(serv) + colors.normal + " on port " + colors.red + str(port) + colors.normal + " with " + colors.red + str(plist) + colors.normal + " hosts")
 
-        args.service = raw_input('\n' + colors.lightblue + 'Enter services you want to brute - default all (ssh,ftp,etc): ' + colors.red)
+        args.service = input('\n' + colors.lightblue + 'Enter services you want to brute - default all (ssh,ftp,etc): ' + colors.red)
 
-        args.threads = raw_input(colors.lightblue + 'Enter the number of parallel threads (default is 2): ' + colors.red)
+        args.threads = input(colors.lightblue + 'Enter the number of parallel threads (default is 2): ' + colors.red)
 
-        args.hosts = raw_input(colors.lightblue + 'Enter the number of parallel hosts to scan per service (default is 1): ' + colors.red)
+        args.hosts = input(colors.lightblue + 'Enter the number of parallel hosts to scan per service (default is 1): ' + colors.red)
 
         if args.passlist is None or args.userlist is None:
-            customword = raw_input(colors.lightblue + 'Would you like to specify a wordlist? (y/n): ' + colors.red)
+            customword = input(colors.lightblue + 'Would you like to specify a wordlist? (y/n): ' + colors.red)
         if customword == "y":
             readline.set_completer_delims('\t')
             readline.parse_and_bind("tab: complete")
             readline.set_completer(t.pathCompleter)
             if args.userlist is None and args.username is None:
-                args.userlist = raw_input(colors.lightblue + 'Enter a userlist you would like to use: ' + colors.red)
+                args.userlist = input(colors.lightblue + 'Enter a userlist you would like to use: ' + colors.red)
                 if args.userlist == "":
                     args.userlist = None
             if args.passlist is None and args.password is None:
-                args.passlist = raw_input(colors.lightblue + 'Enter a passlist you would like to use: ' + colors.red)
+                args.passlist = input(colors.lightblue + 'Enter a passlist you would like to use: ' + colors.red)
                 if args.passlist == "":
                     args.passlist = None
 
         if args.username is None or args.password is None: 
-            singluser = raw_input(colors.lightblue + 'Would to specify a single username or password (y/n): ' + colors.red)
+            singluser = input(colors.lightblue + 'Would to specify a single username or password (y/n): ' + colors.red)
         if singluser == "y":
             if args.username is None and args.userlist is None:
-                args.username = raw_input(colors.lightblue + 'Enter a username: ' + colors.red)
+                args.username = input(colors.lightblue + 'Enter a username: ' + colors.red)
                 if args.username == "":
                     args.username = None
             if args.password is None and args.passlist is None:
-                args.password = raw_input(colors.lightblue + 'Enter a password: ' + colors.red)
+                args.password = input(colors.lightblue + 'Enter a password: ' + colors.red)
                 if args.password == "":
                     args.password = None
 
@@ -125,7 +124,7 @@ def interactive():
         if args.hosts == "":
             args.hosts = "1"
 
-    print colors.normal
+    print(colors.normal)
 
 NAME_MAP = {"ms-sql-s": "mssql",
             "microsoft-ds": "smbnt",
@@ -275,13 +274,22 @@ def brute(service,port,fname,output):
     
  
     for line in iter(p.stdout.readline, b''):
-        print line,
-        sys.stdout.flush()
-        time.sleep(0.0001)
-        if 'SUCCESS' in line:
-            f = open(output_file, 'a')
-            f.write(out + line)
-            f.close()
+        if sys.version_info >= (3, 0):
+            print(line.decode("utf-8").replace('\n', '')),
+            sys.stdout.flush()
+            time.sleep(0.0001)
+            if 'SUCCESS' in line.decode("utf-8").replace('\n', ''):
+                f = open(output_file, 'a')
+                f.write(out + line.decode("utf-8").replace('\n', ''))
+                f.close()
+        else:
+            print (line),
+            sys.stdout.flush()
+            time.sleep(0.0001)
+            if 'SUCCESS' in line:
+                f = open(output_file, 'a')
+                f.write(out + line)
+                f.close()
 
 def animate():
     sys.stdout.write('\rStarting to brute, please make sure to use the right amount of ' + colors.green + 'threads(-t)' + colors.normal + ' and ' + colors.green + 'parallel hosts(-T)' + colors.normal + '...  \n')
@@ -324,7 +332,7 @@ def parse_args():
     menu_group.add_argument('-i', '--interactive', help="interactive mode", default=False, action='store_true')    
     menu_group.add_argument('-m', '--modules', help="dump a list of available modules to brute", default=False, action='store_true')    
 
-    argcomplete.autocomplete(parser)
+    #argcomplete.autocomplete(parser)
     args = parser.parse_args()
 
     if args.file is None and args.modules is False:
