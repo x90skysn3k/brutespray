@@ -3,6 +3,7 @@
     * updated for python3 compatibility
     * switched to ElementTree XML API
     * rewrote xml parsing and fixed bugs
+    * updated wordlists
 * v1.6.4
     * use dictionary for name conversion
 * v1.6.3
