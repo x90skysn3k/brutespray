@@ -6,14 +6,14 @@ Inspired by: Leon Johnson/@sho-luv
 
 Credit to Medusa: JoMo-Kun / Foofus Networks - http://www.foofus.net
 
-#### Version - 1.6.5
+#### Version - 1.6.6
 
 # Demo
 
 https://youtu.be/C-CVLbSEe_g
 
 # Description
-BruteSpray takes nmap GNMAP/XML output and automatically brute-forces services with default credentials using Medusa. BruteSpray can even find non-standard ports by using the -sV inside Nmap.  
+BruteSpray takes nmap GNMAP/XML output or newline seperated JSONS and automatically brute-forces services with default credentials using Medusa. BruteSpray can even find non-standard ports by using the -sV inside Nmap.  
 
 <img src="http://i.imgur.com/k9BDB5R.png" width="500">
 
@@ -60,6 +60,10 @@ Command: ```python brutespray.py --file nmap.xml -i```
 
 ```python brutespray.py --file nmap.xml --threads 5 --hosts 5```
 
+#### Use JSON Output
+
+```python brutespray.py --file out.json --threads 5 --hosts 5```
+
 #### Interactive Mode
 
 ```python brutespray.py --file nmap.xml -i```
@@ -87,6 +91,13 @@ Command: ```python brutespray.py --file nmap.xml -i```
 * svn
 * vmauthd
 * snmp
+
+# Data Specs
+```json
+{"host":"127.0.0.1","port":"3306","service":"mysql"}
+{"host":"127.0.0.10","port":"3306","service":"mysql"}
+...
+```
 
 # Changelog
 Changelog notes are available at [CHANGELOG.md](https://github.com/x90skysn3k/brutespray/blob/master/CHANGELOG.md)

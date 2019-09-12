@@ -1,4 +1,6 @@
 # Changelog
+* v1.6.6
+    * Integrated JSON support thanks to c-f
 * v1.6.5
     * updated for python3 compatibility
     * switched to ElementTree XML API
