@@ -1,4 +1,6 @@
 # Changelog
+* v1.6.5
+    * updated for python3 compatibility
 * v1.6.4
     * use dictionary for name conversion
 * v1.6.3
