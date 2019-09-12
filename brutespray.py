@@ -11,6 +11,7 @@ import threading
 import itertools
 import tempfile
 import shutil
+import json
 from multiprocessing import Process
 
 services = {}
@@ -56,7 +57,7 @@ banner = colors.red + r"""
         ╚═════╝ ╚═╝  ╚═╝ ╚═════╝    ╚═╝   ╚══════╝╚══════╝╚═╝     ╚═╝  ╚═╝╚═╝  ╚═╝   ╚═╝   
                                                                                    
 """+'\n' \
-+ '\n brutespray.py v1.6.5' \
++ '\n brutespray.py v1.6.6' \
 + '\n Created by: Shane Young/@x90skysn3k && Jacob Robles/@shellfail' \
 + '\n Inspired by: Leon Johnson/@sho-luv' \
 + '\n Credit to Medusa: JoMo-Kun / Foofus Networks <jmk@foofus.net>\n' + colors.normal
@@ -209,6 +210,36 @@ def make_dic_xml():
 
     loading = True
 
+def make_dic_json():
+    global loading
+    global services
+
+    supported = ['ssh','ftp','postgres','telnet','mysql','ms-sql-s','shell',
+                 'vnc','imap','imaps','nntp','pcanywheredata','pop3','pop3s',
+                 'exec','login','microsoft-ds','smtp', 'smtps','submission',
+                 'svn','iss-realsecure','snmptrap','snmp']
+
+    with open(args.file, "r") as jsonlines_file:
+        for line in jsonlines_file:
+            data = json.loads(line)
+            try:
+                host, port, name = data["host"], data["port"], data["service"]
+                
+                if name in supported:
+                    name = NAME_MAP.get(name, name) 
+                    if name not in services:
+                        services[name] = {}
+                    if port not in services[name]:
+                        services[name][port] = []
+                    if host not in services[name][port]:
+                        services[name][port].append(host)
+            except KeyError as e:
+                sys.stderr.write("\n[!] Field: " + str(e) + "is missing")
+                sys.stderr.write("\n[!] Please provide the json fields. ")               
+                continue
+    print(services)
+    loading = True 
+
 def brute(service,port,fname,output):
     if args.userlist is None and args.username is None:
         userlist = '/usr/share/brutespray/wordlist/'+service+'/user'
@@ -276,6 +307,28 @@ def loading():
         sys.stdout.flush()
         time.sleep(0.01)
 
+def getInput(filename):
+    in_format = None
+    with open(filename) as f:
+        line = f.readlines()
+        if filename.endswith("gnmap"):
+            in_format = "gnmap"
+        if filename.endswith("json"):
+            in_format = "json"
+        if filename.endswith("xml"):
+            in_format = "xml"
+        if '{' in line[0]:
+            in_format = "json"
+        if '# Nmap' in line[0] and not 'Nmap' in line[1]:
+            in_format = "gnmap"
+        if '<?xml ' in line[0]:
+            in_format = "xml"
+        if in_format is None:
+            print('File is not correct format!\n')
+            sys.exit(0)
+
+    return in_format 
+
 def parse_args():
 
     parser = argparse.ArgumentParser(formatter_class=RawTextHelpFormatter, description=\
@@ -284,7 +337,8 @@ def parse_args():
 
     menu_group = parser.add_argument_group(colors.lightblue + 'Menu Options' + colors.normal)
 
-    menu_group.add_argument('-f', '--file', help="GNMAP or XML file to parse", required=False, default=None)
+    #menu_group.add_argument('-f', '--file', help="GNMAP or XML file to parse", required=False, default=None)
+    menu_group.add_argument('-f', '--file', help="GNMAP, JSON or XML file to parse", required=False, default=None)
     menu_group.add_argument('-o', '--output', help="Directory containing successful attempts", default="brutespray-output")
     menu_group.add_argument('-s', '--service', help="specify service to attack", default="all")
     menu_group.add_argument('-t', '--threads', help="number of medusa threads", default="2")
@@ -345,10 +399,16 @@ if __name__ == "__main__":
         try:
             t = threading.Thread(target=loading)
             t.start()
-            tree = ET.parse(args.file)
-            make_dic_xml()
+            in_format = getInput(args.file)
+            {
+                "gnmap": make_dic_gnmap,
+                "xml":   make_dic_xml,
+                "json":  make_dic_json
+            }[in_format]()
         except:
-            make_dic_gnmap()
+            print("\nFormat failed!\n")
+            loading = True
+            sys.exit(0)
 
         if args.interactive is True:
             interactive()
