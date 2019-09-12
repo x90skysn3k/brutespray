@@ -1,4 +1,4 @@
-#! /usr/bin/python2
+#! /usr/bin/python3
 # -*- coding: utf-8 -*-
 from argparse import RawTextHelpFormatter
 import readline, glob
@@ -7,7 +7,6 @@ import subprocess
 import xml.etree.ElementTree as ET
 import re
 import argparse
-import argcomplete
 import threading
 import itertools
 import tempfile
@@ -179,7 +178,6 @@ def make_dic_gnmap():
     loading = True
 
 def make_dic_xml():
-    print("making dic_xml")
     global loading
     global services
     supported = ['ssh','ftp','postgresql','telnet','mysql','ms-sql-s','rsh',
@@ -190,10 +188,8 @@ def make_dic_xml():
     root = tree.getroot()
     for host in root.iter('host'):
         ipaddr = host.find('address').attrib['addr']
-        print(ipaddr)
         for port in host.iter('port'):
             cstate = port.find('state').attrib['state']
-            print(port.attrib['portid'], cstate)
             if cstate == "open":
                 try:
                     name = port.find('service').attrib['name']
@@ -201,7 +197,6 @@ def make_dic_xml():
                     iplist = ipaddr.split(',')
                 except:
                     continue
-                print(name)
                 if name in supported:
                     name = NAME_MAP.get(name, name)
                     if name in services:
@@ -253,12 +248,12 @@ def brute(service,port,fname,output):
     
  
     for line in iter(p.stdout.readline, b''):
-        print(line),
+        print(line.decode('utf-8').strip('\n'))
         sys.stdout.flush()
         time.sleep(0.0001)
-        if 'SUCCESS' in line:
+        if 'SUCCESS' in line.decode('utf-8'):
             f = open(output_file, 'a')
-            f.write(out + line)
+            f.write(out + line.decode('utf-8'))
             f.close()
 
 def animate():
@@ -302,7 +297,6 @@ def parse_args():
     menu_group.add_argument('-i', '--interactive', help="interactive mode", default=False, action='store_true')    
     menu_group.add_argument('-m', '--modules', help="dump a list of available modules to brute", default=False, action='store_true')    
 
-    argcomplete.autocomplete(parser)
     args = parser.parse_args()
 
     if args.file is None and args.modules is False:
@@ -349,8 +343,8 @@ if __name__ == "__main__":
 
     if os.path.isfile(args.file):        
         try:
-        #    t = threading.Thread(target=loading)
-        #    t.start()
+            t = threading.Thread(target=loading)
+            t.start()
             tree = ET.parse(args.file)
             make_dic_xml()
         except:
