@@ -237,7 +237,6 @@ def make_dic_json():
                 sys.stderr.write("\n[!] Field: " + str(e) + "is missing")
                 sys.stderr.write("\n[!] Please provide the json fields. ")               
                 continue
-    print(services)
     loading = True 
 
 def brute(service,port,fname,output):
