@@ -57,7 +57,7 @@ banner = colors.red + r"""
         ╚═════╝ ╚═╝  ╚═╝ ╚═════╝    ╚═╝   ╚══════╝╚══════╝╚═╝     ╚═╝  ╚═╝╚═╝  ╚═╝   ╚═╝   
                                                                                    
 """+'\n' \
-+ '\n brutespray.py v1.6.6' \
++ '\n brutespray.py v1.6.7' \
 + '\n Created by: Shane Young/@x90skysn3k && Jacob Robles/@shellfail' \
 + '\n Inspired by: Leon Johnson/@sho-luv' \
 + '\n Credit to Medusa: JoMo-Kun / Foofus Networks <jmk@foofus.net>\n' + colors.normal
@@ -242,6 +242,8 @@ def make_dic_json():
 def brute(service,port,fname,output):
     if args.userlist is None and args.username is None:
         userlist = '/usr/share/brutespray/wordlist/'+service+'/user'
+        if not os.path.exists(userlist):
+            userlist = 'wordlist/'+service+'/user'
         uarg = '-U'
     elif args.userlist:
         userlist = args.userlist
@@ -252,6 +254,8 @@ def brute(service,port,fname,output):
 
     if args.passlist is None and args.password is None:
         passlist = '/usr/share/brutespray/wordlist/'+service+'/password'
+        if not os.path.exists(passlist):
+            passlist = 'wordlist/'+service+'/password'
         parg = '-P'
     elif args.passlist:
         passlist = args.passlist
