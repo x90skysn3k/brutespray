@@ -57,11 +57,13 @@ banner = colors.red + r"""
         ╚═════╝ ╚═╝  ╚═╝ ╚═════╝    ╚═╝   ╚══════╝╚══════╝╚═╝     ╚═╝  ╚═╝╚═╝  ╚═╝   ╚═╝   
                                                                                    
 """+'\n' \
-+ '\n brutespray.py v1.6.7' \
++ '\n brutespray.py v1.6.8' \
 + '\n Created by: Shane Young/@x90skysn3k && Jacob Robles/@shellfail' \
 + '\n Inspired by: Leon Johnson/@sho-luv' \
 + '\n Credit to Medusa: JoMo-Kun / Foofus Networks <jmk@foofus.net>\n' + colors.normal
 #ascii art by: Cara Pearson
+
+quiet_banner = colors.red + '~ BruteSpray ~' + colors.normal
 
 class tabCompleter(object):
 
@@ -353,6 +355,7 @@ def parse_args():
     menu_group.add_argument('-c', '--continuous', help="keep brute-forcing after success", default=False, action='store_true')
     menu_group.add_argument('-i', '--interactive', help="interactive mode", default=False, action='store_true')    
     menu_group.add_argument('-m', '--modules', help="dump a list of available modules to brute", default=False, action='store_true')    
+    menu_group.add_argument('-q', '--quiet', help="supress banner", default=False, action='store_true')   
 
     args = parser.parse_args()
 
@@ -361,8 +364,11 @@ def parse_args():
     return args
 
 if __name__ == "__main__":
-    print(banner)
     args = parse_args()
+    if args.quiet == False:
+        print(banner)
+    else:
+        print(quiet_banner)
 
     supported = ['ssh','ftp','telnet','vnc','mssql','mysql','postgresql','rsh',
                 'imap','nntp','pcanywhere','pop3',
