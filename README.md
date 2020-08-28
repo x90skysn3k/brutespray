@@ -1,4 +1,7 @@
 # BruteSpray
+![Supported Python versions](https://img.shields.io/badge/python-3.7+-blue.svg)
+![Version](https://img.shields.io/badge/brutespray-v1.6.9-brightgreen)
+
 
 Created by: Shane Young/@x90skysn3k && Jacob Robles/@shellfail 
 
@@ -6,7 +9,7 @@ Inspired by: Leon Johnson/@sho-luv
 
 Credit to Medusa: JoMo-Kun / Foofus Networks - http://www.foofus.net
 
-#### Version - 1.6.8
+Twitter: https://twitter.com/t1d3nio
 
 # Demo
 
