@@ -3,7 +3,7 @@
 ![Version](https://img.shields.io/badge/brutespray-v1.6.9-brightgreen)
 
 
-Created by: Shane Young/@x90skysn3k && Jacob Robles/@shellfail 
+Created by: Shane Young/@t1d3nio && Jacob Robles/@shellfail 
 
 Inspired by: Leon Johnson/@sho-luv
 
