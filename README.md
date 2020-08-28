@@ -3,7 +3,7 @@
 ![Version](https://img.shields.io/badge/version-1.6.9-red)
 
 
-Created by: Shane Young/@x90skysn3k(t1d3nio) && Jacob Robles/@shellfail 
+Created by: Shane Young/@t1d3nio && Jacob Robles/@shellfail 
 
 Inspired by: Leon Johnson/@sho-luv
 
