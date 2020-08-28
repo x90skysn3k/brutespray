@@ -9,8 +9,6 @@ Inspired by: Leon Johnson/@sho-luv
 
 Credit to Medusa: JoMo-Kun / Foofus Networks - http://www.foofus.net
 
-Twitter: https://twitter.com/t1d3nio
-
 # Demo
 
 https://youtu.be/C-CVLbSEe_g
