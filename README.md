@@ -1,6 +1,6 @@
 # BruteSpray
 ![Supported Python versions](https://img.shields.io/badge/python-3.7+-blue.svg)
-![Version](https://img.shields.io/badge/brutespray-v1.6.9-brightgreen)
+![Version](https://img.shields.io/badge/version-1.6.9-red)
 
 
 Created by: Shane Young/@t1d3nio && Jacob Robles/@shellfail 
