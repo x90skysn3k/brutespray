@@ -57,8 +57,8 @@ banner = colors.red + r"""
         ╚═════╝ ╚═╝  ╚═╝ ╚═════╝    ╚═╝   ╚══════╝╚══════╝╚═╝     ╚═╝  ╚═╝╚═╝  ╚═╝   ╚═╝   
                                                                                    
 """+'\n' \
-+ '\n brutespray.py v1.6.8' \
-+ '\n Created by: Shane Young/@x90skysn3k && Jacob Robles/@shellfail' \
++ '\n brutespray.py v1.6.9' \
++ '\n Created by: Shane Young/@t1d3nio && Jacob Robles/@shellfail' \
 + '\n Inspired by: Leon Johnson/@sho-luv' \
 + '\n Credit to Medusa: JoMo-Kun / Foofus Networks <jmk@foofus.net>\n' + colors.normal
 #ascii art by: Cara Pearson
@@ -241,32 +241,32 @@ def make_dic_json():
                 continue
     loading = True 
 
-def brute(service,port,fname,output):
-    if args.userlist is None and args.username is None:
+def brute(service,port,fname,output,auserlist,ausername,apasslist,apassword,acontinuous,ahosts,athreads):
+    if auserlist is None and ausername is None:
         userlist = '/usr/share/brutespray/wordlist/'+service+'/user'
         if not os.path.exists(userlist):
             userlist = 'wordlist/'+service+'/user'
         uarg = '-U'
-    elif args.userlist:
-        userlist = args.userlist
+    elif auserlist:
+        userlist = auserlist
         uarg = '-U'
-    elif args.username:
-        userlist = args.username
+    elif ausername:
+        userlist = ausername
         uarg = '-u'
 
-    if args.passlist is None and args.password is None:
+    if apasslist is None and apassword is None:
         passlist = '/usr/share/brutespray/wordlist/'+service+'/password'
         if not os.path.exists(passlist):
             passlist = 'wordlist/'+service+'/password'
         parg = '-P'
-    elif args.passlist:
-        passlist = args.passlist
+    elif apasslist:
+        passlist = apasslist
         parg = '-P'
-    elif args.password:
-        passlist = args.password
+    elif apassword:
+        passlist = apassword
         parg = '-p'
 
-    if args.continuous:
+    if acontinuous:
         cont = ''
     else:
         cont = '-F'
@@ -277,12 +277,12 @@ def brute(service,port,fname,output):
         aarg = ''
         auth = ''
 
-    p = subprocess.Popen(['medusa', '-b', '-H', fname, uarg, userlist, parg, passlist, '-M', service, '-t', args.threads, '-n', port, '-T', args.hosts, cont, aarg, auth], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=-1)
+    p = subprocess.Popen(['medusa', '-b', '-H', fname, uarg, userlist, parg, passlist, '-M', service, '-t', athreads, '-n', port, '-T', ahosts, cont, aarg, auth], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=-1)
 
     out = "[" + colors.green + "+" + colors.normal + "] "
     output_file = output + '/' + port + '-' + service + '-success.txt'
-    
- 
+
+
     for line in iter(p.stdout.readline, b''):
         print(line.decode('utf-8').strip('\n'))
         sys.stdout.flush()
@@ -440,7 +440,7 @@ if __name__ == "__main__":
                 for ip in iplist:
                     f.write(ip + '\n')
                 f.close()
-                brute_process = Process(target=brute, args=(service,port,fname,args.output))
+                brute_process = Process(target=brute, args=(service,port,fname,args.output,args.userlist,args.username,args.passlist,args.password,args.continuous,args.hosts,args.threads))
                 brute_process.start()
 
     #need to wait for all of the processes to run...
