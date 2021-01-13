@@ -277,17 +277,16 @@ def brute(service,port,fname,output,auserlist,ausername,apasslist,apassword,acon
         aarg = ''
         auth = ''
 
-    p = subprocess.Popen(['medusa', '-b', '-H', fname, uarg, userlist, parg, passlist, '-M', service, '-t', athreads, '-n', port, '-T', ahosts, cont, aarg, auth, '-v', averbose], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=-1)
+    p = subprocess.Popen(['medusa', '-b', '-H', fname, uarg, userlist, parg, passlist, '-M', service, '-t', athreads, '-n', port, '-T', ahosts, cont, aarg, auth, '-v', averbose], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True, bufsize=0)
 
     out = "[" + colors.green + "+" + colors.normal + "] "
     output_file = output + '/' + port + '-' + service + '-success.txt'
 
-
-    for line in iter(p.stdout.readline, b''):
-        print(line.decode('utf-8').strip('\n'))
+    for line in p.stdout:
+        print(line.strip('\n'))
         sys.stdout.flush()
         time.sleep(0.0001)
-        if 'SUCCESS' in line.decode('utf-8'):
+        if 'SUCCESS' in line:
             f = open(output_file, 'a')
             f.write(out + line.decode('utf-8'))
             f.close()
@@ -356,7 +355,7 @@ def parse_args():
     menu_group.add_argument('-i', '--interactive', help="interactive mode", default=False, action='store_true')    
     menu_group.add_argument('-m', '--modules', help="dump a list of available modules to brute", default=False, action='store_true')    
     menu_group.add_argument('-q', '--quiet', help="supress banner", default=False, action='store_true')   
-    menu_group.add_argument('-v', '--verbose', help="verbose output from medusa [0-6], default=5", default=5)
+    menu_group.add_argument('-v', '--verbose', help="verbose output from medusa [0-6], default=5", default="5")
 
     args = parser.parse_args()
 
