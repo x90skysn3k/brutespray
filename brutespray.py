@@ -241,7 +241,7 @@ def make_dic_json():
                 continue
     loading = True 
 
-def brute(service,port,fname,output,auserlist,ausername,apasslist,apassword,acontinuous,ahosts,athreads):
+def brute(service,port,fname,output,auserlist,ausername,apasslist,apassword,acontinuous,ahosts,athreads,averbose):
     if auserlist is None and ausername is None:
         userlist = '/usr/share/brutespray/wordlist/'+service+'/user'
         if not os.path.exists(userlist):
@@ -277,7 +277,7 @@ def brute(service,port,fname,output,auserlist,ausername,apasslist,apassword,acon
         aarg = ''
         auth = ''
 
-    p = subprocess.Popen(['medusa', '-b', '-H', fname, uarg, userlist, parg, passlist, '-M', service, '-t', athreads, '-n', port, '-T', ahosts, cont, aarg, auth], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=-1)
+    p = subprocess.Popen(['medusa', '-b', '-H', fname, uarg, userlist, parg, passlist, '-M', service, '-t', athreads, '-n', port, '-T', ahosts, cont, aarg, auth, '-v', averbose], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=-1)
 
     out = "[" + colors.green + "+" + colors.normal + "] "
     output_file = output + '/' + port + '-' + service + '-success.txt'
@@ -356,6 +356,7 @@ def parse_args():
     menu_group.add_argument('-i', '--interactive', help="interactive mode", default=False, action='store_true')    
     menu_group.add_argument('-m', '--modules', help="dump a list of available modules to brute", default=False, action='store_true')    
     menu_group.add_argument('-q', '--quiet', help="supress banner", default=False, action='store_true')   
+    menu_group.add_argument('-v', '--verbose', help="verbose output from medusa [0-6], default=5", default=5)
 
     args = parser.parse_args()
 
@@ -422,7 +423,7 @@ if __name__ == "__main__":
 
         if args.interactive is True:
             interactive()
-
+        
         animate()
 
         if services == {}:
@@ -440,7 +441,7 @@ if __name__ == "__main__":
                 for ip in iplist:
                     f.write(ip + '\n')
                 f.close()
-                brute_process = Process(target=brute, args=(service,port,fname,args.output,args.userlist,args.username,args.passlist,args.password,args.continuous,args.hosts,args.threads))
+                brute_process = Process(target=brute, args=(service,port,fname,args.output,args.userlist,args.username,args.passlist,args.password,args.continuous,args.hosts,args.threads,args.verbose))
                 brute_process.start()
 
     #need to wait for all of the processes to run...
