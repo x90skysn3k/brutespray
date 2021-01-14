@@ -277,7 +277,8 @@ def brute(service,port,fname,output,auserlist,ausername,apasslist,apassword,acon
         aarg = ''
         auth = ''
 
-    p = subprocess.Popen(['medusa', '-b', '-H', fname, uarg, userlist, parg, passlist, '-M', service, '-t', athreads, '-n', port, '-T', ahosts, cont, aarg, auth, '-v', averbose], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True, bufsize=0)
+    p = subprocess.Popen(['medusa', '-b', '-H', fname, uarg, userlist, parg, passlist, '-M', service, '-t', athreads, '-n', port, '-T', ahosts, cont, aarg, auth, '-v', averbose], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True, bufsize=1)
+    
 
     out = "[" + colors.green + "+" + colors.normal + "] "
     output_file = output + '/' + port + '-' + service + '-success.txt'
@@ -443,5 +444,5 @@ if __name__ == "__main__":
                 brute_process = Process(target=brute, args=(service,port,fname,args.output,args.userlist,args.username,args.passlist,args.password,args.continuous,args.hosts,args.threads,args.verbose))
                 brute_process.start()
 
+
     #need to wait for all of the processes to run...
-    #shutil.rmtree(tmppath, ignore_errors=False, onerror=None)
