@@ -101,7 +101,7 @@ Command: ```python brutespray.py --file nmap.xml -i```
 ```
 
 # Combo Option
-When you specify a combo option, it will read the specified file and attempt the host:user:pass on each discovered service from Nmap. If you just want to specify only a username and password leave the host blank as shown below.
+When you specify a combo option `-C`, it will read the specified file and attempt the host:user:pass on each discovered service from Nmap. If you just want to specify only a username and password leave the host blank as shown below.
 ```
 127.0.0.1:user:pass
 127.0.0.10:user1:pass1
