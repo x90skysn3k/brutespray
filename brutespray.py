@@ -150,8 +150,6 @@ NAME_MAP = {"ms-sql-s": "mssql",
             "iss-realsecure": "vmauthd",
             "snmptrap": "snmp"}
 
-
-
 def make_dic_gnmap():
     global loading
     global services
@@ -380,7 +378,6 @@ def parse_args():
         parser.error("argument -f/--file is required")
     return args
 
-
 if __name__ == "__main__":
     args = parse_args()
     
@@ -452,7 +449,6 @@ if __name__ == "__main__":
         print("\nError loading file, please check your filename.")
 
     to_scan = args.service.split(',')
-    
     for service in services:
         if service in to_scan or to_scan == ['all']:
             for port in services[service]:
