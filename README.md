@@ -101,4 +101,3 @@ Command: ```python brutespray.py --file nmap.xml -i```
 
 # Changelog
 Changelog notes are available at [CHANGELOG.md](https://github.com/x90skysn3k/brutespray/blob/master/CHANGELOG.md)
-
