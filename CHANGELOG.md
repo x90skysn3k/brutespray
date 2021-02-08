@@ -5,7 +5,7 @@
     * adjusted multiprocess buffer
     * updated some wordlists
     * updated readme
-    * fixed MacOS subprocesses arguments not being passed
+    * fixed MacOS subprocess arguments not being passed
 * v1.6.8
     * added option to supress large banner
 * v1.6.7
