@@ -57,8 +57,8 @@ banner = colors.red + r"""
         ╚═════╝ ╚═╝  ╚═╝ ╚═════╝    ╚═╝   ╚══════╝╚══════╝╚═╝     ╚═╝  ╚═╝╚═╝  ╚═╝   ╚═╝   
                                                                                    
 """+'\n' \
-+ '\n brutespray.py v1.6.8' \
-+ '\n Created by: Shane Young/@x90skysn3k && Jacob Robles/@shellfail' \
++ '\n brutespray.py v1.6.9' \
++ '\n Created by: Shane Young/@t1d3nio && Jacob Robles/@shellfail' \
 + '\n Inspired by: Leon Johnson/@sho-luv' \
 + '\n Credit to Medusa: JoMo-Kun / Foofus Networks <jmk@foofus.net>\n' + colors.normal
 #ascii art by: Cara Pearson
@@ -248,39 +248,39 @@ def make_dic_json():
                 continue
     loading = True 
 
-def brute(service,port,fname,output):
-    if args.userlist is None and args.username is None and args.combo is None:
+def brute(service,port,fname,output,auserlist,ausername,apasslist,apassword,acontinuous,ahosts,athreads,averbose,acombo):
+    if auserlist is None and ausername is None and acombo is None:
+
         userlist = '/usr/share/brutespray/wordlist/'+service+'/user'
         if not os.path.exists(userlist):
             userlist = 'wordlist/'+service+'/user'
         uarg = '-U'
-    elif args.userlist:
-        userlist = args.userlist
+    elif auserlist:
+        userlist = auserlist
         uarg = '-U'
-    elif args.username:
-        userlist = args.username
+    elif ausername:
+        userlist = ausername
         uarg = '-u'
-    elif args.combo:
-        userlist = args.combo
+    elif acombo:
+        userlist = acombo
         uarg = '-C'
 
-
-    if args.passlist is None and args.password is None and args.combo is None:
+    if args.passlist is None and args.password is None and acombo is None:
         passlist = '/usr/share/brutespray/wordlist/'+service+'/password'
         if not os.path.exists(passlist):
             passlist = 'wordlist/'+service+'/password'
         parg = '-P'
-    elif args.passlist:
-        passlist = args.passlist
+    elif apasslist:
+        passlist = apasslist
         parg = '-P'
-    elif args.password:
-        passlist = args.password
+    elif apassword:
+        passlist = apassword
         parg = '-p'
-    elif args.combo:
+    elif acombo:
         parg = ''
         passlist = ''
 
-    if args.continuous:
+    if acontinuous:
         cont = ''
     else:
         cont = '-F'
@@ -291,19 +291,19 @@ def brute(service,port,fname,output):
         aarg = ''
         auth = ''
 
-    p = subprocess.Popen(['medusa', '-b', '-H', fname, uarg, userlist, parg, passlist, '-M', service, '-t', args.threads, '-n', port, '-T', args.hosts, cont, aarg, auth], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=-1)
+    p = subprocess.Popen(['medusa', '-b', '-H', fname, uarg, userlist, parg, passlist, '-M', service, '-t', athreads, '-n', port, '-T', ahosts, cont, aarg, auth, '-v', averbose], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True, bufsize=1)
+    
 
     out = "[" + colors.green + "+" + colors.normal + "] "
     output_file = output + '/' + port + '-' + service + '-success.txt'
-    
- 
-    for line in iter(p.stdout.readline, b''):
-        print(line.decode('utf-8').strip('\n'))
+
+    for line in p.stdout:
+        print(line.strip('\n'))
         sys.stdout.flush()
         time.sleep(0.0001)
-        if 'SUCCESS' in line.decode('utf-8'):
+        if 'SUCCESS' in line:
             f = open(output_file, 'a')
-            f.write(out + line.decode('utf-8'))
+            f.write(out + line)
             f.close()
 
 def animate():
@@ -371,6 +371,7 @@ def parse_args():
     menu_group.add_argument('-i', '--interactive', help="interactive mode", default=False, action='store_true')    
     menu_group.add_argument('-m', '--modules', help="dump a list of available modules to brute", default=False, action='store_true')    
     menu_group.add_argument('-q', '--quiet', help="supress banner", default=False, action='store_true')   
+    menu_group.add_argument('-v', '--verbose', help="verbose output from medusa [0-6], default=5", default="5")
 
     args = parser.parse_args()
 
@@ -440,7 +441,7 @@ if __name__ == "__main__":
 
         if args.interactive is True:
             interactive()
-
+        
         animate()
 
         if services == {}:
@@ -458,8 +459,8 @@ if __name__ == "__main__":
                 for ip in iplist:
                     f.write(ip + '\n')
                 f.close()
-                brute_process = Process(target=brute, args=(service,port,fname,args.output))
+                brute_process = Process(target=brute, args=(service,port,fname,args.output,args.userlist,args.username,args.passlist,args.password,args.continuous,args.hosts,args.threads,args.verbose,args.combo))
                 brute_process.start()
 
+
     #need to wait for all of the processes to run...
-    #shutil.rmtree(tmppath, ignore_errors=False, onerror=None)
