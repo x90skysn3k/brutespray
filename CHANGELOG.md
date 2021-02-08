@@ -1,4 +1,10 @@
 # Changelog
+* v1.6.9
+    * merged combo option from @c-f (thank you)
+    * added medusa verbosity
+    * adjusted multiprocess buffer
+    * updated some wordlists
+    * updated readme
 * v1.6.8
     * added option to supress large banner
 * v1.6.7
