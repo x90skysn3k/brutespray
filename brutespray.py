@@ -120,6 +120,13 @@ def interactive():
                 if args.password == "":
                     args.password = None
 
+        if args.username is None and args.userlist is None:
+            combo = input(colors.lightblue + 'Enter a combolist you would like to use: ' + colors.red)
+            if combo == "y":
+                args.combo = input(colors.lightblue + 'Enter a combolist you would like to use: ' + colors.red)
+                if args.combo == "":
+                    args.combo = None
+
         if args.service == "":
             args.service = "all"
         if args.threads == "":
@@ -241,8 +248,9 @@ def make_dic_json():
                 continue
     loading = True 
 
-def brute(service,port,fname,output,auserlist,ausername,apasslist,apassword,acontinuous,ahosts,athreads,averbose):
-    if auserlist is None and ausername is None:
+def brute(service,port,fname,output,auserlist,ausername,apasslist,apassword,acontinuous,ahosts,athreads,averbose,acombo):
+    if auserlist is None and ausername is None and acombo is None:
+
         userlist = '/usr/share/brutespray/wordlist/'+service+'/user'
         if not os.path.exists(userlist):
             userlist = 'wordlist/'+service+'/user'
@@ -253,8 +261,11 @@ def brute(service,port,fname,output,auserlist,ausername,apasslist,apassword,acon
     elif ausername:
         userlist = ausername
         uarg = '-u'
+    elif acombo:
+        userlist = acombo
+        uarg = '-C'
 
-    if apasslist is None and apassword is None:
+    if args.passlist is None and args.password is None and acombo is None:
         passlist = '/usr/share/brutespray/wordlist/'+service+'/password'
         if not os.path.exists(passlist):
             passlist = 'wordlist/'+service+'/password'
@@ -265,6 +276,9 @@ def brute(service,port,fname,output,auserlist,ausername,apasslist,apassword,acon
     elif apassword:
         passlist = apassword
         parg = '-p'
+    elif acombo:
+        parg = ''
+        passlist = ''
 
     if acontinuous:
         cont = ''
@@ -350,6 +364,7 @@ def parse_args():
     menu_group.add_argument('-T', '--hosts', help="number of hosts to test concurrently", default="1")
     menu_group.add_argument('-U', '--userlist', help="reference a custom username file", default=None)
     menu_group.add_argument('-P', '--passlist', help="reference a custom password file", default=None)
+    menu_group.add_argument('-C', '--combo', help="specify a combo input (host:user:password)", default=None)
     menu_group.add_argument('-u', '--username', help="specify a single username", default=None)
     menu_group.add_argument('-p', '--password', help="specify a single password", default=None)
     menu_group.add_argument('-c', '--continuous', help="keep brute-forcing after success", default=False, action='store_true')
@@ -406,6 +421,9 @@ if __name__ == "__main__":
         sys.stderr.write("Userlist given does not exist. Please check your file or path\n")
         exit(3)
 
+    if args.combo and not os.path.isfile(args.combo):
+        sys.stderr.write("Combolist given does not exist. Please check your file or path\n")
+
     if os.path.isfile(args.file):        
         try:
             t = threading.Thread(target=loading)
@@ -441,7 +459,7 @@ if __name__ == "__main__":
                 for ip in iplist:
                     f.write(ip + '\n')
                 f.close()
-                brute_process = Process(target=brute, args=(service,port,fname,args.output,args.userlist,args.username,args.passlist,args.password,args.continuous,args.hosts,args.threads,args.verbose))
+                brute_process = Process(target=brute, args=(service,port,fname,args.output,args.userlist,args.username,args.passlist,args.password,args.continuous,args.hosts,args.threads,args.verbose,args.combo))
                 brute_process.start()
 
 
