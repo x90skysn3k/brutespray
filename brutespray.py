@@ -120,6 +120,13 @@ def interactive():
                 if args.password == "":
                     args.password = None
 
+        if args.username is None and args.userlist is None:
+            combo = input(colors.lightblue + 'Enter a combolist you would like to use: ' + colors.red)
+            if combo == "y":
+                args.combo = input(colors.lightblue + 'Enter a combolist you would like to use: ' + colors.red)
+                if args.combo == "":
+                    args.combo = None
+
         if args.service == "":
             args.service = "all"
         if args.threads == "":
@@ -144,41 +151,8 @@ NAME_MAP = {"ms-sql-s": "mssql",
             "snmptrap": "snmp"}
 
 
-# {"host":"127.0.0.1","port":"3306","service":"mysql"}
-def make_dic_json(filename):
-    global loading
-    global services
 
-    supported = ['ssh','ftp','postgres','telnet','mysql','ms-sql-s','shell',
-                 'vnc','imap','imaps','nntp','pcanywheredata','pop3','pop3s',
-                 'exec','login','microsoft-ds','smtp', 'smtps','submission',
-                 'svn','iss-realsecure','snmptrap','snmp']
-
-    # read json 
-    with open(filename, "r") as jsonlines_file:
-        for line in jsonlines_file:
-            data = json.loads(line)
-            try:
-                host, port, name = data["host"], data["port"], data["service"]
-                
-                name = NAME_MAP.get(name, name)
-                if name in supported:
-                    if name not in services:
-                        services[name] = {}
-                    if port not in services[name]:
-                        services[name][port] = []
-
-                    services[name][port].append(host)
-                
-            except KeyError as e:
-                sys.stderr.write("\n[!] Field: " + str(e) + "is missing")
-                sys.stderr.write("\n[!] Please provide the json fields. ")
-                continue
-    loading = True 
-
-
-
-def make_dic_gnmap(filename):
+def make_dic_gnmap():
     global loading
     global services
 
@@ -189,7 +163,7 @@ def make_dic_gnmap(filename):
 
 
     port = None
-    with open(filename, 'r') as nmap_file:
+    with open(args.file, 'r') as nmap_file:
         for line in nmap_file:
             for name in supported:
                 matches = re.compile(r'([0-9][0-9]*)/open/[a-z][a-z]*//' + name)
@@ -215,7 +189,7 @@ def make_dic_gnmap(filename):
 
     loading = True
 
-def make_dic_xml(filename):
+def make_dic_xml():
     global loading
     global services
     supported = ['ssh','ftp','postgresql','telnet','mysql','ms-sql-s','rsh',
@@ -277,7 +251,7 @@ def make_dic_json():
     loading = True 
 
 def brute(service,port,fname,output):
-    if args.userlist is None and args.username is None:
+    if args.userlist is None and args.username is None and args.combo is None:
         userlist = '/usr/share/brutespray/wordlist/'+service+'/user'
         if not os.path.exists(userlist):
             userlist = 'wordlist/'+service+'/user'
@@ -290,10 +264,10 @@ def brute(service,port,fname,output):
         uarg = '-u'
     elif args.combo:
         userlist = args.combo
-        uarg = "-C"
+        uarg = '-C'
 
 
-    if args.passlist is None and args.password is None:
+    if args.passlist is None and args.password is None and args.combo is None:
         passlist = '/usr/share/brutespray/wordlist/'+service+'/password'
         if not os.path.exists(passlist):
             passlist = 'wordlist/'+service+'/password'
@@ -392,9 +366,9 @@ def parse_args():
     menu_group.add_argument('-T', '--hosts', help="number of hosts to test concurrently", default="1")
     menu_group.add_argument('-U', '--userlist', help="reference a custom username file", default=None)
     menu_group.add_argument('-P', '--passlist', help="reference a custom password file", default=None)
+    menu_group.add_argument('-C', '--combo', help="specify a combo input (host:user:password)", default=None)
     menu_group.add_argument('-u', '--username', help="specify a single username", default=None)
     menu_group.add_argument('-p', '--password', help="specify a single password", default=None)
-    menu_group.add_argument('-C', '--combo', help="specify a combo input (host:user:password)", default=None)
     menu_group.add_argument('-c', '--continuous', help="keep brute-forcing after success", default=False, action='store_true')
     menu_group.add_argument('-i', '--interactive', help="interactive mode", default=False, action='store_true')    
     menu_group.add_argument('-m', '--modules', help="dump a list of available modules to brute", default=False, action='store_true')    
@@ -406,31 +380,6 @@ def parse_args():
         parser.error("argument -f/--file is required")
     return args
 
-def getInput(filename):
-    in_format = None
-    if filename.endswith("gnmap"):
-        in_format = "gnmap"
-    if filename.endswith("json"):
-        in_format = "json"
-    if filename.endswith("xml"):
-        in_format = "xml"
-    if in_format == None:
-        in_format = detectFormat(filename)
-
-    return in_format or  "xml"
-
-# detectFormat returns 
-def detectFormat(filename):
-    in_format = None
-    with open(filename) as f:
-        first_line = f.readline()
-        if first_line.startwith("{"):
-            in_format = "json"
-        if first_line.startswith("# Nmap") and first_line.contains(" -oG "):
-            in_format = "gnmap"
-        if first_line.startswith("<?xml "):
-            in_format = "xml"
-    return in_format 
 
 if __name__ == "__main__":
     args = parse_args()
@@ -474,13 +423,11 @@ if __name__ == "__main__":
         sys.stderr.write("Userlist given does not exist. Please check your file or path\n")
         exit(3)
 
+    if args.combo and not os.path.isfile(args.combo):
+        sys.stderr.write("Combolist given does not exist. Please check your file or path\n")
+
     if os.path.isfile(args.file):        
-       
-        # --[Parse Input based on input]--
         try:
-            in_format = getInput(args.file)
-            print("\nParsing "+in_format + " File ")
-            
             t = threading.Thread(target=loading)
             t.start()
             in_format = getInput(args.file)
