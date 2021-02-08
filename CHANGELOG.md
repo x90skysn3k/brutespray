@@ -1,4 +1,15 @@
 # Changelog
+* v1.6.8
+    * added option to supress large banner
+* v1.6.7
+    * Check for wordlist in local directory
+* v1.6.6
+    * Integrated JSON support thanks to c-f
+* v1.6.5
+    * updated for python3 compatibility
+    * switched to ElementTree XML API
+    * rewrote xml parsing and fixed bugs
+    * updated wordlists
 * v1.6.4
     * use dictionary for name conversion
 * v1.6.3
