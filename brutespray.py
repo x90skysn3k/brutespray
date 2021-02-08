@@ -356,7 +356,6 @@ def parse_args():
 
     menu_group = parser.add_argument_group(colors.lightblue + 'Menu Options' + colors.normal)
 
-    #menu_group.add_argument('-f', '--file', help="GNMAP or XML file to parse", required=False, default=None)
     menu_group.add_argument('-f', '--file', help="GNMAP, JSON or XML file to parse", required=False, default=None)
     menu_group.add_argument('-o', '--output', help="Directory containing successful attempts", default="brutespray-output")
     menu_group.add_argument('-s', '--service', help="specify service to attack", default="all")
