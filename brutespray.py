@@ -57,7 +57,7 @@ banner = colors.red + r"""
         ╚═════╝ ╚═╝  ╚═╝ ╚═════╝    ╚═╝   ╚══════╝╚══════╝╚═╝     ╚═╝  ╚═╝╚═╝  ╚═╝   ╚═╝   
                                                                                    
 """+'\n' \
-+ '\n brutespray.py v1.6.9' \
++ '\n brutespray.py v1.7.0' \
 + '\n Created by: Shane Young/@t1d3nio && Jacob Robles/@shellfail' \
 + '\n Inspired by: Leon Johnson/@sho-luv' \
 + '\n Credit to Medusa: JoMo-Kun / Foofus Networks <jmk@foofus.net>\n' + colors.normal
@@ -248,7 +248,7 @@ def make_dic_json():
                 continue
     loading = True 
 
-def brute(service,port,fname,output,auserlist,ausername,apasslist,apassword,acontinuous,ahosts,athreads,averbose,acombo):
+def brute(service,port,fname,output,auserlist,ausername,apasslist,apassword,acontinuous,ahosts,athreads,averbose,acombo,adebug):
     if auserlist is None and ausername is None and acombo is None:
 
         userlist = '/usr/share/brutespray/wordlist/'+service+'/user'
@@ -291,7 +291,7 @@ def brute(service,port,fname,output,auserlist,ausername,apasslist,apassword,acon
         aarg = ''
         auth = ''
 
-    p = subprocess.Popen(['medusa', '-b', '-H', fname, uarg, userlist, parg, passlist, '-M', service, '-t', athreads, '-n', port, '-T', ahosts, cont, aarg, auth, '-v', averbose], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True, bufsize=1)
+    p = subprocess.Popen(['medusa', '-b', '-H', fname, uarg, userlist, parg, passlist, '-M', service, '-t', athreads, '-n', port, '-T', ahosts, cont, aarg, auth, '-v', averbose, '-w', adebug], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True, bufsize=1)
     
 
     out = "[" + colors.green + "+" + colors.normal + "] "
@@ -371,6 +371,7 @@ def parse_args():
     menu_group.add_argument('-m', '--modules', help="dump a list of available modules to brute", default=False, action='store_true')    
     menu_group.add_argument('-q', '--quiet', help="supress banner", default=False, action='store_true')   
     menu_group.add_argument('-v', '--verbose', help="verbose output from medusa [0-6], default=5", default="5")
+    menu_group.add_argument('-w', '--debug', help="debug error output from medusa [0-10], default=5", default="5")
 
     args = parser.parse_args()
 
@@ -458,7 +459,7 @@ if __name__ == "__main__":
                 for ip in iplist:
                     f.write(ip + '\n')
                 f.close()
-                brute_process = Process(target=brute, args=(service,port,fname,args.output,args.userlist,args.username,args.passlist,args.password,args.continuous,args.hosts,args.threads,args.verbose,args.combo))
+                brute_process = Process(target=brute, args=(service,port,fname,args.output,args.userlist,args.username,args.passlist,args.password,args.continuous,args.hosts,args.threads,args.verbose,args.combo,args.debug))
                 brute_process.start()
 
 
