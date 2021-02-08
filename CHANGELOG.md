@@ -1,4 +1,7 @@
 # Changelog
+* v1.7.0
+    * added `-w` medusa debug option
+    * updated to v1.7.0 for auto builds
 * v1.6.9
     * merged combo option and other fixes from @c-f (thank you)
     * added medusa verbosity `-v 1-6`
