@@ -100,5 +100,12 @@ Command: ```python brutespray.py --file nmap.xml -i```
 ...
 ```
 
+# Combo Option
+When you specify a combo option, it will attempt the host:user:pass on each discovered service from Nmap. If you just want to specify `USER:PASS` ensure you leave the host blank. IE `:USER:PASS`
+```
+127.0.0.1:user:pass
+:user:pass
+```
+
 # Changelog
 Changelog notes are available at [CHANGELOG.md](https://github.com/x90skysn3k/brutespray/blob/master/CHANGELOG.md)
