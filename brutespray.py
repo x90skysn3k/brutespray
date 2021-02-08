@@ -265,7 +265,7 @@ def brute(service,port,fname,output,auserlist,ausername,apasslist,apassword,acon
         userlist = acombo
         uarg = '-C'
 
-    if args.passlist is None and args.password is None and acombo is None:
+    if apasslist is None and apassword is None and acombo is None:
         passlist = '/usr/share/brutespray/wordlist/'+service+'/password'
         if not os.path.exists(passlist):
             passlist = 'wordlist/'+service+'/password'
