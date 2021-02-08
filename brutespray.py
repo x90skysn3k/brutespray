@@ -289,7 +289,7 @@ def brute(service,port,fname,output,auserlist,ausername,apasslist,apassword,acon
         time.sleep(0.0001)
         if 'SUCCESS' in line:
             f = open(output_file, 'a')
-            f.write(out + line.decode('utf-8'))
+            f.write(out + line)
             f.close()
 
 def animate():
