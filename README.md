@@ -6,7 +6,7 @@ Inspired by: Leon Johnson/@sho-luv
 
 Credit to Medusa: JoMo-Kun / Foofus Networks - http://www.foofus.net
 
-#### Version - 1.6.4
+#### Version - 1.6.8
 
 # Demo
 
@@ -59,6 +59,10 @@ Command: ```python brutespray.py --file nmap.xml -i```
 #### Use Nmap XML Output
 
 ```python brutespray.py --file nmap.xml --threads 5 --hosts 5```
+
+#### Use JSON Output
+
+```python brutespray.py --file out.json --threads 5 --hosts 5```
 
 #### Interactive Mode
 
