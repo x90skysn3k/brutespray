@@ -1,4 +1,11 @@
 # Changelog
+* v1.6.9
+    * merged combo option and other fixes from @c-f (thank you)
+    * added medusa verbosity `-v 1-6`
+    * adjusted multiprocess buffer
+    * updated some wordlists
+    * updated readme
+    * fixed MacOS subprocess arguments not being passed
 * v1.6.8
     * added option to supress large banner
 * v1.6.7
