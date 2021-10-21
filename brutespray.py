@@ -138,6 +138,7 @@ def interactive():
 
 NAME_MAP = {"ms-sql-s": "mssql",
             "microsoft-ds": "smbnt",
+            "cifs": "smbnt",
             "pcanywheredata": "pcanywhere",
             "postgresql": "postgres",
             "shell": "rsh",
@@ -218,6 +219,43 @@ def make_dic_nexpose():
                     else:
                         services[name] = {tmp_port:iplist}
 
+    loading = True
+
+def make_dic_nessus():
+    global loading
+    global services
+    supported = ['ssh','ftp','postgresql','telnet','mysql','ms-sql-s','rsh',
+                 'vnc','imap','imaps','nntp','pcanywheredata','pop3','pop3s',
+                 'exec','login','microsoft-ds','smtp','smtps','submission',
+                 'svn','iss-realsecure','snmptrap','snmp','cifs']
+    tree = ET.parse(args.file)
+    root = tree.getroot()
+    for host in root.iter('ReportHost'):
+        ipaddr = host.attrib['name']
+        for port in host.iter('ReportItem'):
+            cstate = "open"
+            tmp_port = port.attrib['port']
+            if tmp_port == '0':
+                cstate == "closed"
+                continue
+            if cstate == "open":
+                try:
+                    name = port.attrib['svc_name']
+                    iplist = ipaddr.split(',')
+                except:
+                    continue
+                name = name.lower()
+                if name in supported:
+                    name = NAME_MAP.get(name, name)
+                    if name in services:
+                        if tmp_port in services[name]:
+                            services[name][tmp_port] += iplist
+                        else:
+                                services[name][tmp_port] = iplist
+                    else:
+                        services[name] = {tmp_port:iplist}
+
+    print(services)
     loading = True
 
 def make_dic_xml():
@@ -377,6 +415,8 @@ def getInput(filename):
             in_format = "xml"
         if '<NexposeReport ' in line[0]:
             in_format = "xml_nexpose"
+        if '<NessusClientData' in line[1]:
+            in_format = "xml_nessus"
         if in_format is None:
             print('File is not correct format!\n')
             sys.exit(0)
@@ -468,7 +508,8 @@ if __name__ == "__main__":
                 "gnmap": make_dic_gnmap,
                 "xml":   make_dic_xml,
                 "json":  make_dic_json,
-                "xml_nexpose": make_dic_nexpose
+                "xml_nexpose": make_dic_nexpose,
+                "xml_nessus": make_dic_nessus
             }[in_format]()
         except:
             print("\nFormat failed!\n")
