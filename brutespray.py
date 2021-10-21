@@ -57,7 +57,7 @@ banner = colors.red + r"""
         ╚═════╝ ╚═╝  ╚═╝ ╚═════╝    ╚═╝   ╚══════╝╚══════╝╚═╝     ╚═╝  ╚═╝╚═╝  ╚═╝   ╚═╝   
                                                                                    
 """+'\n' \
-+ '\n brutespray.py v1.8.0' \
++ '\n brutespray.py v1.8' \
 + '\n Created by: Shane Young/@t1d3nio && Jacob Robles/@shellfail' \
 + '\n Inspired by: Leon Johnson/@sho-luv' \
 + '\n Credit to Medusa: JoMo-Kun / Foofus Networks <jmk@foofus.net>\n' + colors.normal
