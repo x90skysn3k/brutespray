@@ -1,5 +1,5 @@
 # Changelog
-* v1.8.0
+* v1.8
     * added ability to parse Nexpose "XML Export"
 * v1.7.0
     * added `-w` medusa debug option
