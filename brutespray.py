@@ -57,7 +57,7 @@ banner = colors.red + r"""
         ╚═════╝ ╚═╝  ╚═╝ ╚═════╝    ╚═╝   ╚══════╝╚══════╝╚═╝     ╚═╝  ╚═╝╚═╝  ╚═╝   ╚═╝   
                                                                                    
 """+'\n' \
-+ '\n brutespray.py v1.7.0' \
++ '\n brutespray.py v1.8.0' \
 + '\n Created by: Shane Young/@t1d3nio && Jacob Robles/@shellfail' \
 + '\n Inspired by: Leon Johnson/@sho-luv' \
 + '\n Credit to Medusa: JoMo-Kun / Foofus Networks <jmk@foofus.net>\n' + colors.normal
@@ -184,6 +184,39 @@ def make_dic_gnmap():
                             services[name][tmp_port] = ip
                     else:
                         services[name] = {tmp_port:ip}
+
+    loading = True
+
+def make_dic_nexpose():
+    global loading
+    global services
+    supported = ['ssh','ftp','postgresql','telnet','mysql','ms-sql-s','rsh',
+                 'vnc','imap','imaps','nntp','pcanywheredata','pop3','pop3s',
+                 'exec','login','microsoft-ds','smtp','smtps','submission',
+                 'svn','iss-realsecure','snmptrap','snmp']
+    tree = ET.parse(args.file)
+    root = tree.getroot()
+    for node in root.iter('node'):
+        ipaddr = node.attrib['address']
+        for port in node.iter('endpoint'):
+            cstate = port.attrib['status']
+            tmp_port = port.attrib['port']
+            if cstate == "open":
+                try:
+                    name = port[0][0].attrib['name']
+                    iplist = ipaddr.split(',')
+                except:
+                    continue
+                name = name.lower()
+                if name in supported:
+                    name = NAME_MAP.get(name, name)
+                    if name in services:
+                        if tmp_port in services[name]:
+                            services[name][tmp_port] += iplist
+                        else:
+                            services[name][tmp_port] = iplist
+                    else:
+                        services[name] = {tmp_port:iplist}
 
     loading = True
 
@@ -342,6 +375,8 @@ def getInput(filename):
             in_format = "gnmap"
         if '<?xml ' in line[0]:
             in_format = "xml"
+        if '<NexposeReport ' in line[0]:
+            in_format = "xml_nexpose"
         if in_format is None:
             print('File is not correct format!\n')
             sys.exit(0)
@@ -432,7 +467,8 @@ if __name__ == "__main__":
             {
                 "gnmap": make_dic_gnmap,
                 "xml":   make_dic_xml,
-                "json":  make_dic_json
+                "json":  make_dic_json,
+                "xml_nexpose": make_dic_nexpose
             }[in_format]()
         except:
             print("\nFormat failed!\n")
