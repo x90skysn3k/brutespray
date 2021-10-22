@@ -82,7 +82,7 @@ def interactive():
         for serv in services:
             srv = serv
             for prt in services[serv]:
-                iplist = services[serv][prt]
+                iplist = set(services[serv][prt])
                 port = prt
                 plist = len(iplist)
                 print("Service: " + colors.green + str(serv) + colors.normal + " on port " + colors.red + str(port) + colors.normal + " with " + colors.red + str(plist) + colors.normal + " hosts")
@@ -160,7 +160,6 @@ def make_dic_gnmap():
                  'exec','login','microsoft-ds','smtp', 'smtps','submission',
                  'svn','iss-realsecure','snmptrap','snmp']
 
-
     port = None
     with open(args.file, 'r') as nmap_file:
         for line in nmap_file:
@@ -173,11 +172,8 @@ def make_dic_gnmap():
 
                 ip = re.findall( r'[0-9]+(?:\.[0-9]+){3}', line)
                 tmp_ports = matches.findall(line)
-
                 for tmp_port in tmp_ports:
-
                     name = NAME_MAP.get(name, name)
-
                     if name in services:
                         if tmp_port in services[name]:
                             services[name][tmp_port] += ip
@@ -194,7 +190,7 @@ def make_dic_nexpose():
     supported = ['ssh','ftp','postgresql','telnet','mysql','ms-sql-s','rsh',
                  'vnc','imap','imaps','nntp','pcanywheredata','pop3','pop3s',
                  'exec','login','microsoft-ds','smtp','smtps','submission',
-                 'svn','iss-realsecure','snmptrap','snmp']
+                 'svn','iss-realsecure','snmptrap','snmp','cifs']
     tree = ET.parse(args.file)
     root = tree.getroot()
     for node in root.iter('node'):
@@ -255,7 +251,6 @@ def make_dic_nessus():
                     else:
                         services[name] = {tmp_port:iplist}
 
-    print(services)
     loading = True
 
 def make_dic_xml():
@@ -401,17 +396,17 @@ def getInput(filename):
     in_format = None
     with open(filename) as f:
         line = f.readlines()
-        if filename.endswith("gnmap"):
-            in_format = "gnmap"
-        if filename.endswith("json"):
-            in_format = "json"
-        if filename.endswith("xml"):
-            in_format = "xml"
+        #if filename.endswith("gnmap"):
+        #    in_format = "gnmap"
+        #if filename.endswith("json"):
+        #    in_format = "json"
+        #if filename.endswith("xml"):
+        #    in_format = "xml"
         if '{' in line[0]:
             in_format = "json"
         if '# Nmap' in line[0] and not 'Nmap' in line[1]:
             in_format = "gnmap"
-        if '<?xml ' in line[0]:
+        if '<?xml ' in line[0] and 'nmaprun' in line[1]:
             in_format = "xml"
         if '<NexposeReport ' in line[0]:
             in_format = "xml_nexpose"
@@ -465,7 +460,7 @@ if __name__ == "__main__":
     supported = ['ssh','ftp','telnet','vnc','mssql','mysql','postgresql','rsh',
                 'imap','nntp','pcanywhere','pop3',
                 'rexec','rlogin','smbnt','smtp',
-                'svn','vmauthd','snmp']
+                'svn','vmauthd','snmp','cifs']
     #temporary directory for ip addresses
 
     if args.modules is True:
@@ -522,16 +517,16 @@ if __name__ == "__main__":
         animate()
 
         if services == {}:
-            print("\nNo brutable services found.\n Please check your Nmap file.")
+            print("\nNo brutable services found.\n Please check your file.")
     else:
         print("\nError loading file, please check your filename.")
-
+    
     to_scan = args.service.split(',')
     for service in services:
         if service in to_scan or to_scan == ['all']:
             for port in services[service]:
                 fname = tmppath + '/' +service + '-' + port
-                iplist = services[service][port]
+                iplist = set(services[service][port])
                 f = open(fname, 'w+')
                 for ip in iplist:
                     f.write(ip + '\n')
