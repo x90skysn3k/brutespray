@@ -29,7 +29,7 @@ On Kali:
 # Usage
 If using Nmap, scan with ```-oG nmap.gnmap``` or ```-oX nmap.xml```.
 
-If using Nexpose, export the template <b>XML Export</b>. 
+If using Nexpose, export the template `XML Export`. 
 
 If using Nessus, export your `.nessus` file.
 
@@ -103,7 +103,9 @@ Command: ```python brutespray.py --file nmap.xml -i```
 {"host":"127.0.0.10","port":"3306","service":"mysql"}
 ...
 ```
-To use Nexpose scan, export your scan as "XML Export"
+If using Nexpose, export the template `XML Export`. 
+
+If using Nessus, export your `.nessus` file.
 
 # Combo Option
 When you specify a combo option `-C`, it will read the specified file and attempt the host:user:pass on each discovered service from Nmap. If you just want to specify only a username and password leave the host blank as shown below.
