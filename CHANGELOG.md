@@ -1,6 +1,8 @@
 # Changelog
 * v1.8
     * added ability to parse Nexpose "XML Export"
+    * added ability to parse Nessus ".nessus" files
+    * added set() to iplist to ensure unique only
 * v1.7.0
     * added `-w` medusa debug option
     * updated to v1.7.0 for auto builds
