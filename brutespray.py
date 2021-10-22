@@ -57,7 +57,7 @@ banner = colors.red + r"""
         ╚═════╝ ╚═╝  ╚═╝ ╚═════╝    ╚═╝   ╚══════╝╚══════╝╚═╝     ╚═╝  ╚═╝╚═╝  ╚═╝   ╚═╝   
                                                                                    
 """+'\n' \
-+ '\n brutespray.py v1.7.0' \
++ '\n brutespray.py v1.8' \
 + '\n Created by: Shane Young/@t1d3nio && Jacob Robles/@shellfail' \
 + '\n Inspired by: Leon Johnson/@sho-luv' \
 + '\n Credit to Medusa: JoMo-Kun / Foofus Networks <jmk@foofus.net>\n' + colors.normal
@@ -82,7 +82,7 @@ def interactive():
         for serv in services:
             srv = serv
             for prt in services[serv]:
-                iplist = services[serv][prt]
+                iplist = set(services[serv][prt])
                 port = prt
                 plist = len(iplist)
                 print("Service: " + colors.green + str(serv) + colors.normal + " on port " + colors.red + str(port) + colors.normal + " with " + colors.red + str(plist) + colors.normal + " hosts")
@@ -138,6 +138,7 @@ def interactive():
 
 NAME_MAP = {"ms-sql-s": "mssql",
             "microsoft-ds": "smbnt",
+            "cifs": "smbnt",
             "pcanywheredata": "pcanywhere",
             "postgresql": "postgres",
             "shell": "rsh",
@@ -159,7 +160,6 @@ def make_dic_gnmap():
                  'exec','login','microsoft-ds','smtp', 'smtps','submission',
                  'svn','iss-realsecure','snmptrap','snmp']
 
-
     port = None
     with open(args.file, 'r') as nmap_file:
         for line in nmap_file:
@@ -172,11 +172,8 @@ def make_dic_gnmap():
 
                 ip = re.findall( r'[0-9]+(?:\.[0-9]+){3}', line)
                 tmp_ports = matches.findall(line)
-
                 for tmp_port in tmp_ports:
-
                     name = NAME_MAP.get(name, name)
-
                     if name in services:
                         if tmp_port in services[name]:
                             services[name][tmp_port] += ip
@@ -184,6 +181,75 @@ def make_dic_gnmap():
                             services[name][tmp_port] = ip
                     else:
                         services[name] = {tmp_port:ip}
+
+    loading = True
+
+def make_dic_nexpose():
+    global loading
+    global services
+    supported = ['ssh','ftp','postgresql','telnet','mysql','ms-sql-s','rsh',
+                 'vnc','imap','imaps','nntp','pcanywheredata','pop3','pop3s',
+                 'exec','login','microsoft-ds','smtp','smtps','submission',
+                 'svn','iss-realsecure','snmptrap','snmp','cifs']
+    tree = ET.parse(args.file)
+    root = tree.getroot()
+    for node in root.iter('node'):
+        ipaddr = node.attrib['address']
+        for port in node.iter('endpoint'):
+            cstate = port.attrib['status']
+            tmp_port = port.attrib['port']
+            if cstate == "open":
+                try:
+                    name = port[0][0].attrib['name']
+                    iplist = ipaddr.split(',')
+                except:
+                    continue
+                name = name.lower()
+                if name in supported:
+                    name = NAME_MAP.get(name, name)
+                    if name in services:
+                        if tmp_port in services[name]:
+                            services[name][tmp_port] += iplist
+                        else:
+                            services[name][tmp_port] = iplist
+                    else:
+                        services[name] = {tmp_port:iplist}
+
+    loading = True
+
+def make_dic_nessus():
+    global loading
+    global services
+    supported = ['ssh','ftp','postgresql','telnet','mysql','ms-sql-s','rsh',
+                 'vnc','imap','imaps','nntp','pcanywheredata','pop3','pop3s',
+                 'exec','login','microsoft-ds','smtp','smtps','submission',
+                 'svn','iss-realsecure','snmptrap','snmp','cifs']
+    tree = ET.parse(args.file)
+    root = tree.getroot()
+    for host in root.iter('ReportHost'):
+        ipaddr = host.attrib['name']
+        for port in host.iter('ReportItem'):
+            cstate = "open"
+            tmp_port = port.attrib['port']
+            if tmp_port == '0':
+                cstate == "closed"
+                continue
+            if cstate == "open":
+                try:
+                    name = port.attrib['svc_name']
+                    iplist = ipaddr.split(',')
+                except:
+                    continue
+                name = name.lower()
+                if name in supported:
+                    name = NAME_MAP.get(name, name)
+                    if name in services:
+                        if tmp_port in services[name]:
+                            services[name][tmp_port] += iplist
+                        else:
+                                services[name][tmp_port] = iplist
+                    else:
+                        services[name] = {tmp_port:iplist}
 
     loading = True
 
@@ -330,18 +396,22 @@ def getInput(filename):
     in_format = None
     with open(filename) as f:
         line = f.readlines()
-        if filename.endswith("gnmap"):
-            in_format = "gnmap"
-        if filename.endswith("json"):
-            in_format = "json"
-        if filename.endswith("xml"):
-            in_format = "xml"
+        #if filename.endswith("gnmap"):
+        #    in_format = "gnmap"
+        #if filename.endswith("json"):
+        #    in_format = "json"
+        #if filename.endswith("xml"):
+        #    in_format = "xml"
         if '{' in line[0]:
             in_format = "json"
         if '# Nmap' in line[0] and not 'Nmap' in line[1]:
             in_format = "gnmap"
-        if '<?xml ' in line[0]:
+        if '<?xml ' in line[0] and 'nmaprun' in line[1]:
             in_format = "xml"
+        if '<NexposeReport ' in line[0]:
+            in_format = "xml_nexpose"
+        if '<NessusClientData' in line[1]:
+            in_format = "xml_nessus"
         if in_format is None:
             print('File is not correct format!\n')
             sys.exit(0)
@@ -390,7 +460,7 @@ if __name__ == "__main__":
     supported = ['ssh','ftp','telnet','vnc','mssql','mysql','postgresql','rsh',
                 'imap','nntp','pcanywhere','pop3',
                 'rexec','rlogin','smbnt','smtp',
-                'svn','vmauthd','snmp']
+                'svn','vmauthd','snmp','cifs']
     #temporary directory for ip addresses
 
     if args.modules is True:
@@ -432,7 +502,9 @@ if __name__ == "__main__":
             {
                 "gnmap": make_dic_gnmap,
                 "xml":   make_dic_xml,
-                "json":  make_dic_json
+                "json":  make_dic_json,
+                "xml_nexpose": make_dic_nexpose,
+                "xml_nessus": make_dic_nessus
             }[in_format]()
         except:
             print("\nFormat failed!\n")
@@ -445,16 +517,16 @@ if __name__ == "__main__":
         animate()
 
         if services == {}:
-            print("\nNo brutable services found.\n Please check your Nmap file.")
+            print("\nNo brutable services found.\n Please check your file.")
     else:
         print("\nError loading file, please check your filename.")
-
+    
     to_scan = args.service.split(',')
     for service in services:
         if service in to_scan or to_scan == ['all']:
             for port in services[service]:
                 fname = tmppath + '/' +service + '-' + port
-                iplist = services[service][port]
+                iplist = set(services[service][port])
                 f = open(fname, 'w+')
                 for ip in iplist:
                     f.write(ip + '\n')
