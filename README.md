@@ -14,7 +14,7 @@ Credit to Medusa: JoMo-Kun / Foofus Networks - http://www.foofus.net
 https://youtu.be/C-CVLbSEe_g
 
 # Description
-BruteSpray takes Nmap GNMAP/XML output, newline separated JSON, Nexpose Simple XML Output or .nessus exports and automatically brute-forces services with default credentials using Medusa. BruteSpray finds non-standard ports, make sure to use `-sV` with Nmap.
+BruteSpray takes Nmap GNMAP/XML output, newline separated JSON, Nexpose `XML Export` output or Nessus `.nessus` exports and automatically brute-forces services with default credentials using Medusa. BruteSpray finds non-standard ports, make sure to use `-sV` with Nmap.
 
 <img src="http://i.imgur.com/k9BDB5R.png" width="500">
 
