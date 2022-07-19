@@ -37,7 +37,7 @@ Command: ```python brutespray.py -h```
 
 Command: ```python brutespray.py --file nmap.gnmap```
 
-Command: ```python brutesrpay.py --file nmap.xml```
+Command: ```python brutespray.py --file nmap.xml```
 
 Command: ```python brutespray.py --file nmap.xml -i```
 
