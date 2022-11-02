@@ -16,7 +16,7 @@ https://youtu.be/C-CVLbSEe_g
 # Description
 BruteSpray takes Nmap GNMAP/XML output, newline separated JSON, Nexpose `XML Export` output or Nessus `.nessus` exports and automatically brute-forces services with default credentials using Medusa. BruteSpray finds non-standard ports, make sure to use `-sV` with Nmap.
 
-Brutespray uses the Python standard libraries.
+Brutespray uses Python standard libraries.
 
 <img src="http://i.imgur.com/k9BDB5R.png" width="500">
 
