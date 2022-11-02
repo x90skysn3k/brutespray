@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 from argparse import RawTextHelpFormatter
 import readline, glob
-import sys, time, os
+import sys, time, os, np
 import subprocess
 import xml.etree.ElementTree as ET
 import re
@@ -10,7 +10,6 @@ import argparse
 import threading
 import itertools
 import tempfile
-import shutil
 import json
 from multiprocessing import Process
 
@@ -26,50 +25,47 @@ class colors:
     lightblue = "\033[0;34m"
 
 banner = colors.red + r"""
-                              #@                           @/              
-                           @@@                               @@@           
-                        %@@@                                   @@@.        
-                      @@@@@                                     @@@@%      
-                     @@@@@                                       @@@@@     
-                    @@@@@@@                  @                  @@@@@@@    
-                    @(@@@@@@@%            @@@@@@@            &@@@@@@@@@    
-                    @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@    
-                     @@*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@ @@     
-                       @@@( @@@@@#@@@@@@@@@*@@@,@@@@@@@@@@@@@@@  @@@       
-                           @@@@@@ .@@@/@@@@@@@@@@@@@/@@@@ @@@@@@           
-                                  @@@   @@@@@@@@@@@   @@@                  
-                                 @@@@*  ,@@@@@@@@@(  ,@@@@                 
-                                 @@@@@@@@@@@@@@@@@@@@@@@@@                 
-                                  @@@.@@@@@@@@@@@@@@@ @@@                  
-                                    @@@@@@ @@@@@ @@@@@@                    
-                                       @@@@@@@@@@@@@                       
-                                       @@   @@@   @@                       
-                                       @@ @@@@@@@ @@                       
-                                         @@% @  @@                 
+                              #@                           @/
+                           @@@                               @@@
+                        %@@@                                   @@@.
+                      @@@@@                                     @@@@%
+                     @@@@@                                       @@@@@
+                    @@@@@@@                  @                  @@@@@@@
+                    @(@@@@@@@%            @@@@@@@            &@@@@@@@@@
+                    @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+                     @@*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@ @@
+                       @@@( @@@@@#@@@@@@@@@*@@@,@@@@@@@@@@@@@@@  @@@
+                           @@@@@@ .@@@/@@@@@@@@@@@@@/@@@@ @@@@@@
+                                  @@@   @@@@@@@@@@@   @@@
+                                 @@@@*  ,@@@@@@@@@(  ,@@@@
+                                 @@@@@@@@@@@@@@@@@@@@@@@@@
+                                  @@@.@@@@@@@@@@@@@@@ @@@
+                                    @@@@@@ @@@@@ @@@@@@
+                                       @@@@@@@@@@@@@
+                                       @@   @@@   @@
+                                       @@ @@@@@@@ @@
+                                         @@% @  @@
 
 """+'\n' \
 + r"""
         ██████╗ ██████╗ ██╗   ██╗████████╗███████╗███████╗██████╗ ██████╗  █████╗ ██╗   ██╗
         ██╔══██╗██╔══██╗██║   ██║╚══██╔══╝██╔════╝██╔════╝██╔══██╗██╔══██╗██╔══██╗╚██╗ ██╔╝
-        ██████╔╝██████╔╝██║   ██║   ██║   █████╗  ███████╗██████╔╝██████╔╝███████║ ╚████╔╝ 
-        ██╔══██╗██╔══██╗██║   ██║   ██║   ██╔══╝  ╚════██║██╔═══╝ ██╔══██╗██╔══██║  ╚██╔╝  
-        ██████╔╝██║  ██║╚██████╔╝   ██║   ███████╗███████║██║     ██║  ██║██║  ██║   ██║   
-        ╚═════╝ ╚═╝  ╚═╝ ╚═════╝    ╚═╝   ╚══════╝╚══════╝╚═╝     ╚═╝  ╚═╝╚═╝  ╚═╝   ╚═╝   
-                                                                                   
-"""+'\n' \
-+ '\n brutespray.py v1.8' \
-+ '\n Created by: Shane Young/@t1d3nio && Jacob Robles/@shellfail' \
-+ '\n Inspired by: Leon Johnson/@sho-luv' \
-+ '\n Credit to Medusa: JoMo-Kun / Foofus Networks <jmk@foofus.net>\n' + colors.normal
+        ██████╔╝██████╔╝██║   ██║   ██║   █████╗  ███████╗██████╔╝██████╔╝███████║ ╚████╔╝
+        ██╔══██╗██╔══██╗██║   ██║   ██║   ██╔══╝  ╚════██║██╔═══╝ ██╔══██╗██╔══██║  ╚██╔╝
+        ██████╔╝██║  ██║╚██████╔╝   ██║   ███████╗███████║██║     ██║  ██║██║  ██║   ██║
+        ╚═════╝ ╚═╝  ╚═╝ ╚═════╝    ╚═╝   ╚══════╝╚══════╝╚═╝     ╚═╝  ╚═╝╚═╝  ╚═╝   ╚═╝
+"""
+quiet_banner = colors.red + r"""
+ brutespray.py v1.8.1
+ Created by: Shane Young/@t1d3nio && Jacob Robles/@shellfail
+ Inspired by: Leon Johnson/@sho-luv
+ Credit to Medusa: JoMo-Kun / Foofus Networks <jmk@foofus.net>"""+'\n' + colors.normal
 #ascii art by: Cara Pearson
-
-quiet_banner = colors.red + '~ BruteSpray ~' + colors.normal
 
 class tabCompleter(object):
 
     def pathCompleter(self,text,state):
         line   = readline.get_line_buffer().split()
-
         return [x for x in glob.glob(text+'*')][state]
 
 def interactive():
@@ -108,7 +104,7 @@ def interactive():
                 if args.passlist == "":
                     args.passlist = None
 
-        if args.username is None or args.password is None: 
+        if args.username is None or args.password is None:
             singluser = input(colors.lightblue + 'Would to specify a single username or password (y/n): ' + colors.red)
         if singluser == "y":
             if args.username is None and args.userlist is None:
@@ -169,7 +165,6 @@ def make_dic_gnmap():
                     port =  matches.findall(line)[0]
                 except:
                     continue
-
                 ip = re.findall( r'[0-9]+(?:\.[0-9]+){3}', line)
                 tmp_ports = matches.findall(line)
                 for tmp_port in tmp_ports:
@@ -187,10 +182,12 @@ def make_dic_gnmap():
 def make_dic_nexpose():
     global loading
     global services
+
     supported = ['ssh','ftp','postgresql','telnet','mysql','ms-sql-s','rsh',
                  'vnc','imap','imaps','nntp','pcanywheredata','pop3','pop3s',
                  'exec','login','microsoft-ds','smtp','smtps','submission',
                  'svn','iss-realsecure','snmptrap','snmp','cifs']
+
     tree = ET.parse(args.file)
     root = tree.getroot()
     for node in root.iter('node'):
@@ -220,10 +217,12 @@ def make_dic_nexpose():
 def make_dic_nessus():
     global loading
     global services
+
     supported = ['ssh','ftp','postgresql','telnet','mysql','ms-sql-s','rsh',
                  'vnc','imap','imaps','nntp','pcanywheredata','pop3','pop3s',
                  'exec','login','microsoft-ds','smtp','smtps','submission',
                  'svn','iss-realsecure','snmptrap','snmp','cifs']
+
     tree = ET.parse(args.file)
     root = tree.getroot()
     for host in root.iter('ReportHost'):
@@ -256,10 +255,12 @@ def make_dic_nessus():
 def make_dic_xml():
     global loading
     global services
+
     supported = ['ssh','ftp','postgresql','telnet','mysql','ms-sql-s','rsh',
                  'vnc','imap','imaps','nntp','pcanywheredata','pop3','pop3s',
                  'exec','login','microsoft-ds','smtp','smtps','submission',
                  'svn','iss-realsecure','snmptrap','snmp']
+
     tree = ET.parse(args.file)
     root = tree.getroot()
     for host in root.iter('host'):
@@ -299,9 +300,8 @@ def make_dic_json():
             data = json.loads(line)
             try:
                 host, port, name = data["host"], data["port"], data["service"]
-                
                 if name in supported:
-                    name = NAME_MAP.get(name, name) 
+                    name = NAME_MAP.get(name, name)
                     if name not in services:
                         services[name] = {}
                     if port not in services[name]:
@@ -310,13 +310,12 @@ def make_dic_json():
                         services[name][port].append(host)
             except KeyError as e:
                 sys.stderr.write("\n[!] Field: " + str(e) + "is missing")
-                sys.stderr.write("\n[!] Please provide the json fields. ")               
+                sys.stderr.write("\n[!] Please provide the json fields. ")
                 continue
-    loading = True 
+    loading = True
 
 def brute(service,port,fname,output,auserlist,ausername,apasslist,apassword,acontinuous,ahosts,athreads,averbose,acombo,adebug):
     if auserlist is None and ausername is None and acombo is None:
-
         userlist = '/usr/share/brutespray/wordlist/'+service+'/user'
         if not os.path.exists(userlist):
             userlist = 'wordlist/'+service+'/user'
@@ -330,7 +329,6 @@ def brute(service,port,fname,output,auserlist,ausername,apasslist,apassword,acon
     elif acombo:
         userlist = acombo
         uarg = '-C'
-
     if apasslist is None and apassword is None and acombo is None:
         passlist = '/usr/share/brutespray/wordlist/'+service+'/password'
         if not os.path.exists(passlist):
@@ -345,7 +343,6 @@ def brute(service,port,fname,output,auserlist,ausername,apasslist,apassword,acon
     elif acombo:
         parg = ''
         passlist = ''
-
     if acontinuous:
         cont = ''
     else:
@@ -358,7 +355,6 @@ def brute(service,port,fname,output,auserlist,ausername,apasslist,apassword,acon
         auth = ''
 
     p = subprocess.Popen(['medusa', '-b', '-H', fname, uarg, userlist, parg, passlist, '-M', service, '-t', athreads, '-n', port, '-T', ahosts, cont, aarg, auth, '-v', averbose, '-w', adebug], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True, bufsize=1)
-    
 
     out = "[" + colors.green + "+" + colors.normal + "] "
     output_file = output + '/' + port + '-' + service + '-success.txt'
@@ -396,12 +392,6 @@ def getInput(filename):
     in_format = None
     with open(filename) as f:
         line = f.readlines()
-        #if filename.endswith("gnmap"):
-        #    in_format = "gnmap"
-        #if filename.endswith("json"):
-        #    in_format = "json"
-        #if filename.endswith("xml"):
-        #    in_format = "xml"
         if '{' in line[0]:
             in_format = "json"
         if '# Nmap' in line[0] and not 'Nmap' in line[1]:
@@ -416,9 +406,11 @@ def getInput(filename):
             print('File is not correct format!\n')
             sys.exit(0)
 
-    return in_format 
+    return in_format
 
 def parse_args():
+
+    global parser
 
     parser = argparse.ArgumentParser(formatter_class=RawTextHelpFormatter, description=\
 
@@ -437,25 +429,30 @@ def parse_args():
     menu_group.add_argument('-u', '--username', help="specify a single username", default=None)
     menu_group.add_argument('-p', '--password', help="specify a single password", default=None)
     menu_group.add_argument('-c', '--continuous', help="keep brute-forcing after success", default=False, action='store_true')
-    menu_group.add_argument('-i', '--interactive', help="interactive mode", default=False, action='store_true')    
-    menu_group.add_argument('-m', '--modules', help="dump a list of available modules to brute", default=False, action='store_true')    
-    menu_group.add_argument('-q', '--quiet', help="supress banner", default=False, action='store_true')   
+    menu_group.add_argument('-i', '--interactive', help="interactive mode", default=False, action='store_true')
+    menu_group.add_argument('-m', '--modules', help="dump a list of available modules to brute", default=False, action='store_true')
+    menu_group.add_argument('-q', '--quiet', help="supress banner", default=False, action='store_true')
     menu_group.add_argument('-v', '--verbose', help="verbose output from medusa [0-6], default=5", default="5")
     menu_group.add_argument('-w', '--debug', help="debug error output from medusa [0-10], default=5", default="5")
 
-    args = parser.parse_args()
+    try:
+        args = parser.parse_args()
+    except:
+        print(banner + quiet_banner)
+        args = parser.parse_args()
 
-    if args.file is None and args.modules is False:
-        parser.error("argument -f/--file is required")
     return args
 
 if __name__ == "__main__":
     args = parse_args()
-    
+
     if args.quiet == False:
-        print(banner)
+        print(banner + quiet_banner)
     else:
         print(quiet_banner)
+
+    if args.file is None and args.modules is False:
+        parser.error("argument -f/--file is required")
 
     supported = ['ssh','ftp','telnet','vnc','mssql','mysql','postgresql','rsh',
                 'imap','nntp','pcanywhere','pop3',
@@ -466,35 +463,28 @@ if __name__ == "__main__":
     if args.modules is True:
         print(colors.lightblue + "Supported Services:\n" + colors.green)
         print(('\n'.join(supported)))
-        print(colors.normal + "\n") 
+        print(colors.normal + "\n")
     try:
         tmppath = tempfile.mkdtemp(prefix="brutespray-tmp")
     except:
         sys.stderr.write("\nError while creating brutespray temp directory.")
         exit(4)
-
     if not os.path.exists(args.output):
         os.mkdir(args.output)
-
     if os.system("command -v medusa > /dev/null") != 0:
         sys.stderr.write("Command medusa not found. Please install medusa before using brutespray")
         exit(3)
-
     if args.file is None:
         sys.exit(0)
-
     if args.passlist and not os.path.isfile(args.passlist):
         sys.stderr.write("Passlist given does not exist. Please check your file or path\n")
         exit(3)
-
     if args.userlist and not os.path.isfile(args.userlist):
         sys.stderr.write("Userlist given does not exist. Please check your file or path\n")
         exit(3)
-
     if args.combo and not os.path.isfile(args.combo):
         sys.stderr.write("Combolist given does not exist. Please check your file or path\n")
-
-    if os.path.isfile(args.file):        
+    if os.path.isfile(args.file):
         try:
             t = threading.Thread(target=loading)
             t.start()
@@ -513,14 +503,14 @@ if __name__ == "__main__":
 
         if args.interactive is True:
             interactive()
-        
+
         animate()
 
         if services == {}:
             print("\nNo brutable services found.\n Please check your file.")
     else:
         print("\nError loading file, please check your filename.")
-    
+
     to_scan = args.service.split(',')
     for service in services:
         if service in to_scan or to_scan == ['all']:
