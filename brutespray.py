@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 from argparse import RawTextHelpFormatter
 import readline, glob
-import sys, time, os, np
+import sys, time, os
 import subprocess
 import xml.etree.ElementTree as ET
 import re
