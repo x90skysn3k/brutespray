@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 from argparse import RawTextHelpFormatter
 import readline, glob
-import sys, time, os
+import sys, time, os, np
 import subprocess
 import xml.etree.ElementTree as ET
 import re
@@ -56,18 +56,16 @@ banner = colors.red + r"""
         ╚═════╝ ╚═╝  ╚═╝ ╚═════╝    ╚═╝   ╚══════╝╚══════╝╚═╝     ╚═╝  ╚═╝╚═╝  ╚═╝   ╚═╝
 """
 quiet_banner = colors.red + r"""
-        brutespray.py v1.8.1
-        Created by: Shane Young/@t1d3nio && Jacob Robles/@shellfail
-        Inspired by: Leon Johnson/@sho-luv
-        Credit to Medusa: JoMo-Kun / Foofus Networks <jmk@foofus.net>"""+'\n' + colors.normal
+ brutespray.py v1.8.1
+ Created by: Shane Young/@t1d3nio && Jacob Robles/@shellfail
+ Inspired by: Leon Johnson/@sho-luv
+ Credit to Medusa: JoMo-Kun / Foofus Networks <jmk@foofus.net>"""+'\n' + colors.normal
 #ascii art by: Cara Pearson
-
 
 class tabCompleter(object):
 
     def pathCompleter(self,text,state):
         line   = readline.get_line_buffer().split()
-
         return [x for x in glob.glob(text+'*')][state]
 
 def interactive():
@@ -167,7 +165,6 @@ def make_dic_gnmap():
                     port =  matches.findall(line)[0]
                 except:
                     continue
-
                 ip = re.findall( r'[0-9]+(?:\.[0-9]+){3}', line)
                 tmp_ports = matches.findall(line)
                 for tmp_port in tmp_ports:
@@ -185,10 +182,12 @@ def make_dic_gnmap():
 def make_dic_nexpose():
     global loading
     global services
+
     supported = ['ssh','ftp','postgresql','telnet','mysql','ms-sql-s','rsh',
                  'vnc','imap','imaps','nntp','pcanywheredata','pop3','pop3s',
                  'exec','login','microsoft-ds','smtp','smtps','submission',
                  'svn','iss-realsecure','snmptrap','snmp','cifs']
+
     tree = ET.parse(args.file)
     root = tree.getroot()
     for node in root.iter('node'):
@@ -218,10 +217,12 @@ def make_dic_nexpose():
 def make_dic_nessus():
     global loading
     global services
+
     supported = ['ssh','ftp','postgresql','telnet','mysql','ms-sql-s','rsh',
                  'vnc','imap','imaps','nntp','pcanywheredata','pop3','pop3s',
                  'exec','login','microsoft-ds','smtp','smtps','submission',
                  'svn','iss-realsecure','snmptrap','snmp','cifs']
+
     tree = ET.parse(args.file)
     root = tree.getroot()
     for host in root.iter('ReportHost'):
@@ -254,10 +255,12 @@ def make_dic_nessus():
 def make_dic_xml():
     global loading
     global services
+
     supported = ['ssh','ftp','postgresql','telnet','mysql','ms-sql-s','rsh',
                  'vnc','imap','imaps','nntp','pcanywheredata','pop3','pop3s',
                  'exec','login','microsoft-ds','smtp','smtps','submission',
                  'svn','iss-realsecure','snmptrap','snmp']
+
     tree = ET.parse(args.file)
     root = tree.getroot()
     for host in root.iter('host'):
@@ -297,7 +300,6 @@ def make_dic_json():
             data = json.loads(line)
             try:
                 host, port, name = data["host"], data["port"], data["service"]
-
                 if name in supported:
                     name = NAME_MAP.get(name, name)
                     if name not in services:
@@ -314,7 +316,6 @@ def make_dic_json():
 
 def brute(service,port,fname,output,auserlist,ausername,apasslist,apassword,acontinuous,ahosts,athreads,averbose,acombo,adebug):
     if auserlist is None and ausername is None and acombo is None:
-
         userlist = '/usr/share/brutespray/wordlist/'+service+'/user'
         if not os.path.exists(userlist):
             userlist = 'wordlist/'+service+'/user'
@@ -328,7 +329,6 @@ def brute(service,port,fname,output,auserlist,ausername,apasslist,apassword,acon
     elif acombo:
         userlist = acombo
         uarg = '-C'
-
     if apasslist is None and apassword is None and acombo is None:
         passlist = '/usr/share/brutespray/wordlist/'+service+'/password'
         if not os.path.exists(passlist):
@@ -343,7 +343,6 @@ def brute(service,port,fname,output,auserlist,ausername,apasslist,apassword,acon
     elif acombo:
         parg = ''
         passlist = ''
-
     if acontinuous:
         cont = ''
     else:
@@ -356,7 +355,6 @@ def brute(service,port,fname,output,auserlist,ausername,apasslist,apassword,acon
         auth = ''
 
     p = subprocess.Popen(['medusa', '-b', '-H', fname, uarg, userlist, parg, passlist, '-M', service, '-t', athreads, '-n', port, '-T', ahosts, cont, aarg, auth, '-v', averbose, '-w', adebug], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True, bufsize=1)
-
 
     out = "[" + colors.green + "+" + colors.normal + "] "
     output_file = output + '/' + port + '-' + service + '-success.txt'
@@ -437,7 +435,11 @@ def parse_args():
     menu_group.add_argument('-v', '--verbose', help="verbose output from medusa [0-6], default=5", default="5")
     menu_group.add_argument('-w', '--debug', help="debug error output from medusa [0-10], default=5", default="5")
 
-    args = parser.parse_args()
+    try:
+        args = parser.parse_args()
+    except:
+        print(banner + quiet_banner)
+        args = parser.parse_args()
 
     return args
 
@@ -467,28 +469,21 @@ if __name__ == "__main__":
     except:
         sys.stderr.write("\nError while creating brutespray temp directory.")
         exit(4)
-
     if not os.path.exists(args.output):
         os.mkdir(args.output)
-
     if os.system("command -v medusa > /dev/null") != 0:
         sys.stderr.write("Command medusa not found. Please install medusa before using brutespray")
         exit(3)
-
     if args.file is None:
         sys.exit(0)
-
     if args.passlist and not os.path.isfile(args.passlist):
         sys.stderr.write("Passlist given does not exist. Please check your file or path\n")
         exit(3)
-
     if args.userlist and not os.path.isfile(args.userlist):
         sys.stderr.write("Userlist given does not exist. Please check your file or path\n")
         exit(3)
-
     if args.combo and not os.path.isfile(args.combo):
         sys.stderr.write("Combolist given does not exist. Please check your file or path\n")
-
     if os.path.isfile(args.file):
         try:
             t = threading.Thread(target=loading)
