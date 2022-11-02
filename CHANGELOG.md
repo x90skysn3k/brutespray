@@ -3,6 +3,7 @@
     * minor spelling fix
     * requirements update
     * dependency clean
+    * banner changes
 * v1.8
     * added ability to parse Nexpose "XML Export"
     * added ability to parse Nessus ".nessus" files
