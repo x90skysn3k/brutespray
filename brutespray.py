@@ -54,15 +54,14 @@ banner = colors.red + r"""
         ██╔══██╗██╔══██╗██║   ██║   ██║   ██╔══╝  ╚════██║██╔═══╝ ██╔══██╗██╔══██║  ╚██╔╝
         ██████╔╝██║  ██║╚██████╔╝   ██║   ███████╗███████║██║     ██║  ██║██║  ██║   ██║
         ╚═════╝ ╚═╝  ╚═╝ ╚═════╝    ╚═╝   ╚══════╝╚══════╝╚═╝     ╚═╝  ╚═╝╚═╝  ╚═╝   ╚═╝
-
-"""+'\n' \
-+ '\n brutespray.py v1.8.1' \
-+ '\n Created by: Shane Young/@t1d3nio && Jacob Robles/@shellfail' \
-+ '\n Inspired by: Leon Johnson/@sho-luv' \
-+ '\n Credit to Medusa: JoMo-Kun / Foofus Networks <jmk@foofus.net>\n' + colors.normal
+"""
+quiet_banner = colors.red + r"""
+        brutespray.py v1.8.1
+        Created by: Shane Young/@t1d3nio && Jacob Robles/@shellfail
+        Inspired by: Leon Johnson/@sho-luv
+        Credit to Medusa: JoMo-Kun / Foofus Networks <jmk@foofus.net>"""+'\n' + colors.normal
 #ascii art by: Cara Pearson
 
-quiet_banner = colors.red + '~ BruteSpray ~' + colors.normal
 
 class tabCompleter(object):
 
@@ -395,12 +394,6 @@ def getInput(filename):
     in_format = None
     with open(filename) as f:
         line = f.readlines()
-        #if filename.endswith("gnmap"):
-        #    in_format = "gnmap"
-        #if filename.endswith("json"):
-        #    in_format = "json"
-        #if filename.endswith("xml"):
-        #    in_format = "xml"
         if '{' in line[0]:
             in_format = "json"
         if '# Nmap' in line[0] and not 'Nmap' in line[1]:
@@ -418,6 +411,8 @@ def getInput(filename):
     return in_format
 
 def parse_args():
+
+    global parser
 
     parser = argparse.ArgumentParser(formatter_class=RawTextHelpFormatter, description=\
 
@@ -444,17 +439,18 @@ def parse_args():
 
     args = parser.parse_args()
 
-    if args.file is None and args.modules is False:
-        parser.error("argument -f/--file is required")
     return args
 
 if __name__ == "__main__":
     args = parse_args()
 
     if args.quiet == False:
-        print(banner)
+        print(banner + quiet_banner)
     else:
         print(quiet_banner)
+
+    if args.file is None and args.modules is False:
+        parser.error("argument -f/--file is required")
 
     supported = ['ssh','ftp','telnet','vnc','mssql','mysql','postgresql','rsh',
                 'imap','nntp','pcanywhere','pop3',
