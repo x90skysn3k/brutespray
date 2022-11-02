@@ -1,6 +1,6 @@
 # BruteSpray
 ![Supported Python versions](https://img.shields.io/badge/python-3.7+-blue.svg)
-![Version](https://img.shields.io/badge/Version-1.8-red)
+![Version](https://img.shields.io/badge/Version-1.8.1-red)
 
 
 Created by: Shane Young/@t1d3nio && Jacob Robles/@shellfail 
@@ -15,6 +15,8 @@ https://youtu.be/C-CVLbSEe_g
 
 # Description
 BruteSpray takes Nmap GNMAP/XML output, newline separated JSON, Nexpose `XML Export` output or Nessus `.nessus` exports and automatically brute-forces services with default credentials using Medusa. BruteSpray finds non-standard ports, make sure to use `-sV` with Nmap.
+
+Brutespray uses Python standard libraries.
 
 <img src="http://i.imgur.com/k9BDB5R.png" width="500">
 
@@ -37,7 +39,7 @@ Command: ```python brutespray.py -h```
 
 Command: ```python brutespray.py --file nmap.gnmap```
 
-Command: ```python brutesrpay.py --file nmap.xml```
+Command: ```python brutespray.py --file nmap.xml```
 
 Command: ```python brutespray.py --file nmap.xml -i```
 
