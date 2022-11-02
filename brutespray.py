@@ -10,7 +10,6 @@ import argparse
 import threading
 import itertools
 import tempfile
-import shutil
 import json
 from multiprocessing import Process
 
@@ -26,38 +25,38 @@ class colors:
     lightblue = "\033[0;34m"
 
 banner = colors.red + r"""
-                              #@                           @/              
-                           @@@                               @@@           
-                        %@@@                                   @@@.        
-                      @@@@@                                     @@@@%      
-                     @@@@@                                       @@@@@     
-                    @@@@@@@                  @                  @@@@@@@    
-                    @(@@@@@@@%            @@@@@@@            &@@@@@@@@@    
-                    @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@    
-                     @@*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@ @@     
-                       @@@( @@@@@#@@@@@@@@@*@@@,@@@@@@@@@@@@@@@  @@@       
-                           @@@@@@ .@@@/@@@@@@@@@@@@@/@@@@ @@@@@@           
-                                  @@@   @@@@@@@@@@@   @@@                  
-                                 @@@@*  ,@@@@@@@@@(  ,@@@@                 
-                                 @@@@@@@@@@@@@@@@@@@@@@@@@                 
-                                  @@@.@@@@@@@@@@@@@@@ @@@                  
-                                    @@@@@@ @@@@@ @@@@@@                    
-                                       @@@@@@@@@@@@@                       
-                                       @@   @@@   @@                       
-                                       @@ @@@@@@@ @@                       
-                                         @@% @  @@                 
+                              #@                           @/
+                           @@@                               @@@
+                        %@@@                                   @@@.
+                      @@@@@                                     @@@@%
+                     @@@@@                                       @@@@@
+                    @@@@@@@                  @                  @@@@@@@
+                    @(@@@@@@@%            @@@@@@@            &@@@@@@@@@
+                    @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+                     @@*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@ @@
+                       @@@( @@@@@#@@@@@@@@@*@@@,@@@@@@@@@@@@@@@  @@@
+                           @@@@@@ .@@@/@@@@@@@@@@@@@/@@@@ @@@@@@
+                                  @@@   @@@@@@@@@@@   @@@
+                                 @@@@*  ,@@@@@@@@@(  ,@@@@
+                                 @@@@@@@@@@@@@@@@@@@@@@@@@
+                                  @@@.@@@@@@@@@@@@@@@ @@@
+                                    @@@@@@ @@@@@ @@@@@@
+                                       @@@@@@@@@@@@@
+                                       @@   @@@   @@
+                                       @@ @@@@@@@ @@
+                                         @@% @  @@
 
 """+'\n' \
 + r"""
         ██████╗ ██████╗ ██╗   ██╗████████╗███████╗███████╗██████╗ ██████╗  █████╗ ██╗   ██╗
         ██╔══██╗██╔══██╗██║   ██║╚══██╔══╝██╔════╝██╔════╝██╔══██╗██╔══██╗██╔══██╗╚██╗ ██╔╝
-        ██████╔╝██████╔╝██║   ██║   ██║   █████╗  ███████╗██████╔╝██████╔╝███████║ ╚████╔╝ 
-        ██╔══██╗██╔══██╗██║   ██║   ██║   ██╔══╝  ╚════██║██╔═══╝ ██╔══██╗██╔══██║  ╚██╔╝  
-        ██████╔╝██║  ██║╚██████╔╝   ██║   ███████╗███████║██║     ██║  ██║██║  ██║   ██║   
-        ╚═════╝ ╚═╝  ╚═╝ ╚═════╝    ╚═╝   ╚══════╝╚══════╝╚═╝     ╚═╝  ╚═╝╚═╝  ╚═╝   ╚═╝   
-                                                                                   
+        ██████╔╝██████╔╝██║   ██║   ██║   █████╗  ███████╗██████╔╝██████╔╝███████║ ╚████╔╝
+        ██╔══██╗██╔══██╗██║   ██║   ██║   ██╔══╝  ╚════██║██╔═══╝ ██╔══██╗██╔══██║  ╚██╔╝
+        ██████╔╝██║  ██║╚██████╔╝   ██║   ███████╗███████║██║     ██║  ██║██║  ██║   ██║
+        ╚═════╝ ╚═╝  ╚═╝ ╚═════╝    ╚═╝   ╚══════╝╚══════╝╚═╝     ╚═╝  ╚═╝╚═╝  ╚═╝   ╚═╝
+
 """+'\n' \
-+ '\n brutespray.py v1.8' \
++ '\n brutespray.py v1.8.1' \
 + '\n Created by: Shane Young/@t1d3nio && Jacob Robles/@shellfail' \
 + '\n Inspired by: Leon Johnson/@sho-luv' \
 + '\n Credit to Medusa: JoMo-Kun / Foofus Networks <jmk@foofus.net>\n' + colors.normal
@@ -108,7 +107,7 @@ def interactive():
                 if args.passlist == "":
                     args.passlist = None
 
-        if args.username is None or args.password is None: 
+        if args.username is None or args.password is None:
             singluser = input(colors.lightblue + 'Would to specify a single username or password (y/n): ' + colors.red)
         if singluser == "y":
             if args.username is None and args.userlist is None:
@@ -299,9 +298,9 @@ def make_dic_json():
             data = json.loads(line)
             try:
                 host, port, name = data["host"], data["port"], data["service"]
-                
+
                 if name in supported:
-                    name = NAME_MAP.get(name, name) 
+                    name = NAME_MAP.get(name, name)
                     if name not in services:
                         services[name] = {}
                     if port not in services[name]:
@@ -310,9 +309,9 @@ def make_dic_json():
                         services[name][port].append(host)
             except KeyError as e:
                 sys.stderr.write("\n[!] Field: " + str(e) + "is missing")
-                sys.stderr.write("\n[!] Please provide the json fields. ")               
+                sys.stderr.write("\n[!] Please provide the json fields. ")
                 continue
-    loading = True 
+    loading = True
 
 def brute(service,port,fname,output,auserlist,ausername,apasslist,apassword,acontinuous,ahosts,athreads,averbose,acombo,adebug):
     if auserlist is None and ausername is None and acombo is None:
@@ -358,7 +357,7 @@ def brute(service,port,fname,output,auserlist,ausername,apasslist,apassword,acon
         auth = ''
 
     p = subprocess.Popen(['medusa', '-b', '-H', fname, uarg, userlist, parg, passlist, '-M', service, '-t', athreads, '-n', port, '-T', ahosts, cont, aarg, auth, '-v', averbose, '-w', adebug], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True, bufsize=1)
-    
+
 
     out = "[" + colors.green + "+" + colors.normal + "] "
     output_file = output + '/' + port + '-' + service + '-success.txt'
@@ -416,7 +415,7 @@ def getInput(filename):
             print('File is not correct format!\n')
             sys.exit(0)
 
-    return in_format 
+    return in_format
 
 def parse_args():
 
@@ -437,9 +436,9 @@ def parse_args():
     menu_group.add_argument('-u', '--username', help="specify a single username", default=None)
     menu_group.add_argument('-p', '--password', help="specify a single password", default=None)
     menu_group.add_argument('-c', '--continuous', help="keep brute-forcing after success", default=False, action='store_true')
-    menu_group.add_argument('-i', '--interactive', help="interactive mode", default=False, action='store_true')    
-    menu_group.add_argument('-m', '--modules', help="dump a list of available modules to brute", default=False, action='store_true')    
-    menu_group.add_argument('-q', '--quiet', help="supress banner", default=False, action='store_true')   
+    menu_group.add_argument('-i', '--interactive', help="interactive mode", default=False, action='store_true')
+    menu_group.add_argument('-m', '--modules', help="dump a list of available modules to brute", default=False, action='store_true')
+    menu_group.add_argument('-q', '--quiet', help="supress banner", default=False, action='store_true')
     menu_group.add_argument('-v', '--verbose', help="verbose output from medusa [0-6], default=5", default="5")
     menu_group.add_argument('-w', '--debug', help="debug error output from medusa [0-10], default=5", default="5")
 
@@ -451,7 +450,7 @@ def parse_args():
 
 if __name__ == "__main__":
     args = parse_args()
-    
+
     if args.quiet == False:
         print(banner)
     else:
@@ -466,7 +465,7 @@ if __name__ == "__main__":
     if args.modules is True:
         print(colors.lightblue + "Supported Services:\n" + colors.green)
         print(('\n'.join(supported)))
-        print(colors.normal + "\n") 
+        print(colors.normal + "\n")
     try:
         tmppath = tempfile.mkdtemp(prefix="brutespray-tmp")
     except:
@@ -494,7 +493,7 @@ if __name__ == "__main__":
     if args.combo and not os.path.isfile(args.combo):
         sys.stderr.write("Combolist given does not exist. Please check your file or path\n")
 
-    if os.path.isfile(args.file):        
+    if os.path.isfile(args.file):
         try:
             t = threading.Thread(target=loading)
             t.start()
@@ -513,14 +512,14 @@ if __name__ == "__main__":
 
         if args.interactive is True:
             interactive()
-        
+
         animate()
 
         if services == {}:
             print("\nNo brutable services found.\n Please check your file.")
     else:
         print("\nError loading file, please check your filename.")
-    
+
     to_scan = args.service.split(',')
     for service in services:
         if service in to_scan or to_scan == ['all']:

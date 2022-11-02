@@ -1,4 +1,8 @@
 # Changelog
+* v1.8.1
+    * minor spelling fix
+    * requirements update
+    * dependency clean
 * v1.8
     * added ability to parse Nexpose "XML Export"
     * added ability to parse Nessus ".nessus" files
