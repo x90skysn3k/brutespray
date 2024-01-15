@@ -1,5 +1,3 @@
-#### :warning: BruteSpray is no longer receiving updates and is being replaced by ![BruteSprayX](https://github.com/x90skysn3k/brutesprayx) :warning:
-
 # BruteSpray
 ![Supported Python versions](https://img.shields.io/badge/python-3.7+-blue.svg)
 ![Version](https://img.shields.io/badge/Version-1.8.1-red)
