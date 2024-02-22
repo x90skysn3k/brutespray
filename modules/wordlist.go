@@ -90,7 +90,7 @@ func ReadPasswordsFromFile(filename string) ([]string, error) {
 
 func GetUsersFromDefaultWordlist(version string, serviceType string) []string {
 	wordlistPath := filepath.Join("wordlist", serviceType, "user")
-	url := fmt.Sprintf("https://raw.githubusercontent.com/x90skysn3k/brutesprayx/%s/wordlist/%s/user", version, serviceType)
+	url := fmt.Sprintf("https://raw.githubusercontent.com/x90skysn3k/brutespray/%s/wordlist/%s/user", version, serviceType)
 	wordlistDir := filepath.Dir(wordlistPath)
 	if _, err := os.Stat(wordlistDir); os.IsNotExist(err) {
 		err := os.MkdirAll(wordlistDir, 0755)
@@ -130,7 +130,7 @@ func GetUsersFromDefaultWordlist(version string, serviceType string) []string {
 
 func GetPasswordsFromDefaultWordlist(version string, serviceType string) []string {
 	wordlistPath := filepath.Join("wordlist", serviceType, "password")
-	url := fmt.Sprintf("https://raw.githubusercontent.com/x90skysn3k/brutesprayx/%s/wordlist/%s/password", version, serviceType)
+	url := fmt.Sprintf("https://raw.githubusercontent.com/x90skysn3k/brutespray/%s/wordlist/%s/password", version, serviceType)
 
 	wordlistDir := filepath.Dir(wordlistPath)
 	if _, err := os.Stat(wordlistDir); os.IsNotExist(err) {

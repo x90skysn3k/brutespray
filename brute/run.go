@@ -3,7 +3,7 @@ package brute
 import (
 	"time"
 
-	"github.com/x90skysn3k/brutesprayx/modules"
+	"github.com/x90skysn3k/brutespray/modules"
 )
 
 var NAME_MAP = map[string]string{
