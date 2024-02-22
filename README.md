@@ -17,7 +17,7 @@ Brutespray is a golang version of the original BruteSpray. Without needing to re
 
 To Build:
 
-```go build -o brutesprayx main.go```
+```go build -o brutespray main.go```
 
 # Usage
 
