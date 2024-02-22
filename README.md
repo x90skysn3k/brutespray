@@ -1,127 +1,106 @@
 #### :warning: BruteSpray is being replaced by ![BruteSprayX](https://github.com/x90skysn3k/brutesprayx) :warning:
 
 # BruteSpray
-![Supported Python versions](https://img.shields.io/badge/python-3.7+-blue.svg)
-![Version](https://img.shields.io/badge/Version-1.8.1-red)
 
+![Version](https://img.shields.io/badge/Version-2.1.4-red)[![goreleaser](https://github.com/x90skysn3k/brutespray/actions/workflows/release.yml/badge.svg)](https://github.com/x90skysn3k/brutespray/actions/workflows/release.yml)
 
 Created by: Shane Young/@t1d3nio && Jacob Robles/@shellfail 
 
 Inspired by: Leon Johnson/@sho-luv
 
-Credit to Medusa: JoMo-Kun / Foofus Networks - http://www.foofus.net
-
-# Demo
-
-https://youtu.be/C-CVLbSEe_g
-
 # Description
-BruteSpray takes Nmap GNMAP/XML output, newline separated JSON, Nexpose `XML Export` output or Nessus `.nessus` exports and automatically brute-forces services with default credentials using Medusa. BruteSpray finds non-standard ports, make sure to use `-sV` with Nmap.
+Brutespray is a golang version of the original BruteSpray. Without needing to rely on other tools this version will be extensible to bruteforce many different services and is way faster than it's Python counterpart. Currently Brutespray takes Nmap GNMAP/XML output, newline separated JSON, Nexpose `XML Export` output, Nessus `.nessus` exports, and lists. It will bruteforce supported servics found in those files. This tool is for research purposes and not intended for illegal use. 
 
-Brutespray uses Python standard libraries.
-
-<img src="http://i.imgur.com/k9BDB5R.png" width="500">
+<img src="https://imgur.com/HL5jP5W.png" width="500">
 
 # Installation
 
-```pip install -r requirements.txt```
+[Release Binaries](https://github.com/x90skysn3k/brutespray/releases)
 
-On Kali:
+To Build:
 
-```apt-get install brutespray```
+```go build -o brutespray main.go```
 
 # Usage
+
 If using Nmap, scan with ```-oG nmap.gnmap``` or ```-oX nmap.xml```.
 
 If using Nexpose, export the template `XML Export`. 
 
 If using Nessus, export your `.nessus` file.
 
-Command: ```python brutespray.py -h```
+Command: ```brutespray -h```
 
-Command: ```python brutespray.py --file nmap.gnmap```
+Command: ```brutespray -f nmap.gnmap -u userlist -p passlist```
 
-Command: ```python brutespray.py --file nmap.xml```
+Command: ```brutespray -f nmap.xml -u userlist -p passlist```
 
-Command: ```python brutespray.py --file nmap.xml -i```
+Command: ```brutespray -H ssh://127.0.0.1:22 -u userlist -p passlist```
 
-<img src="https://i.imgur.com/PgXEw36.png" width="450">
 
 ## Examples
 
+<img src="brutespray.gif" width="512">
+
 #### Using Custom Wordlists:
 
-```python brutespray.py --file nmap.gnmap -U /usr/share/wordlist/user.txt -P /usr/share/wordlist/pass.txt --threads 5 --hosts 5```
+```brutespray -f nmap.gnmap -u /usr/share/wordlist/user.txt -p /usr/share/wordlist/pass.txt -t 5 ```
 
 #### Brute-Forcing Specific Services:
 
-```python brutespray.py --file nmap.gnmap --service ftp,ssh,telnet --threads 5 --hosts 5```
+```brutespray -f nmap.gnmap -u admin -p password -s ftp,ssh,telnet -t 5 ```
 
 #### Specific Credentials:
    
-```python brutespray.py --file nmap.gnmap -u admin -p password --threads 5 --hosts 5```
-
-#### Continue After Success:
-
-```python brutespray.py --file nmap.gnmap --threads 5 --hosts 5 -c```
+```brutespray -f nmap.gnmap -u admin -p password -t 5 ```
 
 #### Use Nmap XML Output
 
-```python brutespray.py --file nmap.xml --threads 5 --hosts 5```
+```brutespray -f nmap.xml -u admin -p password -t 5 ```
 
 #### Use JSON Output
 
-```python brutespray.py --file out.json --threads 5 --hosts 5```
+```brutespray -f out.json -u admin -p password -t 5 ```
 
-#### Interactive Mode
+#### Bruteforce a CIDR range
 
-```python brutespray.py --file nmap.xml -i```
-
-<img src="https://i.imgur.com/zBXEU33.png" width="600">
+```brutespray -H ssh://10.1.1.0/24:22 -t 1000```
 
 # Supported Services
 
 * ssh
 * ftp
 * telnet
-* vnc
 * mssql
-* mysql
 * postgresql
-* rsh
 * imap
-* nntp
-* pcanywhere
 * pop3
-* rexec
-* rlogin
 * smbnt
 * smtp
-* svn
-* vmauthd
 * snmp
+* mysql
+* vmauthd
+* vnc
+
+# Services in Progress
+
+* rdp
+* asterisk
 
 # Data Specs
 ```json
 {"host":"127.0.0.1","port":"3306","service":"mysql"}
 {"host":"127.0.0.10","port":"3306","service":"mysql"}
-...
 ```
 If using Nexpose, export the template `XML Export`. 
 
 If using Nessus, export your `.nessus` file.
 
-# Combo Option
-When you specify a combo option `-C`, it will read the specified file and attempt the host:user:pass on each discovered service from Nmap. If you just want to specify only a username and password leave the host blank as shown below.
+List example
 ```
-:user:pass
-:user1:pass1
+ssh:127.0.0.1:22
+ftp:127.0.0.1:21
 ```
-or
-```
-127.0.0.1:user:pass
-127.0.0.10:user1:pass1
-```
+## Star History
 
-# Changelog
-Changelog notes are available at [CHANGELOG.md](https://github.com/x90skysn3k/brutespray/blob/master/CHANGELOG.md)
+[![Star History Chart](https://api.star-history.com/svg?repos=x90skysn3k/brutespray&type=Date)](https://star-history.com/#x90skysn3k/brutespray&Date)
