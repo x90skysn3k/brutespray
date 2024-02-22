@@ -1,4 +1,4 @@
-package brutesprayx
+package brutespray
 
 import (
 	"flag"
