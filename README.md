@@ -1,5 +1,3 @@
-#### :warning: BruteSpray is being replaced by ![BruteSprayX](https://github.com/x90skysn3k/brutesprayx) :warning:
-
 # BruteSpray
 
 ![Version](https://img.shields.io/badge/Version-2.1.4-red)[![goreleaser](https://github.com/x90skysn3k/brutespray/actions/workflows/release.yml/badge.svg)](https://github.com/x90skysn3k/brutespray/actions/workflows/release.yml)
