@@ -13,7 +13,6 @@ require (
 	github.com/mitchellh/go-vnc v0.0.0-20150629162542-723ed9867aed
 	github.com/pterm/pterm v0.12.79
 	github.com/wenerme/astgo v0.0.0-20230926205800-1b5bc38663fa
-	github.com/x90skysn3k/brutesprayx v0.0.0-20240222203658-d377cb6a1b01
 	golang.org/x/crypto v0.19.0
 )
 

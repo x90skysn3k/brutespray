@@ -146,8 +146,6 @@ github.com/stretchr/testify v1.8.4 h1:CcVxjf3Q8PM0mHUKJCdn+eZZtm5yQwehR5yeSVQQcU
 github.com/stretchr/testify v1.8.4/go.mod h1:sz/lmYIOXD/1dqDmKjjqLyZ2RngseejIcXlSw2iwfAo=
 github.com/wenerme/astgo v0.0.0-20230926205800-1b5bc38663fa h1:3ZDCT6V1icd65zFHJVhft0Qt+9wZVhAjQsLj2DA6jmI=
 github.com/wenerme/astgo v0.0.0-20230926205800-1b5bc38663fa/go.mod h1:3GHkdgEPEKD2hQHfHkpwDKgH2ZGDbUAeo8M4ZfmaIwI=
-github.com/x90skysn3k/brutesprayx v0.0.0-20240222203658-d377cb6a1b01 h1:u+vPChukFut9uDrBqrehKSNCRkvlwatNyq/5iEI0q5U=
-github.com/x90skysn3k/brutesprayx v0.0.0-20240222203658-d377cb6a1b01/go.mod h1:l1CmT7MkfNp8Vi/FJuiHo8edsTaVA5vbBWgArzwKjGk=
 github.com/xo/terminfo v0.0.0-20210125001918-ca9a967f8778/go.mod h1:2MuV+tbUrU1zIOPMxZ5EncGwgmMJsa+9ucAQZXxsObs=
 github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e h1:JVG44RsyaB9T2KIHavMF/ppJZNG9ZpyihvCd0w101no=
 github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e/go.mod h1:RbqR21r5mrJuqunuUZ/Dhy/avygyECGrLceyNeo4LiM=
