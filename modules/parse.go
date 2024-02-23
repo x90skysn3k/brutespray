@@ -219,8 +219,11 @@ func ParseNexpose(filename string) (map[Host]int, error) {
 		case xml.StartElement:
 			if se.Name.Local == "node" {
 				var node NexposeNode
-				decoder.DecodeElement(&node, &se)
+				err = decoder.DecodeElement(&node, &se)
 				nodes = append(nodes, node)
+				if err != nil {
+					return nil, err
+				}
 			}
 		}
 	}
