@@ -25,16 +25,16 @@ func getConResultString(con_result bool, retrying bool) string {
 	}
 }
 
-func WriteToFile(filename string, content string) error {
+func WriteToFile(filename string, service string, content string) error {
 	timestamp := time.Now().Format("2006010215")
-	dir := "output"
+	dir := "brutespray-output"
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
 		err := os.Mkdir(dir, 0755)
 		if err != nil {
 			return err
 		}
 	}
-	filename = filepath.Join(dir, filename+"_"+timestamp)
+	filename = filepath.Join(dir, filename+"_"+service+"_"+timestamp+".txt")
 	file, err := os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		return err
@@ -55,7 +55,7 @@ func PrintResult(service string, host string, port int, user string, pass string
 			pterm.Success.Println("Attempt", service, "SUCCESS on host", host, "port", port, "with password", pass, getResultString(result))
 			content := fmt.Sprintf("Attempt %s SUCCESS on host %s port %d with password %s %s\n", service, host, port, pass, getResultString(result))
 			filename := filepath.Base(host)
-			err := WriteToFile(filename, content)
+			err := WriteToFile(filename, service, content)
 			if err != nil {
 				fmt.Println("write file error:", err)
 			}
@@ -63,7 +63,7 @@ func PrintResult(service string, host string, port int, user string, pass string
 			pterm.Success.Println("Attempt", service, "SUCCESS on host", host, "port", port, "with username", user, "and password", pass, getResultString(result))
 			content := fmt.Sprintf("Attempt %s SUCCESS on host %s port %d with username %s and password %s %s\n", service, host, port, user, pass, getResultString(result))
 			filename := filepath.Base(host)
-			err := WriteToFile(filename, content)
+			err := WriteToFile(filename, service, content)
 			if err != nil {
 				fmt.Println("write file error:", err)
 			}
