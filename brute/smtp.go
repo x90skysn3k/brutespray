@@ -21,7 +21,13 @@ func BruteSMTP(host string, port int, user, password string, timeout time.Durati
 	if err != nil {
 		return false, true
 	}
-	defer smtpClient.Quit()
+
+	defer func() {
+		if err := smtpClient.Quit(); err != nil {
+			_ = err
+			//fmt.Printf("Failed to send QUIT command: %v\n", err)
+		}
+	}()
 
 	tlsDialer := &tls.Dialer{
 		NetDialer: &net.Dialer{
@@ -39,7 +45,12 @@ func BruteSMTP(host string, port int, user, password string, timeout time.Durati
 		if err != nil {
 			return false, true
 		}
-		defer smtpClient.Quit()
+		defer func() {
+			if err := smtpClient.Quit(); err != nil {
+				_ = err
+				//fmt.Printf("Failed to send QUIT command: %v\n", err)
+			}
+		}()
 		if err := smtpClient.Auth(auth); err == nil {
 			return true, true
 		}

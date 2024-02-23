@@ -16,7 +16,10 @@ func BruteVMAuthd(host string, port int, user, password string, timeout time.Dur
 	}
 	defer conn.Close()
 
-	conn.SetReadDeadline(time.Now().Add(timeout))
+	err = conn.SetReadDeadline(time.Now().Add(timeout))
+	if err != nil {
+		return false, false
+	}
 	buf := make([]byte, 1024)
 	n, err := conn.Read(buf)
 	if err != nil {
@@ -28,7 +31,10 @@ func BruteVMAuthd(host string, port int, user, password string, timeout time.Dur
 		defer tlsConn.Close()
 		conn = tlsConn
 	} else {
-		conn.SetReadDeadline(time.Time{})
+		err = conn.SetReadDeadline(time.Now().Add(timeout))
+		if err != nil {
+			return false, false
+		}
 	}
 
 	cmd := fmt.Sprintf("USER %s\r\n", user)

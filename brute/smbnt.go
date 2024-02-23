@@ -15,7 +15,9 @@ func BruteSMB(host string, port int, user, password string, timeout time.Duratio
 	}
 	defer conn.Close()
 
-	conn.SetDeadline(time.Now().Add(timeout))
+	if err := conn.SetDeadline(time.Now().Add(timeout)); err != nil {
+		fmt.Println("Error setting deadline:", err)
+	}
 
 	d := &smb2.Dialer{
 		Initiator: &smb2.NTLMInitiator{
@@ -28,7 +30,12 @@ func BruteSMB(host string, port int, user, password string, timeout time.Duratio
 	if err != nil {
 		return false, true
 	}
-	defer s.Logoff()
+
+	defer func() {
+		if err := s.Logoff(); err != nil {
+			fmt.Printf("Failed to logoff: %v\n", err)
+		}
+	}()
 
 	_, err = s.ListSharenames()
 	if err != nil {

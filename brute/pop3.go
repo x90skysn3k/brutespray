@@ -42,6 +42,7 @@ func BrutePOP3(host string, port int, user, password string, timeout time.Durati
 				return false, true
 			}
 		}
+
 		defer conn.Close()
 
 		p := pop3.New(opt)
@@ -49,7 +50,12 @@ func BrutePOP3(host string, port int, user, password string, timeout time.Durati
 		if err != nil {
 			continue
 		}
-		defer c.Quit()
+
+		defer func() {
+			if err := c.Quit(); err != nil {
+				_ = err
+			}
+		}()
 
 		authDone := make(chan bool)
 		go func() {

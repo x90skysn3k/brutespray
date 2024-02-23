@@ -20,7 +20,7 @@ var masterServiceList = []string{"ssh", "ftp", "smtp", "mssql", "telnet", "smbnt
 
 var alphaServiceList = []string{"asterisk"}
 
-var version = "v2.1.4"
+var version = "v2.1.5"
 
 func Execute() {
 	user := flag.String("u", "", "Username or user list to bruteforce")
@@ -30,9 +30,9 @@ func Execute() {
 	listServices := flag.Bool("S", false, "List all supported services")
 	file := flag.String("f", "", "File to parse; Supported: Nmap, Nessus, Nexpose, Lists, etc")
 	host := flag.String("H", "", "Target in the format service://host:port, CIDR ranges supported,\n default port will be used if not specified")
-	quiet := flag.Bool("q", false, "Supress the banner")
-	timeout := flag.Duration("T", 5*time.Second, "Set timeout of bruteforce attempts")
-	retry := flag.Int("r", 3, "Ammount of times to retry after recieving connection failed")
+	quiet := flag.Bool("q", false, "Suppress the banner")
+	timeout := flag.Duration("w", 5*time.Second, "Set timeout of bruteforce attempts")
+	retry := flag.Int("r", 3, "Amount of times to retry after receiving connection failed")
 
 	flag.Parse()
 
@@ -116,7 +116,7 @@ func Execute() {
 		<-sigs
 		pterm.DefaultSection.Println("\nReceived an interrupt signal, shutting down...")
 		time.Sleep(5 * time.Second)
-		bar.Stop()
+		_, _ = bar.Stop()
 		os.Exit(0)
 	}()
 
@@ -200,5 +200,5 @@ func Execute() {
 		sem <- struct{}{}
 	}
 	bruteForceWg.Wait()
-	bar.Stop()
+	_, _ = bar.Stop()
 }
