@@ -85,7 +85,6 @@ func Execute() {
 		}
 		hostsList = append(hostsList, host...)
 	}
-	fmt.Println(hostsList)
 
 	supportedServices := getSupportedServices(*serviceType)
 
@@ -96,7 +95,6 @@ func Execute() {
 			if h.Service == service {
 				users, passwords := modules.GetUsersAndPasswords(&h, *user, *password, version)
 				totalCombinations += modules.CalcCombinations(users, passwords)
-				fmt.Println(totalCombinations)
 				if service == "vnc" || service == "snmp" {
 					_, passwords := modules.GetUsersAndPasswords(&h, *user, *password, version)
 					totalCombinations += modules.CalcCombinationsPass(passwords)
@@ -104,7 +102,6 @@ func Execute() {
 			}
 		}
 	}
-
 	bar, _ := pterm.DefaultProgressbar.WithTotal((totalCombinations) - nopassServices).WithTitle("Bruteforcing...").Start()
 	var wg sync.WaitGroup
 	var bruteForceWg sync.WaitGroup
