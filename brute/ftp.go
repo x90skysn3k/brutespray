@@ -1,7 +1,6 @@
 package brute
 
 import (
-	"fmt"
 	"strconv"
 	"time"
 
@@ -15,7 +14,8 @@ func BruteFTP(host string, port int, user, password string, timeout time.Duratio
 	}
 	defer func() {
 		if err := conn.Quit(); err != nil {
-			fmt.Printf("Failed to send QUIT command: %v\n", err)
+			_ = err
+			//fmt.Printf("Failed to send QUIT command: %v\n", err)
 		}
 	}()
 
