@@ -116,7 +116,7 @@ func Execute() {
 		<-sigs
 		pterm.DefaultSection.Println("\nReceived an interrupt signal, shutting down...")
 		time.Sleep(5 * time.Second)
-		bar.Stop()
+		_, _ = bar.Stop()
 		os.Exit(0)
 	}()
 
@@ -200,5 +200,5 @@ func Execute() {
 		sem <- struct{}{}
 	}
 	bruteForceWg.Wait()
-	bar.Stop()
+	_, _ = bar.Stop()
 }
