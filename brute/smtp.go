@@ -24,7 +24,8 @@ func BruteSMTP(host string, port int, user, password string, timeout time.Durati
 
 	defer func() {
 		if err := smtpClient.Quit(); err != nil {
-			fmt.Printf("Failed to send QUIT command: %v\n", err)
+			_ = err
+			//fmt.Printf("Failed to send QUIT command: %v\n", err)
 		}
 	}()
 
@@ -46,7 +47,8 @@ func BruteSMTP(host string, port int, user, password string, timeout time.Durati
 		}
 		defer func() {
 			if err := smtpClient.Quit(); err != nil {
-				fmt.Printf("Failed to send QUIT command: %v\n", err)
+				_ = err
+				//fmt.Printf("Failed to send QUIT command: %v\n", err)
 			}
 		}()
 		if err := smtpClient.Auth(auth); err == nil {

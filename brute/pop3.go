@@ -53,7 +53,7 @@ func BrutePOP3(host string, port int, user, password string, timeout time.Durati
 
 		defer func() {
 			if err := c.Quit(); err != nil {
-				fmt.Printf("Failed to send QUIT command: %v\n", err)
+				_ = err
 			}
 		}()
 
