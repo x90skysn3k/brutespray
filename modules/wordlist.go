@@ -6,7 +6,9 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/user"
 	"path/filepath"
+	"runtime"
 
 	"github.com/pterm/pterm"
 )
@@ -98,6 +100,12 @@ func GetUsersFromDefaultWordlist(version string, serviceType string) []string {
 		wordlistPath = globalWordlistPath
 	}
 
+	if runtime.GOOS == "windows" {
+		currentUser, _ := user.Current()
+		appDataPath := filepath.Join(currentUser.HomeDir, "AppData", "Roaming")
+		wordlistPath = filepath.Join(appDataPath, "brutespray", "wordlist", serviceType, "user")
+	}
+
 	wordlistDir := filepath.Dir(wordlistPath)
 	if _, err := os.Stat(wordlistDir); os.IsNotExist(err) {
 		err := os.MkdirAll(wordlistDir, 0755)
@@ -143,6 +151,12 @@ func GetPasswordsFromDefaultWordlist(version string, serviceType string) []strin
 
 	if _, err := os.Stat(globalWordlistPath); !os.IsNotExist(err) {
 		wordlistPath = globalWordlistPath
+	}
+
+	if runtime.GOOS == "windows" {
+		currentUser, _ := user.Current()
+		appDataPath := filepath.Join(currentUser.HomeDir, "AppData", "Roaming")
+		wordlistPath = filepath.Join(appDataPath, "brutespray", "wordlist", serviceType, "password")
 	}
 
 	wordlistDir := filepath.Dir(wordlistPath)
