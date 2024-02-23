@@ -10,10 +10,11 @@ import (
 
 func color_banner(text string) string {
 
-	rand.Seed(time.Now().UnixNano())
+	source := rand.NewSource(time.Now().UnixNano())
+	random := rand.New(source)
 
-	startColor := pterm.NewRGB(uint8(rand.Intn(256)), uint8(rand.Intn(256)), uint8(rand.Intn(256)))
-	firstPoint := pterm.NewRGB(uint8(rand.Intn(256)), uint8(rand.Intn(256)), uint8(rand.Intn(256)))
+	startColor := pterm.NewRGB(uint8(random.Intn(256)), uint8(random.Intn(256)), uint8(random.Intn(256)))
+	firstPoint := pterm.NewRGB(uint8(random.Intn(256)), uint8(random.Intn(256)), uint8(random.Intn(256)))
 
 	//startColor := pterm.NewRGB(0, 255, 255)
 	//firstPoint := pterm.NewRGB(255, 0, 255)

@@ -12,7 +12,12 @@ func BruteFTP(host string, port int, user, password string, timeout time.Duratio
 	if err != nil {
 		return false, false
 	}
-	defer conn.Quit()
+	defer func() {
+		if err := conn.Quit(); err != nil {
+			_ = err
+			//fmt.Printf("Failed to send QUIT command: %v\n", err)
+		}
+	}()
 
 	err = conn.Login(user, password)
 	if err != nil {
