@@ -26,6 +26,7 @@ func Execute() {
 	user := flag.String("u", "", "Username or user list to bruteforce")
 	password := flag.String("p", "", "Password or password file to use for bruteforce")
 	threads := flag.Int("t", 10, "Number of threads to use")
+	parallelhosts := flag.Int("T", 10, "Number of hosts to bruteforce at the same time")
 	serviceType := flag.String("s", "all", "Service type: ssh, ftp, smtp, etc; Default all")
 	listServices := flag.Bool("S", false, "List all supported services")
 	file := flag.String("f", "", "File to parse; Supported: Nmap, Nessus, Nexpose, Lists, etc")
@@ -105,7 +106,9 @@ func Execute() {
 	bar, _ := pterm.DefaultProgressbar.WithTotal((totalCombinations) - nopassServices).WithTitle("Bruteforcing...").Start()
 	var wg sync.WaitGroup
 	var bruteForceWg sync.WaitGroup
-	sem := make(chan struct{}, *threads)
+	var parallelWg sync.WaitGroup
+	parallelCh := make(chan struct{}, *parallelhosts)
+	sem := make(chan struct{}, *threads**parallelhosts)
 	sigs := make(chan os.Signal, 1)
 	progressCh := make(chan int, totalCombinations)
 
@@ -129,71 +132,95 @@ func Execute() {
 		wg.Add(1)
 		go func(service string) {
 			defer wg.Done()
+			if *parallelhosts > 0 {
+				parallelWg.Add(len(hostsList))
+			}
 			if service == "vnc" || service == "snmp" {
 				u := ""
 				for _, h := range hostsList {
+					h := h
 					if h.Service == service {
-						_, passwords := modules.GetUsersAndPasswords(&h, *user, *password, version)
-						stopChan := make(chan struct{})
-						for _, p := range passwords {
-							wg.Add(1)
-							sem <- struct{}{}
-							go func(h modules.Host, p string) {
-								defer func() {
-									<-sem
-									wg.Done()
-									bruteForceWg.Done()
-								}()
+						if *parallelhosts > 0 {
+							parallelWg.Add(1)
+							go func(h modules.Host) {
+								_, passwords := modules.GetUsersAndPasswords(&h, *user, *password, version)
+								stopChan := make(chan struct{})
+								for _, p := range passwords {
+									wg.Add(1)
+									sem <- struct{}{}
+									go func(h modules.Host, p string) {
+										defer func() {
+											<-sem
+											wg.Done()
+											bruteForceWg.Done()
+										}()
 
-								select {
-								case <-stopChan:
-								default:
-									brute.RunBrute(h, u, p, progressCh, *timeout, *retry)
-									bruteForceWg.Add(1)
+										select {
+										case <-stopChan:
+										default:
+											brute.RunBrute(h, u, p, progressCh, *timeout, *retry)
+											bruteForceWg.Add(1)
+										}
+										progressCh <- 1
+									}(h, p)
 								}
-								progressCh <- 1
-							}(h, p)
+								parallelCh <- struct{}{}
+							}(h)
 						}
 					}
+
 				}
 			} else {
 				for _, h := range hostsList {
+					h := h
 					if h.Service == service {
-						for _, alpha := range alphaServiceList {
-							if alpha == h.Service {
-								modules.PrintWarningAlpha(h.Service)
-							}
-						}
-						users, passwords := modules.GetUsersAndPasswords(&h, *user, *password, version)
-						stopChan := make(chan struct{})
-						for _, u := range users {
-							for _, p := range passwords {
-								wg.Add(1)
-								sem <- struct{}{}
-								go func(h modules.Host, u, p string) {
-									defer func() {
-										<-sem
-										wg.Done()
-										bruteForceWg.Done()
-									}()
-
-									select {
-									case <-stopChan:
-										return
-									default:
-										brute.RunBrute(h, u, p, progressCh, *timeout, *retry)
-										bruteForceWg.Add(1)
+						if *parallelhosts > 0 {
+							parallelWg.Add(1)
+							go func(h modules.Host) {
+								for _, alpha := range alphaServiceList {
+									if alpha == h.Service {
+										modules.PrintWarningAlpha(h.Service)
 									}
-									progressCh <- 1
-								}(h, u, p)
-							}
+								}
+								users, passwords := modules.GetUsersAndPasswords(&h, *user, *password, version)
+								stopChan := make(chan struct{})
+								for _, u := range users {
+									for _, p := range passwords {
+										wg.Add(1)
+										sem <- struct{}{}
+										go func(h modules.Host, u, p string) {
+											defer func() {
+												<-sem
+												wg.Done()
+												bruteForceWg.Done()
+											}()
+
+											select {
+											case <-stopChan:
+												return
+											default:
+												brute.RunBrute(h, u, p, progressCh, *timeout, *retry)
+												bruteForceWg.Add(1)
+											}
+											progressCh <- 1
+										}(h, u, p)
+									}
+								}
+								parallelCh <- struct{}{}
+							}(h)
 						}
 					}
 				}
 			}
+			for i := 0; i < cap(parallelCh); i++ {
+				<-parallelCh
+			}
 		}(service)
 	}
 
+	if *parallelhosts > 0 {
+		parallelWg.Wait()
+	}
 	wg.Wait()
 	for i := 0; i < cap(sem); i++ {
 		sem <- struct{}{}
