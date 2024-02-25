@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/pterm/pterm"
 )
@@ -16,9 +17,15 @@ func getResultString(result bool) string {
 	}
 }
 
-func getConResultString(con_result bool, retrying bool) string {
+func getConResultString(con_result bool, retrying bool, delayTime time.Duration) string {
+	var delaying bool
+	if delayTime > 2 {
+		delaying = true
+	}
 	if !retrying {
 		return "connection failed, giving up..."
+	} else if retrying && delaying {
+		return fmt.Sprintf("connection failed, retrying... delayed %s", delayTime)
 	} else {
 		return "connection failed, retrying..."
 	}
@@ -53,7 +60,7 @@ func WriteToFile(service string, content string, port int, output string) error 
 	return nil
 }
 
-func PrintResult(service string, host string, port int, user string, pass string, result bool, con_result bool, progressCh chan<- int, retrying bool, output string) {
+func PrintResult(service string, host string, port int, user string, pass string, result bool, con_result bool, progressCh chan<- int, retrying bool, output string, delayTime time.Duration) {
 
 	if result && con_result {
 		if service == "vnc" {
@@ -79,9 +86,9 @@ func PrintResult(service string, host string, port int, user string, pass string
 		}
 	} else if !result && !con_result {
 		if service == "vnc" {
-			pterm.Color(pterm.FgRed).Println("Attempt", service, "on host", host, "port", port, "with password", pass, getConResultString(con_result, retrying))
+			pterm.Color(pterm.FgRed).Println("Attempt", service, "on host", host, "port", port, "with password", pass, getConResultString(con_result, retrying, delayTime))
 		} else {
-			pterm.Color(pterm.FgRed).Println("Attempt", service, "on host", host, "port", port, "with username", user, "and password", pass, getConResultString(con_result, retrying))
+			pterm.Color(pterm.FgRed).Println("Attempt", service, "on host", host, "port", port, "with username", user, "and password", pass, getConResultString(con_result, retrying, delayTime))
 		}
 	}
 }
