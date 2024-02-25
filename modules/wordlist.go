@@ -6,7 +6,9 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/user"
 	"path/filepath"
+	"runtime"
 
 	"github.com/pterm/pterm"
 )
@@ -91,6 +93,19 @@ func ReadPasswordsFromFile(filename string) ([]string, error) {
 func GetUsersFromDefaultWordlist(version string, serviceType string) []string {
 	wordlistPath := filepath.Join("wordlist", serviceType, "user")
 	url := fmt.Sprintf("https://raw.githubusercontent.com/x90skysn3k/brutespray/%s/wordlist/%s/user", version, serviceType)
+
+	globalWordlistPath := filepath.Join("/usr/share/brutespray/wordlist", serviceType, "user")
+
+	if _, err := os.Stat(globalWordlistPath); !os.IsNotExist(err) {
+		wordlistPath = globalWordlistPath
+	}
+
+	if runtime.GOOS == "windows" {
+		currentUser, _ := user.Current()
+		appDataPath := filepath.Join(currentUser.HomeDir, "AppData", "Roaming")
+		wordlistPath = filepath.Join(appDataPath, "brutespray", "wordlist", serviceType, "user")
+	}
+
 	wordlistDir := filepath.Dir(wordlistPath)
 	if _, err := os.Stat(wordlistDir); os.IsNotExist(err) {
 		err := os.MkdirAll(wordlistDir, 0755)
@@ -131,6 +146,18 @@ func GetUsersFromDefaultWordlist(version string, serviceType string) []string {
 func GetPasswordsFromDefaultWordlist(version string, serviceType string) []string {
 	wordlistPath := filepath.Join("wordlist", serviceType, "password")
 	url := fmt.Sprintf("https://raw.githubusercontent.com/x90skysn3k/brutespray/%s/wordlist/%s/password", version, serviceType)
+
+	globalWordlistPath := filepath.Join("/usr/share/brutespray/wordlist", serviceType, "password")
+
+	if _, err := os.Stat(globalWordlistPath); !os.IsNotExist(err) {
+		wordlistPath = globalWordlistPath
+	}
+
+	if runtime.GOOS == "windows" {
+		currentUser, _ := user.Current()
+		appDataPath := filepath.Join(currentUser.HomeDir, "AppData", "Roaming")
+		wordlistPath = filepath.Join(appDataPath, "brutespray", "wordlist", serviceType, "password")
+	}
 
 	wordlistDir := filepath.Dir(wordlistPath)
 	if _, err := os.Stat(wordlistDir); os.IsNotExist(err) {
