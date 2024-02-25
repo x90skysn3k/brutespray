@@ -32,7 +32,7 @@ func getConResultString(con_result bool, retrying bool, delayTime time.Duration)
 }
 
 func WriteToFile(service string, content string, port int, output string) error {
-	var dir string = "./"
+	var dir string
 	if output != "brutespray-output" {
 		dir = output
 	} else {
