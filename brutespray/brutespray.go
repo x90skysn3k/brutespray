@@ -20,12 +20,12 @@ var masterServiceList = []string{"ssh", "ftp", "smtp", "mssql", "telnet", "smbnt
 
 var alphaServiceList = []string{"asterisk"}
 
-var version = "v2.1.6"
+var version = "v2.1.7"
 
 func Execute() {
 	user := flag.String("u", "", "Username or user list to bruteforce")
 	password := flag.String("p", "", "Password or password file to use for bruteforce")
-	output := flag.String("o", "brutespray-output", "Directory containing successful attempts")
+	output := flag.String("o", "brutespray-output", "Directory containing successful 1attempts")
 	threads := flag.Int("t", 10, "Number of threads to use")
 	hostParallelism := flag.Int("T", 5, "Number of hosts to bruteforce at the same time")
 	serviceType := flag.String("s", "all", "Service type: ssh, ftp, smtp, etc; Default all")
