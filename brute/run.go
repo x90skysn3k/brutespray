@@ -29,7 +29,7 @@ func MapService(service string) string {
 	return service
 }
 
-func RunBrute(h modules.Host, u string, p string, progressCh chan<- int, timeout time.Duration, retry int) bool {
+func RunBrute(h modules.Host, u string, p string, progressCh chan<- int, timeout time.Duration, retry int, output string) bool {
 	service := MapService(h.Service)
 	var result bool
 	var con_result bool
@@ -75,9 +75,9 @@ func RunBrute(h modules.Host, u string, p string, progressCh chan<- int, timeout
 			break
 		} else {
 			retrying := true
-			modules.PrintResult(service, h.Host, h.Port, u, p, result, con_result, progressCh, retrying)
+			modules.PrintResult(service, h.Host, h.Port, u, p, result, con_result, progressCh, retrying, output)
 		}
 	}
-	modules.PrintResult(service, h.Host, h.Port, u, p, result, con_result, progressCh, retrying)
+	modules.PrintResult(service, h.Host, h.Port, u, p, result, con_result, progressCh, retrying, output)
 	return con_result
 }
