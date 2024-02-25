@@ -1,7 +1,6 @@
 # BruteSpray
 
-![Version](https://img.shields.io/badge/Version-2.1.5-red)[![goreleaser](https://github.com/x90skysn3k/brutespray/actions/workflows/release.yml/badge.svg)](https://github.com/x90skysn3k/brutespray/actions/workflows/release.yml)[![Go Report Card](https://goreportcard.com/badge/github.com/x90skysn3k/brutespray)](https://goreportcard.com/report/github.com/x90skysn3k/brutespray)
-
+![Version](https://img.shields.io/badge/Version-2.1.6-red)[![goreleaser](https://github.com/x90skysn3k/brutespray/actions/workflows/release.yml/badge.svg)](https://github.com/x90skysn3k/brutespray/actions/workflows/release.yml)[![Go Report Card](https://goreportcard.com/badge/github.com/x90skysn3k/brutespray)](https://goreportcard.com/report/github.com/x90skysn3k/brutespray)
 
 Created by: Shane Young/@t1d3nio && Jacob Robles/@shellfail 
 
@@ -35,7 +34,6 @@ Command: ```brutespray -f nmap.gnmap -u userlist -p passlist```
 Command: ```brutespray -f nmap.xml -u userlist -p passlist```
 
 Command: ```brutespray -H ssh://127.0.0.1:22 -u userlist -p passlist```
-
 
 ## Examples
 
