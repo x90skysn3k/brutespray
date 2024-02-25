@@ -1,6 +1,7 @@
 package brute
 
 import (
+	"math"
 	"time"
 
 	"github.com/x90skysn3k/brutespray/modules"
@@ -29,11 +30,12 @@ func MapService(service string) string {
 	return service
 }
 
-func RunBrute(h modules.Host, u string, p string, progressCh chan<- int, timeout time.Duration, retry int) bool {
+func RunBrute(h modules.Host, u string, p string, progressCh chan<- int, timeout time.Duration, retry int, output string) bool {
 	service := MapService(h.Service)
 	var result bool
 	var con_result bool
 	var retrying bool = false
+	var delayTime time.Duration = 1 * time.Second
 
 	for i := 0; i < retry; i++ {
 		switch service {
@@ -74,10 +76,12 @@ func RunBrute(h modules.Host, u string, p string, progressCh chan<- int, timeout
 		if con_result {
 			break
 		} else {
+			delayTime = time.Duration(int64(time.Second) * int64(math.Min(10, float64(i+2))))
 			retrying := true
-			modules.PrintResult(service, h.Host, h.Port, u, p, result, con_result, progressCh, retrying)
+			modules.PrintResult(service, h.Host, h.Port, u, p, result, con_result, progressCh, retrying, output, delayTime)
+			time.Sleep(delayTime)
 		}
 	}
-	modules.PrintResult(service, h.Host, h.Port, u, p, result, con_result, progressCh, retrying)
+	modules.PrintResult(service, h.Host, h.Port, u, p, result, con_result, progressCh, retrying, output, delayTime)
 	return con_result
 }

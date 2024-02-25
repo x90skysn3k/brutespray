@@ -20,12 +20,14 @@ var masterServiceList = []string{"ssh", "ftp", "smtp", "mssql", "telnet", "smbnt
 
 var alphaServiceList = []string{"asterisk"}
 
-var version = "v2.1.5"
+var version = "v2.1.6"
 
 func Execute() {
 	user := flag.String("u", "", "Username or user list to bruteforce")
 	password := flag.String("p", "", "Password or password file to use for bruteforce")
+	output := flag.String("o", "brutespray-output", "Directory containing successful attempts")
 	threads := flag.Int("t", 10, "Number of threads to use")
+	hostParallelism := flag.Int("T", 5, "Number of hosts to bruteforce at the same time")
 	serviceType := flag.String("s", "all", "Service type: ssh, ftp, smtp, etc; Default all")
 	listServices := flag.Bool("S", false, "List all supported services")
 	file := flag.String("f", "", "File to parse; Supported: Nmap, Nessus, Nexpose, Lists, etc")
@@ -102,11 +104,11 @@ func Execute() {
 			}
 		}
 	}
-
-	bar, _ := pterm.DefaultProgressbar.WithTotal(len(hostsList)*(totalCombinations) - nopassServices).WithTitle("Bruteforcing...").Start()
+	bar, _ := pterm.DefaultProgressbar.WithTotal((totalCombinations) - nopassServices).WithTitle("Bruteforcing...").Start()
 	var wg sync.WaitGroup
 	var bruteForceWg sync.WaitGroup
-	sem := make(chan struct{}, *threads)
+	sem := make(chan struct{}, *threads**hostParallelism)
+	hostSem := make(chan struct{}, *hostParallelism)
 	sigs := make(chan os.Signal, 1)
 	progressCh := make(chan int, totalCombinations)
 
@@ -133,45 +135,20 @@ func Execute() {
 			if service == "vnc" || service == "snmp" {
 				u := ""
 				for _, h := range hostsList {
+					h := h
 					if h.Service == service {
 						_, passwords := modules.GetUsersAndPasswords(&h, *user, *password, version)
 						stopChan := make(chan struct{})
-						for _, p := range passwords {
-							wg.Add(1)
-							sem <- struct{}{}
-							go func(h modules.Host, p string) {
-								defer func() {
-									<-sem
-									wg.Done()
-									bruteForceWg.Done()
-								}()
+						hostSem <- struct{}{}
 
-								select {
-								case <-stopChan:
-								default:
-									brute.RunBrute(h, u, p, progressCh, *timeout, *retry)
-									bruteForceWg.Add(1)
-								}
-								progressCh <- 1
-							}(h, p)
-						}
-					}
-				}
-			} else {
-				for _, h := range hostsList {
-					if h.Service == service {
-						for _, alpha := range alphaServiceList {
-							if alpha == h.Service {
-								modules.PrintWarningAlpha(h.Service)
-							}
-						}
-						users, passwords := modules.GetUsersAndPasswords(&h, *user, *password, version)
-						stopChan := make(chan struct{})
-						for _, u := range users {
+						go func() {
+							defer func() { <-hostSem }()
 							for _, p := range passwords {
+								p := p
 								wg.Add(1)
 								sem <- struct{}{}
-								go func(h modules.Host, u, p string) {
+
+								go func(h modules.Host, p string) {
 									defer func() {
 										<-sem
 										wg.Done()
@@ -180,22 +157,67 @@ func Execute() {
 
 									select {
 									case <-stopChan:
-										return
 									default:
-										brute.RunBrute(h, u, p, progressCh, *timeout, *retry)
+										brute.RunBrute(h, u, p, progressCh, *timeout, *retry, *output)
 										bruteForceWg.Add(1)
 									}
 									progressCh <- 1
-								}(h, u, p)
+								}(h, p)
+							}
+						}()
+					}
+				}
+			} else {
+				for _, h := range hostsList {
+					h := h
+					if h.Service == service {
+						for _, alpha := range alphaServiceList {
+							if alpha == h.Service {
+								modules.PrintWarningAlpha(h.Service)
 							}
 						}
+
+						users, passwords := modules.GetUsersAndPasswords(&h, *user, *password, version)
+						stopChan := make(chan struct{})
+						hostSem <- struct{}{}
+
+						go func() {
+							defer func() { <-hostSem }()
+							for _, u := range users {
+								u := u
+								for _, p := range passwords {
+									p := p
+									wg.Add(1)
+									sem <- struct{}{}
+
+									go func(h modules.Host, u, p string) {
+										defer func() {
+											<-sem
+											wg.Done()
+											bruteForceWg.Done()
+										}()
+
+										select {
+										case <-stopChan:
+											return
+										default:
+											brute.RunBrute(h, u, p, progressCh, *timeout, *retry, *output)
+											bruteForceWg.Add(1)
+										}
+										progressCh <- 1
+									}(h, u, p)
+								}
+							}
+						}()
 					}
 				}
 			}
 		}(service)
 	}
-
 	wg.Wait()
+	for i := 0; i < cap(hostSem); i++ {
+		hostSem <- struct{}{}
+	}
 	for i := 0; i < cap(sem); i++ {
 		sem <- struct{}{}
 	}
