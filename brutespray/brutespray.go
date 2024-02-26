@@ -16,7 +16,7 @@ import (
 	"github.com/x90skysn3k/brutespray/modules"
 )
 
-var masterServiceList = []string{"ssh", "ftp", "smtp", "mssql", "telnet", "smbnt", "postgres", "imap", "pop3", "snmp", "mysql", "vmauthd", "asterisk", "vnc"}
+var masterServiceList = []string{"ssh", "ftp", "smtp", "mssql", "telnet", "smbnt", "postgres", "imap", "pop3", "snmp", "mysql", "vmauthd", "asterisk", "vnc", "mongodb"}
 
 var alphaServiceList = []string{"asterisk"}
 
