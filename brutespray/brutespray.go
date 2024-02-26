@@ -95,11 +95,12 @@ func Execute() {
 	for _, service := range supportedServices {
 		for _, h := range hostsList {
 			if h.Service == service {
-				users, passwords := modules.GetUsersAndPasswords(&h, *user, *password, version)
-				totalCombinations += modules.CalcCombinations(users, passwords)
 				if service == "vnc" || service == "snmp" {
 					_, passwords := modules.GetUsersAndPasswords(&h, *user, *password, version)
 					totalCombinations += modules.CalcCombinationsPass(passwords)
+				} else {
+					users, passwords := modules.GetUsersAndPasswords(&h, *user, *password, version)
+					totalCombinations += modules.CalcCombinations(users, passwords)
 				}
 			}
 		}
