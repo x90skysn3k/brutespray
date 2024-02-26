@@ -90,7 +90,7 @@ func ParseGNMAP(filename string) (map[Host]int, error) {
 	supported := []string{"ssh", "ftp", "postgres", "telnet", "mysql", "ms-sql-s", "shell",
 		"vnc", "imap", "imaps", "nntp", "pcanywheredata", "pop3", "pop3s",
 		"exec", "login", "microsoft-ds", "smtp", "smtps", "submission",
-		"svn", "iss-realsecure", "snmptrap", "snmp", "ms-wbt-server", "mongod"}
+		"svn", "iss-realsecure", "snmptrap", "snmp", "ms-wbt-server", "mongod", "nntp"}
 
 	hosts := make(map[Host]int)
 
@@ -129,7 +129,7 @@ func ParseJSON(filename string) (map[Host]int, error) {
 	supported := []string{"ssh", "ftp", "postgres", "telnet", "mysql", "ms-sql-s", "shell",
 		"vnc", "imap", "imaps", "nntp", "pcanywheredata", "pop3", "pop3s",
 		"exec", "login", "microsoft-ds", "smtp", "smtps", "submission",
-		"svn", "iss-realsecure", "snmptrap", "snmp", "mongodb"}
+		"svn", "iss-realsecure", "snmptrap", "snmp", "mongodb", "nntp"}
 
 	hosts := make(map[Host]int)
 
@@ -162,7 +162,7 @@ func ParseXML(filename string) (map[Host]int, error) {
 	supported := []string{"ssh", "ftp", "postgresql", "telnet", "mysql", "ms-sql-s", "rsh",
 		"vnc", "imap", "imaps", "nntp", "pcanywheredata", "pop3", "pop3s",
 		"exec", "login", "microsoft-ds", "smtp", "smtps", "submission",
-		"svn", "iss-realsecure", "snmptrap", "snmp", "mongod"}
+		"svn", "iss-realsecure", "snmptrap", "snmp", "mongod", "nntp"}
 
 	hosts := make(map[Host]int)
 
@@ -199,7 +199,7 @@ func ParseNexpose(filename string) (map[Host]int, error) {
 	supported := []string{"ssh", "ftp", "postgresql", "telnet", "mysql", "ms-sql-s", "rsh",
 		"vnc", "imap", "imaps", "nntp", "pcanywheredata", "pop3", "pop3s",
 		"exec", "login", "microsoft-ds", "smtp", "smtps", "submission",
-		"svn", "iss-realsecure", "snmptrap", "snmp", "cifs", "mongod"}
+		"svn", "iss-realsecure", "snmptrap", "snmp", "cifs", "mongod", "nntp"}
 
 	hosts := make(map[Host]int)
 	file, err := os.Open(filename)
@@ -248,7 +248,7 @@ func ParseNessus(filename string) (map[Host]int, error) {
 	supported := []string{"ssh", "ftp", "postgresql", "telnet", "mysql", "ms-sql-s", "rsh",
 		"vnc", "imap", "imaps", "nntp", "pcanywheredata", "pop3", "pop3s",
 		"exec", "login", "microsoft-ds", "smtp", "smtps", "submission",
-		"svn", "iss-realsecure", "snmptrap", "snmp", "cifs", "mongod"}
+		"svn", "iss-realsecure", "snmptrap", "snmp", "cifs", "mongod", "nntp"}
 
 	hosts := make(map[Host]int)
 	file, err := os.Open(filename)
@@ -280,7 +280,7 @@ func ParseNessus(filename string) (map[Host]int, error) {
 	return hosts, nil
 }
 func ParseList(filename string) (map[Host]int, error) {
-	supportedServices := []string{"ssh", "ftp", "smtp", "mssql", "telnet", "smbnt", "postgres", "imap", "pop3", "snmp", "mysql", "vmauthd", "asterisk", "vnc", "mongod"}
+	supportedServices := []string{"ssh", "ftp", "smtp", "mssql", "telnet", "smbnt", "postgres", "imap", "pop3", "snmp", "mysql", "vmauthd", "asterisk", "vnc", "mongod", "nntp"}
 	file, err := os.Open(filename)
 	if err != nil {
 		return nil, err
@@ -335,6 +335,7 @@ func (h *Host) Parse(host string) ([]Host, error) {
 		"asterisk": 10000,
 		"vnc":      5900,
 		"mongodb":  27017,
+		"nntp":     119,
 	}
 
 	parts := strings.Split(host, "://")
