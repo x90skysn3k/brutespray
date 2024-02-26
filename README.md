@@ -78,6 +78,7 @@ Command: ```brutespray -H ssh://127.0.0.1:22 -u userlist -p passlist```
 * mysql
 * vmauthd
 * vnc
+* mongodb
 
 # Services in Progress
 

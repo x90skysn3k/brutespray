@@ -19,7 +19,11 @@ func BruteMongoDB(host string, port int, user, password string, timeout time.Dur
 	if err != nil {
 		return false, false
 	}
-	defer client.Disconnect(ctx)
+	defer func() {
+		if err := client.Disconnect(ctx); err != nil {
+			_ = err
+		}
+	}()
 
 	err = client.Ping(ctx, readpref.Primary())
 	if err != nil {
