@@ -20,7 +20,9 @@ var NAME_MAP = map[string]string{
 	"snmptrap":       "snmp",
 	"mysql":          "mysql",
 	"vnc":            "vnc",
+	"mongod":         "mongodb",
 	//"ms-wbt-server":  "rdp",
+
 }
 
 func MapService(service string) string {
@@ -67,6 +69,10 @@ func RunBrute(h modules.Host, u string, p string, progressCh chan<- int, timeout
 			result, con_result = BruteAsterisk(h.Host, h.Port, u, p, timeout)
 		case "vnc":
 			result, con_result = BruteVNC(h.Host, h.Port, u, p, timeout)
+		case "mongodb":
+			result, con_result = BruteMongoDB(h.Host, h.Port, u, p, timeout)
+		case "nntp":
+			result, con_result = BruteNNTP(h.Host, h.Port, u, p, timeout)
 		//case "rdp":
 		//	result, con_result = brute.BruteRDP(h.Host, h.Port, u, p)
 		default:

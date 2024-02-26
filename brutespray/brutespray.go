@@ -16,11 +16,11 @@ import (
 	"github.com/x90skysn3k/brutespray/modules"
 )
 
-var masterServiceList = []string{"ssh", "ftp", "smtp", "mssql", "telnet", "smbnt", "postgres", "imap", "pop3", "snmp", "mysql", "vmauthd", "asterisk", "vnc"}
+var masterServiceList = []string{"ssh", "ftp", "smtp", "mssql", "telnet", "smbnt", "postgres", "imap", "pop3", "snmp", "mysql", "vmauthd", "asterisk", "vnc", "mongodb", "nntp"}
 
-var alphaServiceList = []string{"asterisk"}
+var alphaServiceList = []string{"asterisk", "nntp"}
 
-var version = "v2.1.6"
+var version = "v2.1.7"
 
 func Execute() {
 	user := flag.String("u", "", "Username or user list to bruteforce")
@@ -95,11 +95,12 @@ func Execute() {
 	for _, service := range supportedServices {
 		for _, h := range hostsList {
 			if h.Service == service {
-				users, passwords := modules.GetUsersAndPasswords(&h, *user, *password, version)
-				totalCombinations += modules.CalcCombinations(users, passwords)
 				if service == "vnc" || service == "snmp" {
 					_, passwords := modules.GetUsersAndPasswords(&h, *user, *password, version)
 					totalCombinations += modules.CalcCombinationsPass(passwords)
+				} else {
+					users, passwords := modules.GetUsersAndPasswords(&h, *user, *password, version)
+					totalCombinations += modules.CalcCombinations(users, passwords)
 				}
 			}
 		}
