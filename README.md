@@ -37,7 +37,7 @@ Command: ```brutespray -H ssh://127.0.0.1:22 -u userlist -p passlist```
 
 # Examples
 
-<img src="brutespray.gif" width="512">
+<img src="./brutespray.gif" width="512">
 
 #### Using Custom Wordlists:
 
