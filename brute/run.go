@@ -73,6 +73,8 @@ func RunBrute(h modules.Host, u string, p string, progressCh chan<- int, timeout
 			result, con_result = BruteMongoDB(h.Host, h.Port, u, p, timeout)
 		case "nntp":
 			result, con_result = BruteNNTP(h.Host, h.Port, u, p, timeout)
+		case "oracle":
+			result, con_result = BruteOracle(h.Host, h.Port, u, p, timeout)
 		//case "rdp":
 		//	result, con_result = brute.BruteRDP(h.Host, h.Port, u, p)
 		default:
