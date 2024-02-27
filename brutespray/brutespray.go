@@ -105,7 +105,6 @@ func Execute() {
 			}
 		}
 	}
-	bar, _ := pterm.DefaultProgressbar.WithTotal((totalCombinations) - nopassServices).WithTitle("Bruteforcing...").Start()
 	var wg sync.WaitGroup
 	var bruteForceWg sync.WaitGroup
 	sem := make(chan struct{}, *threads**hostParallelism)
@@ -114,6 +113,13 @@ func Execute() {
 	progressCh := make(chan int, totalCombinations)
 
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+
+	spinner, _ := pterm.DefaultSpinner.Start("Starting Bruteforce...")
+	pterm.DefaultSection.Println("\nStarting to brute, please make sure to use the right amount of threads(-t) and parallel hosts(-T)...")
+	time.Sleep(3 * time.Second)
+	spinner.Success()
+
+	bar, _ := pterm.DefaultProgressbar.WithTotal((totalCombinations) - nopassServices).WithTitle("Bruteforcing...").Start()
 
 	go func() {
 		<-sigs
