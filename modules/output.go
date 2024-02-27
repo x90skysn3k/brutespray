@@ -64,14 +64,14 @@ func PrintResult(service string, host string, port int, user string, pass string
 
 	if result && con_result {
 		if service == "vnc" {
-			pterm.Success.Println("Attempt", service, "SUCCESS on host", host, "port", port, "with password", pass, getResultString(result))
+			pterm.Color(pterm.BgGreen).Println("Attempt", service, "SUCCESS on host", host, "port", port, "with password", pass, getResultString(result))
 			content := fmt.Sprintf("Attempt %s SUCCESS on host %s port %d with password %s %s\n", service, host, port, pass, getResultString(result))
 			err := WriteToFile(service, content, port, output)
 			if err != nil {
 				fmt.Println("write file error:", err)
 			}
 		} else {
-			pterm.Success.Println("Attempt", service, "SUCCESS on host", host, "port", port, "with username", user, "and password", pass, getResultString(result))
+			pterm.Color(pterm.BgGreen).Println("Attempt", service, "SUCCESS on host", host, "port", port, "with username", user, "and password", pass, getResultString(result))
 			content := fmt.Sprintf("Attempt %s SUCCESS on host %s port %d with username %s and password %s %s\n", service, host, port, user, pass, getResultString(result))
 			err := WriteToFile(service, content, port, output)
 			if err != nil {
