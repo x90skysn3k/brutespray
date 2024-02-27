@@ -112,18 +112,11 @@ func Execute() {
 	sigs := make(chan os.Signal, 1)
 	progressCh := make(chan int, totalCombinations)
 
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-
-	spinner, _ := pterm.DefaultSpinner.Start("Starting Bruteforce...")
-	pterm.DefaultSection.Println("\nStarting to brute, please make sure to use the right amount of threads(-t) and parallel hosts(-T)...")
-	time.Sleep(3 * time.Second)
-	spinner.Success()
-
-	bar, _ := pterm.DefaultProgressbar.WithTotal((totalCombinations) - nopassServices).WithTitle("Bruteforcing...").Start()
+	bar := pterm.DefaultProgressbar.WithTotal((totalCombinations) - nopassServices).WithTitle("Bruteforcing...")
 
 	go func() {
 		<-sigs
-		pterm.DefaultSection.Println("\nReceived an interrupt signal, shutting down...")
+		pterm.Color(pterm.FgLightYellow).Println("\nReceived an interrupt signal, shutting down...")
 		time.Sleep(5 * time.Second)
 		_, _ = bar.Stop()
 		os.Exit(0)
@@ -134,6 +127,15 @@ func Execute() {
 			bar.Increment()
 		}
 	}()
+
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+
+	spinner, _ := pterm.DefaultSpinner.Start("Starting Bruteforce...")
+	pterm.Color(pterm.FgLightYellow).Println("\nStarting to brute, please make sure to use the right amount of threads(-t) and parallel hosts(-T)...")
+	time.Sleep(3 * time.Second)
+	spinner.Stop()
+
+	bar.Start()
 
 	for _, service := range supportedServices {
 		wg.Add(1)
