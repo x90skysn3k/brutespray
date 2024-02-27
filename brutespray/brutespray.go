@@ -146,9 +146,9 @@ func Execute() {
 
 	}
 
-	spinner, _ := pterm.DefaultSpinner.Start("Starting Bruteforce...")
-
 	pterm.Color(pterm.FgLightYellow).Println("\nStarting to brute, please make sure to use the right amount of threads(-t) and parallel hosts(-T)...")
+
+	spinner, _ := pterm.DefaultSpinner.Start("Starting Bruteforce...")
 	time.Sleep(3 * time.Second)
 	spinner.Stop()
 
