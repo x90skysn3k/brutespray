@@ -11,10 +11,13 @@ require (
 	github.com/knadh/go-pop3 v1.0.0
 	github.com/lib/pq v1.10.9
 	github.com/mitchellh/go-vnc v0.0.0-20150629162542-723ed9867aed
+	github.com/multiplay/go-ts3 v1.2.0
 	github.com/pterm/pterm v0.12.79
+	github.com/sijms/go-ora/v2 v2.8.9
 	github.com/wenerme/astgo v0.0.0-20230926205800-1b5bc38663fa
 	go.mongodb.org/mongo-driver v1.14.0
 	golang.org/x/crypto v0.19.0
+	gosrc.io/xmpp v0.5.1
 )
 
 require (
@@ -27,13 +30,14 @@ require (
 	github.com/emersion/go-textwrapper v0.0.0-20200911093747-65d896831594 // indirect
 	github.com/geoffgarside/ber v1.1.0 // indirect
 	github.com/golang/snappy v0.0.1 // indirect
+	github.com/google/uuid v1.2.0 // indirect
 	github.com/gookit/color v1.5.4 // indirect
 	github.com/hashicorp/errwrap v1.0.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/klauspost/compress v1.13.6 // indirect
 	github.com/lithammer/fuzzysearch v1.1.8 // indirect
 	github.com/mattn/go-runewidth v0.0.15 // indirect
-	github.com/mitchellh/mapstructure v1.4.1 // indirect
+	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/montanaflynn/stats v0.0.0-20171201202039-1bf9dbcd8cbe // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/rivo/uniseg v0.4.4 // indirect
@@ -49,4 +53,6 @@ require (
 	golang.org/x/sys v0.17.0 // indirect
 	golang.org/x/term v0.17.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
+	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
+	nhooyr.io/websocket v1.6.5 // indirect
 )

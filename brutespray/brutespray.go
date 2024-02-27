@@ -16,11 +16,11 @@ import (
 	"github.com/x90skysn3k/brutespray/modules"
 )
 
-var masterServiceList = []string{"ssh", "ftp", "smtp", "mssql", "telnet", "smbnt", "postgres", "imap", "pop3", "snmp", "mysql", "vmauthd", "asterisk", "vnc", "mongodb", "nntp"}
+var masterServiceList = []string{"ssh", "ftp", "smtp", "mssql", "telnet", "smbnt", "postgres", "imap", "pop3", "snmp", "mysql", "vmauthd", "asterisk", "vnc", "mongodb", "nntp", "oracle", "teamspeak", "xmpp"}
 
-var alphaServiceList = []string{"asterisk", "nntp"}
+var alphaServiceList = []string{"asterisk", "nntp", "oracle", "xmpp"}
 
-var version = "v2.1.7"
+var version = "v2.2.0"
 
 func Execute() {
 	user := flag.String("u", "", "Username or user list to bruteforce")

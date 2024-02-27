@@ -1,13 +1,13 @@
 # BruteSpray
 
-![Version](https://img.shields.io/badge/Version-2.1.7-red)[![goreleaser](https://github.com/x90skysn3k/brutespray/actions/workflows/release.yml/badge.svg)](https://github.com/x90skysn3k/brutespray/actions/workflows/release.yml)[![Go Report Card](https://goreportcard.com/badge/github.com/x90skysn3k/brutespray)](https://goreportcard.com/report/github.com/x90skysn3k/brutespray)
+![Version](https://img.shields.io/badge/Version-2.2.0-red)[![goreleaser](https://github.com/x90skysn3k/brutespray/actions/workflows/release.yml/badge.svg)](https://github.com/x90skysn3k/brutespray/actions/workflows/release.yml)[![Go Report Card](https://goreportcard.com/badge/github.com/x90skysn3k/brutespray)](https://goreportcard.com/report/github.com/x90skysn3k/brutespray)
 
 Created by: Shane Young/@t1d3nio && Jacob Robles/@shellfail 
 
 Inspired by: Leon Johnson/@sho-luv
 
 # Description
-Brutespray has been updated to golang. Without needing to rely on other tools this version will be extensible to bruteforce many different services and is way faster than it's Python counterpart. Currently Brutespray takes Nmap GNMAP/XML output, newline separated JSON, Nexpose `XML Export` output, Nessus `.nessus` exports, and lists. It will bruteforce supported servics found in those files. This tool is for research purposes and not intended for illegal use. 
+Brutespray has been re-written in Golang, eliminating the requirement for additional tools. This enhanced version is more extensive and operates at a significantly faster pace than its Python counterpart. As of now, Brutespray accepts input from Nmap's GNMAP/XML output, newline-separated JSON files, Nexpose's XML Export feature, Nessus exports in .nessus format, and various lists. Its intended purpose is for educational and ethical hacking research only; do not use it for illegal activities.
 
 <img src="https://i.imgur.com/6fQI6Qs.png" width="500">
 
@@ -21,8 +21,7 @@ To Build:
 
 # Usage
 
-If using Nmap, scan with ```-oG nmap.gnmap``` or ```-oX nmap.xml```.
-
+If using Nmap, scan with `-oA nmap_out`.
 If using Nexpose, export the template `XML Export`. 
 
 If using Nessus, export your `.nessus` file.
@@ -35,7 +34,7 @@ Command: ```brutespray -f nmap.xml -u userlist -p passlist```
 
 Command: ```brutespray -H ssh://127.0.0.1:22 -u userlist -p passlist```
 
-## Examples
+# Examples
 
 <img src="brutespray.gif" width="512">
 
@@ -79,12 +78,23 @@ Command: ```brutespray -H ssh://127.0.0.1:22 -u userlist -p passlist```
 * vmauthd
 * vnc
 * mongodb
+* nntp  
+* asterisk
+* teamspeak
+* oracle
+* xmpp
+
+# Services in Alpha
+* asterisk
 * nntp
+* oracle
+* xmpp
+
+Feel free to open an issue if these work, or if you have any issues
 
 # Services in Progress
 
-* rdp
-* asterisk
+* rdp - the issue is no one has written a good library for NLA
 
 # Data Specs
 ```json
