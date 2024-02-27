@@ -66,7 +66,7 @@ Command: ```brutespray -H ssh://127.0.0.1:22 -u userlist -p passlist```
 
 ```brutespray -f nessus.nessus -P -q```
 
-<img src="https://i.imgur.com/Gb9XBHc.png" width="500">
+<img src="https://i.imgur.com/97ENS23.png" width="500">
 
 # Supported Services
 
