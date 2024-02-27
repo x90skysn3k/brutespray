@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -20,7 +21,7 @@ var masterServiceList = []string{"ssh", "ftp", "smtp", "mssql", "telnet", "smbnt
 
 var alphaServiceList = []string{"asterisk", "nntp", "oracle", "xmpp"}
 
-var version = "v2.2.0"
+var version = "v2.2.1"
 
 func Execute() {
 	user := flag.String("u", "", "Username or user list to bruteforce")
@@ -35,6 +36,7 @@ func Execute() {
 	quiet := flag.Bool("q", false, "Suppress the banner")
 	timeout := flag.Duration("w", 5*time.Second, "Set timeout of bruteforce attempts")
 	retry := flag.Int("r", 3, "Amount of times to retry after receiving connection failed")
+	printhosts := flag.Bool("P", false, "Print found hosts parsed from provided host and file arguments")
 
 	flag.Parse()
 
@@ -105,7 +107,6 @@ func Execute() {
 			}
 		}
 	}
-	bar, _ := pterm.DefaultProgressbar.WithTotal((totalCombinations) - nopassServices).WithTitle("Bruteforcing...").Start()
 	var wg sync.WaitGroup
 	var bruteForceWg sync.WaitGroup
 	sem := make(chan struct{}, *threads**hostParallelism)
@@ -113,21 +114,70 @@ func Execute() {
 	sigs := make(chan os.Signal, 1)
 	progressCh := make(chan int, totalCombinations)
 
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+	if *printhosts {
 
-	go func() {
-		<-sigs
-		pterm.DefaultSection.Println("\nReceived an interrupt signal, shutting down...")
-		time.Sleep(5 * time.Second)
-		_, _ = bar.Stop()
-		os.Exit(0)
-	}()
+		pterm.Color(pterm.FgLightGreen).Println("Found Services:")
+		data := pterm.TableData{}
+
+		header := []string{"IP", "Service and Port"}
+		data = append(data, header)
+
+		hostToServices := make(map[string][]string)
+
+		for _, h := range hostsList {
+			portstr := strconv.Itoa(h.Port)
+			service := h.Service + " on port " + portstr
+			if _, ok := hostToServices[h.Host]; !ok {
+				hostToServices[h.Host] = []string{service}
+			} else {
+				hostToServices[h.Host] = append(hostToServices[h.Host], service)
+			}
+		}
+
+		for ip, services := range hostToServices {
+			row := []string{ip, strings.Join(services, "\n")}
+			data = append(data, row)
+		}
+
+		err := pterm.DefaultTable.WithRowSeparator("-").WithHeaderRowSeparator("-").WithData(data).Render()
+		if err != nil {
+			_ = err
+		}
+		spinner, _ := pterm.DefaultSpinner.Start("Waiting...")
+		time.Sleep(3 * time.Second)
+		err = spinner.Stop()
+		if err != nil {
+			_ = err
+		}
+
+	}
+
+	pterm.Color(pterm.FgLightYellow).Println("\nStarting to brute, please make sure to use the right amount of threads(-t) and parallel hosts(-T)...")
+
+	spinner, _ := pterm.DefaultSpinner.Start("Starting Bruteforce...")
+	time.Sleep(3 * time.Second)
+	err = spinner.Stop()
+	if err != nil {
+		_ = err
+	}
+
+	bar, _ := pterm.DefaultProgressbar.WithTotal((totalCombinations) - nopassServices).WithTitle("Bruteforcing...").Start()
 
 	go func() {
 		for range progressCh {
 			bar.Increment()
 		}
 	}()
+
+	go func() {
+		<-sigs
+		pterm.Color(pterm.FgLightYellow).Println("\nReceived an interrupt signal, shutting down...")
+		time.Sleep(5 * time.Second)
+		_, _ = bar.Stop()
+		os.Exit(0)
+	}()
+
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 
 	for _, service := range supportedServices {
 		wg.Add(1)
