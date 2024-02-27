@@ -22,6 +22,12 @@ func downloadFileFromGithub(url, localPath string) error {
 
 	spinner, _ := pterm.DefaultSpinner.Start("Downloading wordlist...")
 
+	if resp.StatusCode == 404 {
+		spinner.Fail("Wordlist not found")
+		pterm.Error.Println("The requested wordlist cannot be downloaded.")
+		os.Exit(1)
+	}
+
 	file, err := os.Create(localPath)
 	if err != nil {
 		return err
