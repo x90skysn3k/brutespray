@@ -1,6 +1,6 @@
 # BruteSpray
 
-![Version](https://img.shields.io/badge/Version-2.2.1-red)[![goreleaser](https://github.com/x90skysn3k/brutespray/actions/workflows/release.yml/badge.svg)](https://github.com/x90skysn3k/brutespray/actions/workflows/release.yml)[![Go Report Card](https://goreportcard.com/badge/github.com/x90skysn3k/brutespray)](https://goreportcard.com/report/github.com/x90skysn3k/brutespray)
+![Version](https://img.shields.io/badge/Version-2.2.2-red)[![goreleaser](https://github.com/x90skysn3k/brutespray/actions/workflows/release.yml/badge.svg)](https://github.com/x90skysn3k/brutespray/actions/workflows/release.yml)[![Go Report Card](https://goreportcard.com/badge/github.com/x90skysn3k/brutespray)](https://goreportcard.com/report/github.com/x90skysn3k/brutespray)
 
 Created by: Shane Young/@t1d3nio && Jacob Robles/@shellfail 
 
@@ -61,6 +61,12 @@ Command: ```brutespray -H ssh://127.0.0.1:22 -u userlist -p passlist```
 #### Bruteforce a CIDR range
 
 ```brutespray -H ssh://10.1.1.0/24:22 -t 1000```
+
+#### Print Found Services
+
+```brutespray -f nessus.nessus -P -q```
+
+<img src="https://i.imgur.com/Gb9XBHc.png" width="500">
 
 # Supported Services
 
