@@ -85,6 +85,14 @@ Command: ```brutespray -H ssh://127.0.0.1:22 -u userlist -p passlist```
 * oracle
 * xmpp
 
+# Services in Alpha
+* asterisk
+* nntp
+* oracle
+* xmpp
+
+Feel free to open an issue if these work, or if you have any issues
+
 # Services in Progress
 
 * rdp
