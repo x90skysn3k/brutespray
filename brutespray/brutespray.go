@@ -36,6 +36,7 @@ func Execute() {
 	quiet := flag.Bool("q", false, "Suppress the banner")
 	timeout := flag.Duration("w", 5*time.Second, "Set timeout of bruteforce attempts")
 	retry := flag.Int("r", 3, "Amount of times to retry after receiving connection failed")
+	printhosts := flag.Bool("P", false, "Print found hosts parsed from provided host and file arguments")
 
 	flag.Parse()
 
@@ -113,7 +114,51 @@ func Execute() {
 	sigs := make(chan os.Signal, 1)
 	progressCh := make(chan int, totalCombinations)
 
-	bar := pterm.DefaultProgressbar.WithTotal((totalCombinations) - nopassServices).WithTitle("Bruteforcing...")
+	if *printhosts {
+
+		pterm.Color(pterm.FgLightGreen).Println("Found Services:")
+		data := pterm.TableData{}
+
+		header := []string{"IP", "Service and Port"}
+		data = append(data, header)
+
+		hostToServices := make(map[string][]string)
+
+		for _, h := range hostsList {
+			portstr := strconv.Itoa(h.Port)
+			service := h.Service + " on port " + portstr
+			if _, ok := hostToServices[h.Host]; !ok {
+				hostToServices[h.Host] = []string{service}
+			} else {
+				hostToServices[h.Host] = append(hostToServices[h.Host], service)
+			}
+		}
+
+		for ip, services := range hostToServices {
+			row := []string{ip, strings.Join(services, "\n")}
+			data = append(data, row)
+		}
+
+		pterm.DefaultTable.WithRowSeparator("-").WithHeaderRowSeparator("-").WithData(data).Render()
+		spinner, _ := pterm.DefaultSpinner.Start("Waiting...")
+		time.Sleep(3 * time.Second)
+		spinner.Stop()
+
+	}
+
+	spinner, _ := pterm.DefaultSpinner.Start("Starting Bruteforce...")
+
+	pterm.Color(pterm.FgLightYellow).Println("\nStarting to brute, please make sure to use the right amount of threads(-t) and parallel hosts(-T)...")
+	time.Sleep(3 * time.Second)
+	spinner.Stop()
+
+	bar, _ := pterm.DefaultProgressbar.WithTotal((totalCombinations) - nopassServices).WithTitle("Bruteforcing...").Start()
+
+	go func() {
+		for range progressCh {
+			bar.Increment()
+		}
+	}()
 
 	go func() {
 		<-sigs
@@ -123,24 +168,7 @@ func Execute() {
 		os.Exit(0)
 	}()
 
-	go func() {
-		for range progressCh {
-			bar.Increment()
-		}
-	}()
-
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-
-	spinner, _ := pterm.DefaultSpinner.Start("Starting Bruteforce...")
-	for _, h := range hostsList {
-		portstr := strconv.Itoa(h.Port)
-		pterm.DefaultBox.WithTitle(h.Host).WithTitleBottomRight().WithBoxStyle(pterm.DefaultBox.BoxStyle).Println("Service: " + h.Service + ", Port: " + portstr)
-	}
-	pterm.Color(pterm.FgLightYellow).Println("\nStarting to brute, please make sure to use the right amount of threads(-t) and parallel hosts(-T)...")
-	time.Sleep(3 * time.Second)
-	spinner.Stop()
-
-	bar.Start()
 
 	for _, service := range supportedServices {
 		wg.Add(1)
