@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -131,6 +132,10 @@ func Execute() {
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 
 	spinner, _ := pterm.DefaultSpinner.Start("Starting Bruteforce...")
+	for _, h := range hostsList {
+		portstr := strconv.Itoa(h.Port)
+		pterm.DefaultBox.WithTitle(h.Host).WithTitleBottomRight().WithBoxStyle(pterm.DefaultBox.BoxStyle).Println("Service: " + h.Service + ", Port: " + portstr)
+	}
 	pterm.Color(pterm.FgLightYellow).Println("\nStarting to brute, please make sure to use the right amount of threads(-t) and parallel hosts(-T)...")
 	time.Sleep(3 * time.Second)
 	spinner.Stop()
