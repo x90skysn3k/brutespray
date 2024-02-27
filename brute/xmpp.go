@@ -1,6 +1,7 @@
 package brute
 
 import (
+	"fmt"
 	"strconv"
 	"time"
 
@@ -42,16 +43,22 @@ func BruteXMPP(host string, port int, user, password string, timeout time.Durati
 	case <-timer.C:
 		return false, false
 	case res := <-done:
-		timedOut := !timer.Stop()
-		if timedOut {
-			return false, false
-		}
 		if res.err != nil {
 			_ = res.err
 			//log.Printf("Error while connecting: %v", res.err)
-			return false, false
+			return false, true
 		}
-		res.session.Disconnect()
+
+		presence := stanza.NewPresence(stanza.Attrs{})
+		if err := res.session.Send(presence); err != nil {
+			_ = res.session.Disconnect()
+			return false, true
+		}
+
+		err := res.session.Disconnect()
+		if err != nil {
+			fmt.Println(err)
+		}
 		return true, true
 	}
 }
