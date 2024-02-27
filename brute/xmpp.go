@@ -44,11 +44,12 @@ func BruteXMPP(host string, port int, user, password string, timeout time.Durati
 	case res := <-done:
 		timedOut := !timer.Stop()
 		if timedOut {
-			return false, true
+			return false, false
 		}
 		if res.err != nil {
+			_ = res.err
 			//log.Printf("Error while connecting: %v", res.err)
-			return false, true
+			return false, false
 		}
 		res.session.Disconnect()
 		return true, true
