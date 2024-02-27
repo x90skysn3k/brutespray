@@ -139,10 +139,16 @@ func Execute() {
 			data = append(data, row)
 		}
 
-		pterm.DefaultTable.WithRowSeparator("-").WithHeaderRowSeparator("-").WithData(data).Render()
+		err := pterm.DefaultTable.WithRowSeparator("-").WithHeaderRowSeparator("-").WithData(data).Render()
+		if err != nil {
+			_ = err
+		}
 		spinner, _ := pterm.DefaultSpinner.Start("Waiting...")
 		time.Sleep(3 * time.Second)
-		spinner.Stop()
+		err = spinner.Stop()
+		if err != nil {
+			_ = err
+		}
 
 	}
 
@@ -150,7 +156,10 @@ func Execute() {
 
 	spinner, _ := pterm.DefaultSpinner.Start("Starting Bruteforce...")
 	time.Sleep(3 * time.Second)
-	spinner.Stop()
+	err = spinner.Stop()
+	if err != nil {
+		_ = err
+	}
 
 	bar, _ := pterm.DefaultProgressbar.WithTotal((totalCombinations) - nopassServices).WithTitle("Bruteforcing...").Start()
 
