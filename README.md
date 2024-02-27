@@ -80,11 +80,13 @@ Command: ```brutespray -H ssh://127.0.0.1:22 -u userlist -p passlist```
 * vnc
 * mongodb
 * nntp  
+* asterisk
+* teamspeak
+* oracle
 
 # Services in Progress
 
 * rdp
-* asterisk
 
 # Data Specs
 ```json
