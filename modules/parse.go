@@ -86,11 +86,37 @@ func contains(s []string, e string) bool {
 	return false
 }
 
+var NAME_MAP = map[string]string{
+	"ms-sql-s":       "mssql",
+	"microsoft-ds":   "smbnt",
+	"cifs":           "smbnt",
+	"postgresql":     "postgres",
+	"smtps":          "smtp",
+	"submission":     "smtp",
+	"imaps":          "imap",
+	"pop3s":          "pop3",
+	"iss-realsecure": "vmauthd",
+	"snmptrap":       "snmp",
+	"mysql":          "mysql",
+	"vnc":            "vnc",
+	"mongod":         "mongodb",
+	"textui":         "teamspeak",
+	//"ms-wbt-server":  "rdp",
+
+}
+
+func MapService(service string) string {
+	if mappedService, ok := NAME_MAP[service]; ok {
+		return mappedService
+	}
+	return service
+}
+
 func ParseGNMAP(filename string) (map[Host]int, error) {
 	supported := []string{"ssh", "ftp", "postgres", "telnet", "mysql", "ms-sql-s", "shell",
 		"vnc", "imap", "imaps", "nntp", "pcanywheredata", "pop3", "pop3s",
 		"exec", "login", "microsoft-ds", "smtp", "smtps", "submission",
-		"svn", "iss-realsecure", "snmptrap", "snmp", "ms-wbt-server", "mongod", "nntp", "oracle"}
+		"svn", "iss-realsecure", "snmptrap", "snmp", "ms-wbt-server", "mongod", "nntp", "oracle", "textui"}
 
 	hosts := make(map[Host]int)
 
@@ -113,7 +139,8 @@ func ParseGNMAP(filename string) (map[Host]int, error) {
 			ipMatches := regexp.MustCompile(`[0-9]+(?:\.[0-9]+){3}`).FindAllString(line, -1)
 
 			for _, ip := range ipMatches {
-				h := Host{Service: name, Host: ip, Port: port}
+				mappedService := MapService(name)
+				h := Host{Service: mappedService, Host: ip, Port: port}
 				hosts[h] = 1
 			}
 		}
@@ -129,7 +156,7 @@ func ParseJSON(filename string) (map[Host]int, error) {
 	supported := []string{"ssh", "ftp", "postgres", "telnet", "mysql", "ms-sql-s", "shell",
 		"vnc", "imap", "imaps", "nntp", "pcanywheredata", "pop3", "pop3s",
 		"exec", "login", "microsoft-ds", "smtp", "smtps", "submission",
-		"svn", "iss-realsecure", "snmptrap", "snmp", "mongodb", "nntp", "oracle"}
+		"svn", "iss-realsecure", "snmptrap", "snmp", "mongodb", "nntp", "oracle", "textui"}
 
 	hosts := make(map[Host]int)
 
@@ -151,7 +178,8 @@ func ParseJSON(filename string) (map[Host]int, error) {
 		name, _ := data["service"].(string)
 		if contains(supported, name) {
 			p, _ := strconv.Atoi(port)
-			h := Host{Service: name, Host: host, Port: p}
+			mappedService := MapService(name)
+			h := Host{Service: mappedService, Host: host, Port: p}
 			hosts[h] = 1
 		}
 	}
@@ -162,7 +190,7 @@ func ParseXML(filename string) (map[Host]int, error) {
 	supported := []string{"ssh", "ftp", "postgresql", "telnet", "mysql", "ms-sql-s", "rsh",
 		"vnc", "imap", "imaps", "nntp", "pcanywheredata", "pop3", "pop3s",
 		"exec", "login", "microsoft-ds", "smtp", "smtps", "submission",
-		"svn", "iss-realsecure", "snmptrap", "snmp", "mongod", "nntp", "oracle"}
+		"svn", "iss-realsecure", "snmptrap", "snmp", "mongod", "nntp", "oracle", "textui"}
 
 	hosts := make(map[Host]int)
 
@@ -186,7 +214,8 @@ func ParseXML(filename string) (map[Host]int, error) {
 				name := port.Service.Name
 				if contains(supported, name) {
 					p, _ := strconv.Atoi(port.PortId)
-					h := Host{Service: name, Host: ip, Port: p}
+					mappedService := MapService(name)
+					h := Host{Service: mappedService, Host: ip, Port: p}
 					hosts[h] = 1
 				}
 			}
@@ -199,7 +228,7 @@ func ParseNexpose(filename string) (map[Host]int, error) {
 	supported := []string{"ssh", "ftp", "postgresql", "telnet", "mysql", "ms-sql-s", "rsh",
 		"vnc", "imap", "imaps", "nntp", "pcanywheredata", "pop3", "pop3s",
 		"exec", "login", "microsoft-ds", "smtp", "smtps", "submission",
-		"svn", "iss-realsecure", "snmptrap", "snmp", "cifs", "mongod", "nntp", "oracle"}
+		"svn", "iss-realsecure", "snmptrap", "snmp", "cifs", "mongod", "nntp", "oracle", "textui"}
 
 	hosts := make(map[Host]int)
 	file, err := os.Open(filename)
@@ -236,7 +265,8 @@ func ParseNexpose(filename string) (map[Host]int, error) {
 				name = strings.ToLower(name)
 				if contains(supported, name) {
 					p, _ := strconv.Atoi(port.Port)
-					h := Host{Service: name, Host: ip, Port: p}
+					mappedService := MapService(name)
+					h := Host{Service: mappedService, Host: ip, Port: p}
 					hosts[h] = 1
 				}
 			}
@@ -248,7 +278,7 @@ func ParseNessus(filename string) (map[Host]int, error) {
 	supported := []string{"ssh", "ftp", "postgresql", "telnet", "mysql", "ms-sql-s", "rsh",
 		"vnc", "imap", "imaps", "nntp", "pcanywheredata", "pop3", "pop3s",
 		"exec", "login", "microsoft-ds", "smtp", "smtps", "submission",
-		"svn", "iss-realsecure", "snmptrap", "snmp", "cifs", "mongod", "nntp", "oracle"}
+		"svn", "iss-realsecure", "snmptrap", "snmp", "cifs", "mongod", "nntp", "oracle", "textui"}
 
 	hosts := make(map[Host]int)
 	file, err := os.Open(filename)
@@ -270,7 +300,8 @@ func ParseNessus(filename string) (map[Host]int, error) {
 				name := port.SvcName
 				if contains(supported, name) {
 					p, _ := strconv.Atoi(port.Port)
-					h := Host{Service: name, Host: ip, Port: p}
+					mappedService := MapService(name)
+					h := Host{Service: mappedService, Host: ip, Port: p}
 					hosts[h] = 1
 				}
 			}
@@ -280,7 +311,7 @@ func ParseNessus(filename string) (map[Host]int, error) {
 	return hosts, nil
 }
 func ParseList(filename string) (map[Host]int, error) {
-	supportedServices := []string{"ssh", "ftp", "smtp", "mssql", "telnet", "smbnt", "postgres", "imap", "pop3", "snmp", "mysql", "vmauthd", "asterisk", "vnc", "mongod", "nntp", "oracle"}
+	supportedServices := []string{"ssh", "ftp", "smtp", "mssql", "telnet", "smbnt", "postgres", "imap", "pop3", "snmp", "mysql", "vmauthd", "asterisk", "vnc", "mongod", "nntp", "oracle", "teamspeak"}
 	file, err := os.Open(filename)
 	if err != nil {
 		return nil, err
@@ -292,7 +323,7 @@ func ParseList(filename string) (map[Host]int, error) {
 	for scanner.Scan() {
 		line := scanner.Text()
 		parts := strings.Split(line, ":")
-		service := parts[0]
+		service := MapService(parts[0])
 		ip := parts[1]
 		port, _ := strconv.Atoi(parts[2])
 		h := Host{Service: service, Host: ip, Port: port}
@@ -320,23 +351,24 @@ func ParseList(filename string) (map[Host]int, error) {
 
 func (h *Host) Parse(host string) ([]Host, error) {
 	supportedServices := map[string]int{
-		"ssh":      22,
-		"ftp":      21,
-		"smtp":     25,
-		"mssql":    1433,
-		"telnet":   23,
-		"smbnt":    139,
-		"postgres": 5432,
-		"imap":     143,
-		"pop3":     110,
-		"snmp":     161,
-		"mysql":    3306,
-		"vmauthd":  902,
-		"asterisk": 10000,
-		"vnc":      5900,
-		"mongodb":  27017,
-		"nntp":     119,
-		"oracle":   1521,
+		"ssh":       22,
+		"ftp":       21,
+		"smtp":      25,
+		"mssql":     1433,
+		"telnet":    23,
+		"smbnt":     139,
+		"postgres":  5432,
+		"imap":      143,
+		"pop3":      110,
+		"snmp":      161,
+		"mysql":     3306,
+		"vmauthd":   902,
+		"asterisk":  10000,
+		"vnc":       5900,
+		"mongodb":   27017,
+		"nntp":      119,
+		"oracle":    1521,
+		"teamspeak": 10011,
 	}
 
 	parts := strings.Split(host, "://")
@@ -344,7 +376,7 @@ func (h *Host) Parse(host string) ([]Host, error) {
 		return nil, fmt.Errorf("invalid host format: %s", host)
 	}
 
-	service := parts[0]
+	service := MapService(parts[0])
 	remaining := parts[1]
 
 	portIndex := strings.LastIndex(remaining, ":")

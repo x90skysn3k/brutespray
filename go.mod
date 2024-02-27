@@ -11,6 +11,7 @@ require (
 	github.com/knadh/go-pop3 v1.0.0
 	github.com/lib/pq v1.10.9
 	github.com/mitchellh/go-vnc v0.0.0-20150629162542-723ed9867aed
+	github.com/multiplay/go-ts3 v1.2.0
 	github.com/pterm/pterm v0.12.79
 	github.com/sijms/go-ora/v2 v2.8.9
 	github.com/wenerme/astgo v0.0.0-20230926205800-1b5bc38663fa
@@ -34,7 +35,7 @@ require (
 	github.com/klauspost/compress v1.13.6 // indirect
 	github.com/lithammer/fuzzysearch v1.1.8 // indirect
 	github.com/mattn/go-runewidth v0.0.15 // indirect
-	github.com/mitchellh/mapstructure v1.4.1 // indirect
+	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/montanaflynn/stats v0.0.0-20171201202039-1bf9dbcd8cbe // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/rivo/uniseg v0.4.4 // indirect

@@ -7,33 +7,8 @@ import (
 	"github.com/x90skysn3k/brutespray/modules"
 )
 
-var NAME_MAP = map[string]string{
-	"ms-sql-s":       "mssql",
-	"microsoft-ds":   "smbnt",
-	"cifs":           "smbnt",
-	"postgresql":     "postgres",
-	"smtps":          "smtp",
-	"submission":     "smtp",
-	"imaps":          "imap",
-	"pop3s":          "pop3",
-	"iss-realsecure": "vmauthd",
-	"snmptrap":       "snmp",
-	"mysql":          "mysql",
-	"vnc":            "vnc",
-	"mongod":         "mongodb",
-	//"ms-wbt-server":  "rdp",
-
-}
-
-func MapService(service string) string {
-	if mappedService, ok := NAME_MAP[service]; ok {
-		return mappedService
-	}
-	return service
-}
-
 func RunBrute(h modules.Host, u string, p string, progressCh chan<- int, timeout time.Duration, retry int, output string) bool {
-	service := MapService(h.Service)
+	service := h.Service
 	var result bool
 	var con_result bool
 	var retrying bool = false
@@ -75,6 +50,8 @@ func RunBrute(h modules.Host, u string, p string, progressCh chan<- int, timeout
 			result, con_result = BruteNNTP(h.Host, h.Port, u, p, timeout)
 		case "oracle":
 			result, con_result = BruteOracle(h.Host, h.Port, u, p, timeout)
+		case "teamspeak":
+			result, con_result = BruteTeamSpeak(h.Host, h.Port, u, p, timeout)
 		//case "rdp":
 		//	result, con_result = brute.BruteRDP(h.Host, h.Port, u, p)
 		default:
