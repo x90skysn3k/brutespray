@@ -14,6 +14,7 @@ require (
 	github.com/multiplay/go-ts3 v1.2.0
 	github.com/pterm/pterm v0.12.79
 	github.com/sijms/go-ora/v2 v2.8.9
+	github.com/tomatome/grdp v0.1.0
 	github.com/wenerme/astgo v0.0.0-20230926205800-1b5bc38663fa
 	go.mongodb.org/mongo-driver v1.14.0
 	golang.org/x/crypto v0.19.0
@@ -34,8 +35,11 @@ require (
 	github.com/gookit/color v1.5.4 // indirect
 	github.com/hashicorp/errwrap v1.0.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
+	github.com/huin/asn1ber v0.0.0-20120622192748-af09f62e6358 // indirect
+	github.com/icodeface/tls v0.0.0-20190904083142-17aec93c60e5 // indirect
 	github.com/klauspost/compress v1.13.6 // indirect
 	github.com/lithammer/fuzzysearch v1.1.8 // indirect
+	github.com/lunixbochs/struc v0.0.0-20200707160740-784aaebc1d40 // indirect
 	github.com/mattn/go-runewidth v0.0.15 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/montanaflynn/stats v0.0.0-20171201202039-1bf9dbcd8cbe // indirect
