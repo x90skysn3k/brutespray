@@ -212,37 +212,73 @@ func Execute() {
 			defer wg.Done()
 			if service == "vnc" || service == "snmp" {
 				u := ""
-				for _, h := range hostsList {
-					h := h
-					if h.Service == service {
-						_, passwords := modules.GetUsersAndPasswords(&h, *user, *password, version)
-						stopChan := make(chan struct{})
-						hostSem <- struct{}{}
+				if *combo != "" {
+					for _, h := range hostsList {
+						h := h
+						if h.Service == service {
+							_, passwords := modules.GetUsersAndPasswordsCombo(&h, *combo, version)
+							stopChan := make(chan struct{})
+							hostSem <- struct{}{}
 
-						go func() {
-							defer func() { <-hostSem }()
-							for _, p := range passwords {
-								p := p
-								wg.Add(1)
-								sem <- struct{}{}
+							go func() {
+								defer func() { <-hostSem }()
+								for _, p := range passwords {
+									p := p
+									wg.Add(1)
+									sem <- struct{}{}
 
-								go func(h modules.Host, p string) {
-									defer func() {
-										<-sem
-										wg.Done()
-										bruteForceWg.Done()
-									}()
+									go func(h modules.Host, p string) {
+										defer func() {
+											<-sem
+											wg.Done()
+											bruteForceWg.Done()
+										}()
 
-									select {
-									case <-stopChan:
-									default:
-										brute.RunBrute(h, u, p, progressCh, *timeout, *retry, *output)
-										bruteForceWg.Add(1)
-									}
-									progressCh <- 1
-								}(h, p)
-							}
-						}()
+										select {
+										case <-stopChan:
+										default:
+											brute.RunBrute(h, u, p, progressCh, *timeout, *retry, *output)
+											bruteForceWg.Add(1)
+										}
+										progressCh <- 1
+									}(h, p)
+								}
+							}()
+						}
+					}
+				} else {
+					for _, h := range hostsList {
+						h := h
+						if h.Service == service {
+							_, passwords := modules.GetUsersAndPasswords(&h, *user, *password, version)
+							stopChan := make(chan struct{})
+							hostSem <- struct{}{}
+
+							go func() {
+								defer func() { <-hostSem }()
+								for _, p := range passwords {
+									p := p
+									wg.Add(1)
+									sem <- struct{}{}
+
+									go func(h modules.Host, p string) {
+										defer func() {
+											<-sem
+											wg.Done()
+											bruteForceWg.Done()
+										}()
+
+										select {
+										case <-stopChan:
+										default:
+											brute.RunBrute(h, u, p, progressCh, *timeout, *retry, *output)
+											bruteForceWg.Add(1)
+										}
+										progressCh <- 1
+									}(h, p)
+								}
+							}()
+						}
 					}
 				}
 			} else {
