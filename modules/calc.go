@@ -11,7 +11,7 @@ import (
 func GetUsersAndPasswordsCombo(h *Host, combo string, version string) ([]string, []string) {
 	userCh := make(chan string)
 	passCh := make(chan string)
-
+	fmt.Println("called")
 	go func() {
 		defer close(userCh)
 		if IsFile(combo) {
@@ -25,7 +25,7 @@ func GetUsersAndPasswordsCombo(h *Host, combo string, version string) ([]string,
 			scanner := bufio.NewScanner(file)
 			for scanner.Scan() {
 				line := scanner.Text()
-				splitLine := strings.Split(line, ":")
+				splitLine := strings.SplitN(line, ":", 2) // Limit number of splits to 2
 				if len(splitLine) == 2 {
 					userCh <- splitLine[0]
 					passCh <- splitLine[1]
@@ -37,7 +37,7 @@ func GetUsersAndPasswordsCombo(h *Host, combo string, version string) ([]string,
 				os.Exit(1)
 			}
 		} else {
-			splitCombo := strings.Split(combo, ":")
+			splitCombo := strings.SplitN(combo, ":", 2) // Limit number of splits to 2
 			if len(splitCombo) == 2 {
 				userCh <- splitCombo[0]
 				passCh <- splitCombo[1]
@@ -55,7 +55,9 @@ func GetUsersAndPasswordsCombo(h *Host, combo string, version string) ([]string,
 		passwordSlice = append(passwordSlice, p)
 	}
 
-	return userSlice, passwordSlice
+	fmt.Println(userSlice, passwordSlice)
+
+	return userSlice[:1], passwordSlice // Return only the first combination
 }
 
 func GetUsersAndPasswords(h *Host, user string, password string, version string) ([]string, []string) {
