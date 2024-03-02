@@ -119,6 +119,11 @@ func Execute() {
 	for _, service := range supportedServices {
 		for _, h := range hostsList {
 			if h.Service == service {
+				for _, alpha := range alphaServiceList {
+					if alpha == h.Service {
+						modules.PrintWarningAlpha(h.Service)
+					}
+				}
 				if *combo != "" {
 					users, passwords := modules.GetUsersAndPasswordsCombo(&h, *combo, version)
 					totalCombinations += modules.CalcCombinationsCombo(users, passwords)
