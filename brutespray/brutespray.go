@@ -19,7 +19,7 @@ import (
 
 var masterServiceList = []string{"ssh", "ftp", "smtp", "mssql", "telnet", "smbnt", "postgres", "imap", "pop3", "snmp", "mysql", "vmauthd", "asterisk", "vnc", "mongodb", "nntp", "oracle", "teamspeak", "xmpp"}
 
-var alphaServiceList = []string{"asterisk", "nntp", "oracle", "xmpp"}
+var BetaServiceList = []string{"asterisk", "nntp", "oracle", "xmpp"}
 
 var version = "v2.2.2"
 
@@ -119,9 +119,9 @@ func Execute() {
 	for _, service := range supportedServices {
 		for _, h := range hostsList {
 			if h.Service == service {
-				for _, alpha := range alphaServiceList {
-					if alpha == h.Service {
-						modules.PrintWarningAlpha(h.Service)
+				for _, beta := range BetaServiceList {
+					if beta == h.Service {
+						modules.PrintWarningBeta(h.Service)
 					}
 				}
 				if *combo != "" {
