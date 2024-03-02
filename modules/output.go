@@ -93,6 +93,6 @@ func PrintResult(service string, host string, port int, user string, pass string
 	}
 }
 
-func PrintWarningAlpha(service string) {
-	pterm.Color(pterm.BgYellow).Println("Warning, the module", service, "is Alpha, results may be inaccurate, use at your own risk")
+func PrintWarningBeta(service string) {
+	pterm.Color(pterm.BgYellow).Println("Warning, the module", service, "is Beta, results may be inaccurate, use at your own risk")
 }
