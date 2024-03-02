@@ -115,7 +115,18 @@ List example
 ```
 ssh:127.0.0.1:22
 ftp:127.0.0.1:21
+...
 ```
+Combo wordlist example
+```
+user:pass
+user1:pass1
+user2:pass2
+user3:pass
+user4:pass1
+...
+```
+
 ## Star History
 
 [![Star History Chart](https://api.star-history.com/svg?repos=x90skysn3k/brutespray&type=Date)](https://star-history.com/#x90skysn3k/brutespray&Date)
