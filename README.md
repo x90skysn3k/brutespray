@@ -34,6 +34,8 @@ Command: ```brutespray -f nmap.xml -u userlist -p passlist```
 
 Command: ```brutespray -H ssh://127.0.0.1:22 -u userlist -p passlist```
 
+Command: ```brutespray -H ssh://127.0.0.1 -C root:root```
+
 # Examples
 
 <img src="brutespray.gif" width="512">
