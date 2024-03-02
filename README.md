@@ -129,6 +129,13 @@ user4:pass1
 ...
 ```
 
-## Star History
+# Planned Features
+
+* Ability to set proxy
+* Ability to select interface
+* More modules
+* Better connection handling
+
+# Star History
 
 [![Star History Chart](https://api.star-history.com/svg?repos=x90skysn3k/brutespray&type=Date)](https://star-history.com/#x90skysn3k/brutespray&Date)
