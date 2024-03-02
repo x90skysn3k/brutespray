@@ -119,12 +119,17 @@ func Execute() {
 	for _, service := range supportedServices {
 		for _, h := range hostsList {
 			if h.Service == service {
-				if service == "vnc" || service == "snmp" {
-					_, passwords := modules.GetUsersAndPasswords(&h, *user, *password, version)
-					totalCombinations += modules.CalcCombinationsPass(passwords)
+				if *combo != "" {
+					users, passwords := modules.GetUsersAndPasswordsCombo(&h, *combo, version)
+					totalCombinations += modules.CalcCombinationsCombo(users, passwords)
 				} else {
-					users, passwords := modules.GetUsersAndPasswords(&h, *user, *password, version)
-					totalCombinations += modules.CalcCombinations(users, passwords)
+					if service == "vnc" || service == "snmp" {
+						_, passwords := modules.GetUsersAndPasswords(&h, *user, *password, version)
+						totalCombinations += modules.CalcCombinationsPass(passwords)
+					} else {
+						users, passwords := modules.GetUsersAndPasswords(&h, *user, *password, version)
+						totalCombinations += modules.CalcCombinations(users, passwords)
+					}
 				}
 			}
 		}
@@ -201,30 +206,33 @@ func Execute() {
 
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 
-	if *combo != "" {
-		for _, service := range supportedServices {
-			wg.Add(1)
-			go func(service string) {
-				defer wg.Done()
+	for _, service := range supportedServices {
+		wg.Add(1)
+		go func(service string) {
+			defer wg.Done()
+			if service == "vnc" || service == "snmp" {
+				u := ""
 				for _, h := range hostsList {
 					h := h
 					if h.Service == service {
-						users, passwords := modules.GetUsersAndPasswordsCombo(&h, *combo, version)
-						for i := 0; i < len(users); i++ {
-							u := users[i]
-							p := passwords[i]
-							stopChan := make(chan struct{})
-							hostSem <- struct{}{}
-							go func() {
-								defer func() { <-hostSem }()
+						_, passwords := modules.GetUsersAndPasswords(&h, *user, *password, version)
+						stopChan := make(chan struct{})
+						hostSem <- struct{}{}
+
+						go func() {
+							defer func() { <-hostSem }()
+							for _, p := range passwords {
+								p := p
 								wg.Add(1)
 								sem <- struct{}{}
-								go func(h modules.Host, u string, p string) {
+
+								go func(h modules.Host, p string) {
 									defer func() {
 										<-sem
 										wg.Done()
 										bruteForceWg.Done()
 									}()
+
 									select {
 									case <-stopChan:
 									default:
@@ -232,36 +240,29 @@ func Execute() {
 										bruteForceWg.Add(1)
 									}
 									progressCh <- 1
-								}(h, u, p)
-
-							}()
-						}
+								}(h, p)
+							}
+						}()
 					}
 				}
-			}(service)
-		}
-	} else {
-		for _, service := range supportedServices {
-			wg.Add(1)
-			go func(service string) {
-				defer wg.Done()
-				if service == "vnc" || service == "snmp" {
-					u := ""
+			} else {
+				if *combo != "" {
 					for _, h := range hostsList {
 						h := h
 						if h.Service == service {
-							_, passwords := modules.GetUsersAndPasswords(&h, *user, *password, version)
+							users, passwords := modules.GetUsersAndPasswordsCombo(&h, *combo, version)
 							stopChan := make(chan struct{})
 							hostSem <- struct{}{}
 
 							go func() {
 								defer func() { <-hostSem }()
-								for _, p := range passwords {
-									p := p
+								for i := range users {
+									u := users[i]
+									p := passwords[i]
 									wg.Add(1)
 									sem <- struct{}{}
 
-									go func(h modules.Host, p string) {
+									go func(h modules.Host, u, p string) {
 										defer func() {
 											<-sem
 											wg.Done()
@@ -270,12 +271,13 @@ func Execute() {
 
 										select {
 										case <-stopChan:
+											return
 										default:
 											brute.RunBrute(h, u, p, progressCh, *timeout, *retry, *output)
 											bruteForceWg.Add(1)
 										}
 										progressCh <- 1
-									}(h, p)
+									}(h, u, p)
 								}
 							}()
 						}
@@ -284,12 +286,6 @@ func Execute() {
 					for _, h := range hostsList {
 						h := h
 						if h.Service == service {
-							for _, alpha := range alphaServiceList {
-								if alpha == h.Service {
-									modules.PrintWarningAlpha(h.Service)
-								}
-							}
-
 							users, passwords := modules.GetUsersAndPasswords(&h, *user, *password, version)
 							stopChan := make(chan struct{})
 							hostSem <- struct{}{}
@@ -325,16 +321,16 @@ func Execute() {
 						}
 					}
 				}
-			}(service)
-		}
-		wg.Wait()
-		for i := 0; i < cap(hostSem); i++ {
-			hostSem <- struct{}{}
-		}
-		for i := 0; i < cap(sem); i++ {
-			sem <- struct{}{}
-		}
-		bruteForceWg.Wait()
-		_, _ = bar.Stop()
+			}
+		}(service)
 	}
+	wg.Wait()
+	for i := 0; i < cap(hostSem); i++ {
+		hostSem <- struct{}{}
+	}
+	for i := 0; i < cap(sem); i++ {
+		sem <- struct{}{}
+	}
+	bruteForceWg.Wait()
+	_, _ = bar.Stop()
 }

@@ -9,55 +9,40 @@ import (
 )
 
 func GetUsersAndPasswordsCombo(h *Host, combo string, version string) ([]string, []string) {
-	userCh := make(chan string)
-	passCh := make(chan string)
-	fmt.Println("called")
-	go func() {
-		defer close(userCh)
-		if IsFile(combo) {
-			file, err := os.Open(combo)
-			if err != nil {
-				fmt.Println("Error opening combo file:", err)
-				os.Exit(1)
-			}
-			defer file.Close()
+	userSlice := []string{}
+	passSlice := []string{}
 
-			scanner := bufio.NewScanner(file)
-			for scanner.Scan() {
-				line := scanner.Text()
-				splitLine := strings.SplitN(line, ":", 2) // Limit number of splits to 2
-				if len(splitLine) == 2 {
-					userCh <- splitLine[0]
-					passCh <- splitLine[1]
-				}
-			}
+	if IsFile(combo) {
+		file, err := os.Open(combo)
+		if err != nil {
+			fmt.Println("Error opening combo file:", err)
+			os.Exit(1)
+		}
+		defer file.Close()
 
-			if err := scanner.Err(); err != nil {
-				fmt.Println("Error reading combo file:", err)
+		scanner := bufio.NewScanner(file)
+		for scanner.Scan() {
+			line := scanner.Text()
+			if strings.Contains(line, ":") {
+				splits := strings.SplitN(line, ":", 2)
+				userSlice = append(userSlice, splits[0])
+				passSlice = append(passSlice, splits[1])
+			} else {
+				fmt.Printf("Invalid format in combo file: %s\n", line)
 				os.Exit(1)
-			}
-		} else {
-			splitCombo := strings.SplitN(combo, ":", 2) // Limit number of splits to 2
-			if len(splitCombo) == 2 {
-				userCh <- splitCombo[0]
-				passCh <- splitCombo[1]
 			}
 		}
-	}()
-
-	userSlice := []string{}
-	for u := range userCh {
-		userSlice = append(userSlice, u)
+		if err := scanner.Err(); err != nil {
+			fmt.Println("Error reading combo file:", err)
+			os.Exit(1)
+		}
+	} else {
+		splits := strings.SplitN(combo, ":", 2)
+		userSlice = append(userSlice, splits[0])
+		passSlice = append(passSlice, splits[1])
 	}
 
-	passwordSlice := []string{}
-	for p := range passCh {
-		passwordSlice = append(passwordSlice, p)
-	}
-
-	fmt.Println(userSlice, passwordSlice)
-
-	return userSlice[:1], passwordSlice // Return only the first combination
+	return userSlice, passSlice
 }
 
 func GetUsersAndPasswords(h *Host, user string, password string, version string) ([]string, []string) {
@@ -149,5 +134,17 @@ func CalcCombinationsPass(passCh []string) int {
 	}
 
 	totalCombinations = len(passwords)
+	return totalCombinations
+}
+
+func CalcCombinationsCombo(userCh []string, passCh []string) int {
+	var totalCombinations int
+	users := []string{}
+
+	for u := range userCh {
+		users = append(users, strconv.Itoa(u))
+	}
+
+	totalCombinations = len(users)
 	return totalCombinations
 }
