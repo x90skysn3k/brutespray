@@ -26,9 +26,11 @@ var version = "v2.2.2"
 func Execute() {
 	user := flag.String("u", "", "Username or user list to bruteforce")
 	password := flag.String("p", "", "Password or password file to use for bruteforce")
+	combo := flag.String("C", "", "Specify a combo wordlist deiminated by ':', example: user1:password")
 	output := flag.String("o", "brutespray-output", "Directory containing successful attempts")
 	threads := flag.Int("t", 10, "Number of threads to use")
 	hostParallelism := flag.Int("T", 5, "Number of hosts to bruteforce at the same time")
+	//networkInterface := flag.String("i", "", "Network interface to use")
 	serviceType := flag.String("s", "all", "Service type: ssh, ftp, smtp, etc; Default all")
 	listServices := flag.Bool("S", false, "List all supported services")
 	file := flag.String("f", "", "File to parse; Supported: Nmap, Nessus, Nexpose, Lists, etc")
@@ -52,6 +54,26 @@ func Execute() {
 		}
 		return masterServiceList
 	}
+
+	//if *networkInterface != "" {
+	//	interfaces, err := net.Interfaces()
+	//	if err != nil {
+	//		fmt.Println("Error getting network interfaces:", err)
+	//		os.Exit(1)
+	//	}
+	//	found := false
+	//	for _, iface := range interfaces {
+	//		if iface.Name == *networkInterface {
+	//			found = true
+	//			break
+	//		}
+	//	}
+	//
+	//		if !found {
+	//			fmt.Printf("Network interface %s not found or not available\n", *networkInterface)
+	//			os.Exit(1)
+	//		}
+	//	}
 
 	if *listServices {
 		pterm.DefaultSection.Println("Supported services:", strings.Join(getSupportedServices(*serviceType), ", "))
@@ -180,6 +202,45 @@ func Execute() {
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 
 	for _, service := range supportedServices {
+		if !*user && !*password && combo{
+			wg.Add(1)
+			go func(service string) {
+				defer wg.Done()
+				for _, h := range hostsList {
+					h := h
+					if h.Service == service {
+						users, passwords := modules.GetUsersAndPasswordsCombo(&h, *combo, version)
+						stopChan := make(chan struct{})
+						hostSem <- struct{}{}
+						go func () {
+							defer func() { <-hostSem } ()
+							for u, p := range passwords {
+								u := u
+								p := p
+								wg.Add(1)
+								sem <- struct{}{}
+								go func(h modules.Host, u string, p string) {
+									defer func() {
+										<-sem
+										wg.Done()
+										bruteForceWg.Done()
+									}()
+									select {
+									case <-stopChan:
+									default:
+										brute.RunBrute(h, u, p, progressCh, *timeout, *retry, *output)
+										bruteForceWg.Add(1)
+									}
+									progressCh <- 1
+								}(h, p)
+								
+							}
+
+						}()
+					}
+				}
+			
+		} else {
 		wg.Add(1)
 		go func(service string) {
 			defer wg.Done()
@@ -274,4 +335,5 @@ func Execute() {
 	}
 	bruteForceWg.Wait()
 	_, _ = bar.Stop()
+}
 }
