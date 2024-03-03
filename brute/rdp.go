@@ -1,6 +1,19 @@
 package brute
 
 import (
+	"fmt"
+	"time"
+)
+
+func BruteRDP(host string, port int, user, password string, timeout time.Duration) (bool, bool) {
+	fmt.Println("not needed")
+	return false, false
+}
+
+/*
+package brute
+
+import (
 	"context"
 	"fmt"
 	"log"
@@ -120,3 +133,4 @@ func (g *RdpClient) Close() {
 		g.tpkt.Close()
 	}
 }
+*/
