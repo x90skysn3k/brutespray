@@ -1,6 +1,6 @@
 # BruteSpray
 
-![Version](https://img.shields.io/badge/Version-2.2.1-red)[![goreleaser](https://github.com/x90skysn3k/brutespray/actions/workflows/release.yml/badge.svg)](https://github.com/x90skysn3k/brutespray/actions/workflows/release.yml)[![Go Report Card](https://goreportcard.com/badge/github.com/x90skysn3k/brutespray)](https://goreportcard.com/report/github.com/x90skysn3k/brutespray)
+![Version](https://img.shields.io/badge/Version-2.2.2-red)[![goreleaser](https://github.com/x90skysn3k/brutespray/actions/workflows/release.yml/badge.svg)](https://github.com/x90skysn3k/brutespray/actions/workflows/release.yml)[![Go Report Card](https://goreportcard.com/badge/github.com/x90skysn3k/brutespray)](https://goreportcard.com/report/github.com/x90skysn3k/brutespray)
 
 Created by: Shane Young/@t1d3nio && Jacob Robles/@shellfail 
 
@@ -34,6 +34,8 @@ Command: ```brutespray -f nmap.xml -u userlist -p passlist```
 
 Command: ```brutespray -H ssh://127.0.0.1:22 -u userlist -p passlist```
 
+Command: ```brutespray -H ssh://127.0.0.1 -C root:root```
+
 # Examples
 
 <img src="brutespray.gif" width="512">
@@ -62,6 +64,12 @@ Command: ```brutespray -H ssh://127.0.0.1:22 -u userlist -p passlist```
 
 ```brutespray -H ssh://10.1.1.0/24:22 -t 1000```
 
+#### Print Found Services
+
+```brutespray -f nessus.nessus -P -q```
+
+<img src="https://i.imgur.com/97ENS23.png" width="500">
+
 # Supported Services
 
 * ssh
@@ -84,7 +92,7 @@ Command: ```brutespray -H ssh://127.0.0.1:22 -u userlist -p passlist```
 * oracle
 * xmpp
 
-# Services in Alpha
+# Services in Beta
 * asterisk
 * nntp
 * oracle
@@ -109,7 +117,25 @@ List example
 ```
 ssh:127.0.0.1:22
 ftp:127.0.0.1:21
+...
 ```
-## Star History
+Combo wordlist example
+```
+user:pass
+user1:pass1
+user2:pass2
+user3:pass
+user4:pass1
+...
+```
+
+# Planned Features
+
+* Ability to set proxy
+* Ability to select interface
+* More modules
+* Better connection handling
+
+# Star History
 
 [![Star History Chart](https://api.star-history.com/svg?repos=x90skysn3k/brutespray&type=Date)](https://star-history.com/#x90skysn3k/brutespray&Date)
