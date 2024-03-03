@@ -21,7 +21,7 @@ var masterServiceList = []string{"ssh", "ftp", "smtp", "mssql", "telnet", "smbnt
 
 var BetaServiceList = []string{"asterisk", "nntp", "oracle", "xmpp"}
 
-var version = "v2.2.3"
+var version = "v2.2.2"
 
 func Execute() {
 	user := flag.String("u", "", "Username or user list to bruteforce")
