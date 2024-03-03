@@ -29,7 +29,7 @@ func BruteRDP(host string, port int, user, password string, timeout time.Duratio
 	logger := log.New(os.Stdout, "", 0)
 	glog.SetLogger(logger)
 
-	client := NewRdpClient(target, width, height, glog.INFO)
+	client := NewRdpClient(target, width, height, glog.INFO, user, password, domain)
 
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
@@ -59,21 +59,27 @@ func BruteRDP(host string, port int, user, password string, timeout time.Duratio
 }
 
 type RdpClient struct {
-	Host   string // ip:port
-	Width  int
-	Height int
-	tpkt   *tpkt.TPKT
-	x224   *x224.X224
-	mcs    *t125.MCSClient
-	sec    *sec.Client
-	pdu    *pdu.Client
+	Host     string // ip:port
+	Width    int
+	Height   int
+	user     string
+	password string
+	domain   string
+	tpkt     *tpkt.TPKT
+	x224     *x224.X224
+	mcs      *t125.MCSClient
+	sec      *sec.Client
+	pdu      *pdu.Client
 }
 
-func NewRdpClient(host string, width, height int, logLevel glog.LEVEL) *RdpClient {
+func NewRdpClient(host string, width, height int, logLevel glog.LEVEL, user, password, domain string) *RdpClient {
 	return &RdpClient{
-		Host:   host,
-		Width:  width,
-		Height: height,
+		Host:     host,
+		Width:    width,
+		Height:   height,
+		user:     user,
+		password: password,
+		domain:   domain,
 	}
 }
 
@@ -84,14 +90,14 @@ func (g *RdpClient) Login() error {
 	}
 	defer conn.Close()
 
-	g.tpkt = tpkt.New(core.NewSocketLayer(conn), nla.NewNTLMv2(domain, user, password))
+	g.tpkt = tpkt.New(core.NewSocketLayer(conn), nla.NewNTLMv2(g.domain, g.user, g.password))
 	g.x224 = x224.New(g.tpkt)
 
 	g.mcs = t125.NewMCSClient(g.x224)
 	g.sec = sec.NewClient(g.mcs)
 	g.pdu = pdu.NewClient(g.sec)
 
-	g.mcs.SetClientDesktop(uint16(g.Width), uint16(g.Height))
+	//g.mcs.SetClientDesktop(uint16(g.Width), uint16(g.Height))
 	g.sec.SetUser(g.user)
 	g.sec.SetPwd(g.password)
 	g.sec.SetDomain(g.domain)
