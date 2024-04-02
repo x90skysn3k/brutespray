@@ -3,7 +3,6 @@ package brute
 import (
 	"fmt"
 	"net"
-	"sync"
 	"time"
 
 	"github.com/tomatome/grdp/core"
@@ -38,32 +37,35 @@ func BruteRDP(host string, port int, user, password string, timeout time.Duratio
 	sec.SetFastPathListener(pdu)
 	pdu.SetFastPathSender(tpkt)
 
-	var wg sync.WaitGroup
-	wg.Add(1)
+	success := make(chan bool, 1) // Channel to communicate success event
 
-	err = x224.Connect()
-	if err != nil {
-		glog.Errorf("[x224 connect err] %v", err)
-		return false, false
-	}
+	// Register handlers
+	go func() {
+		err := x224.Connect()
+		if err != nil {
+			glog.Errorf("[x224 connect err] %v", err)
+			success <- false
+		}
+	}()
 
 	pdu.On("error", func(e error) {
 		glog.Error("error", e)
-		wg.Done()
+		success <- false
 	})
 	pdu.On("close", func() {
 		glog.Info("on close")
-		wg.Done()
-	})
-	pdu.On("success", func() {
-		glog.Info("on success")
-		wg.Done()
+		success <- false
 	})
 	pdu.On("ready", func() {
 		glog.Info("on ready")
-		wg.Done()
+		success <- false
+	})
+	pdu.On("success", func() {
+		glog.Info("on success")
+		success <- true
 	})
 
-	wg.Wait()
-	return true, true // Return authentication status
+	// Wait for result
+	result := <-success
+	return true, result
 }
