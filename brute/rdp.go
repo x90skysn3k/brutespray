@@ -2,7 +2,9 @@ package brute
 
 import (
 	"fmt"
+	"log"
 	"net"
+	"os"
 	"time"
 
 	"github.com/tomatome/grdp/core"
@@ -16,12 +18,16 @@ import (
 )
 
 func BruteRDP(host string, port int, user, password string, timeout time.Duration) (bool, bool) {
+	glog.SetLevel(pdu.STREAM_LOW)
+	logger := log.New(os.Stdout, "", 0)
+	glog.SetLogger(logger)
 	conn, err := net.DialTimeout("tcp", fmt.Sprintf("%s:%d", host, port), timeout)
 	if err != nil {
 		glog.Errorf("[dial err] %v", err)
 		return false, false // Connection failed
 	}
 	defer conn.Close()
+	fmt.Println("worked")
 	glog.Info(conn.LocalAddr().String())
 
 	tpkt := tpkt.New(core.NewSocketLayer(conn), nla.NewNTLMv2("", user, password))
@@ -37,7 +43,7 @@ func BruteRDP(host string, port int, user, password string, timeout time.Duratio
 	sec.SetFastPathListener(pdu)
 	pdu.SetFastPathSender(tpkt)
 
-	success := make(chan bool, 1) // Channel to communicate success event
+	success := make(chan bool, 1)
 
 	// Register handlers
 	go func() {
