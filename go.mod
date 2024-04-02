@@ -4,7 +4,7 @@ go 1.21.6
 
 require (
 	github.com/emersion/go-imap v1.2.1
-	github.com/go-sql-driver/mysql v1.8.0
+	github.com/go-sql-driver/mysql v1.8.1
 	github.com/gosnmp/gosnmp v1.37.0
 	github.com/hirochachacha/go-smb2 v1.1.0
 	github.com/jlaffaye/ftp v0.2.0
