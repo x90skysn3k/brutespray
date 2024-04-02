@@ -4,7 +4,7 @@ go 1.21.6
 
 require (
 	github.com/emersion/go-imap v1.2.1
-	github.com/go-sql-driver/mysql v1.7.1
+	github.com/go-sql-driver/mysql v1.8.1
 	github.com/gosnmp/gosnmp v1.37.0
 	github.com/hirochachacha/go-smb2 v1.1.0
 	github.com/jlaffaye/ftp v0.2.0
@@ -13,10 +13,10 @@ require (
 	github.com/mitchellh/go-vnc v0.0.0-20150629162542-723ed9867aed
 	github.com/multiplay/go-ts3 v1.2.0
 	github.com/pterm/pterm v0.12.79
-	github.com/sijms/go-ora/v2 v2.8.9
+	github.com/sijms/go-ora/v2 v2.8.10
 	github.com/wenerme/astgo v0.0.0-20230926205800-1b5bc38663fa
 	go.mongodb.org/mongo-driver v1.14.0
-	golang.org/x/crypto v0.20.0
+	golang.org/x/crypto v0.21.0
 	gosrc.io/xmpp v0.5.1
 )
 
@@ -24,6 +24,7 @@ require (
 	atomicgo.dev/cursor v0.2.0 // indirect
 	atomicgo.dev/keyboard v0.2.9 // indirect
 	atomicgo.dev/schedule v0.1.0 // indirect
+	filippo.io/edwards25519 v1.1.0 // indirect
 	github.com/containerd/console v1.0.3 // indirect
 	github.com/emersion/go-message v0.15.0 // indirect
 	github.com/emersion/go-sasl v0.0.0-20200509203442-7bfe0ed36a21 // indirect
@@ -50,8 +51,8 @@ require (
 	go.uber.org/multierr v1.5.0 // indirect
 	go.uber.org/zap v1.16.0 // indirect
 	golang.org/x/sync v0.1.0 // indirect
-	golang.org/x/sys v0.17.0 // indirect
-	golang.org/x/term v0.17.0 // indirect
+	golang.org/x/sys v0.18.0 // indirect
+	golang.org/x/term v0.18.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
 	nhooyr.io/websocket v1.6.5 // indirect
