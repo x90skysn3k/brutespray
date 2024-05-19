@@ -1,0 +1,13 @@
+unsage : brutespray.py [-h] -f FILE [ -s SERVICE] [-t THREADS] [-T HOSTS]
+Usage : python brutemap.py <OPTIONS>
+optional arguments :
+-h, --help                 show this help message and texit 
+Menu Options :
+-f FILE, --file FILE Gnmap file to parse 
+-s SERVICE, --service SERVICE 
+                      specify service to attack
+-t THREADS, --threads THREADS
+                      number of medusa threads 
+-T HOSTS, --hosts HOSTS
+                      number of hosts to test concurrently
+r00t@r00t-PC~/Kitploit/brutespray$
