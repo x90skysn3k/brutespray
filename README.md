@@ -91,12 +91,14 @@ Command: ```brutespray -H ssh://127.0.0.1 -C root:root```
 * teamspeak
 * oracle
 * xmpp
+* rdp
 
 # Services in Beta
 * asterisk
 * nntp
 * oracle
 * xmpp
+* rdp
 
 Feel free to open an issue if these work, or if you have any issues
 
