@@ -2,7 +2,7 @@ package brute
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"net"
 	"time"
@@ -19,7 +19,7 @@ import (
 
 func BruteRDP(host string, port int, user, password string, timeout time.Duration) (bool, bool) {
 	glog.SetLevel(pdu.STREAM_LOW)
-	logger := log.New(ioutil.Discard, "", 0)
+	logger := log.New(io.Discard, "", 0)
 	glog.SetLogger(logger)
 	conn, err := net.DialTimeout("tcp", fmt.Sprintf("%s:%d", host, port), timeout)
 	if err != nil {
