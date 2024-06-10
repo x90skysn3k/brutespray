@@ -1,6 +1,6 @@
 module github.com/x90skysn3k/brutespray
 
-go 1.21.6
+go 1.22.4
 
 require (
 	github.com/emersion/go-imap v1.2.1
@@ -31,7 +31,6 @@ require (
 	github.com/emersion/go-sasl v0.0.0-20200509203442-7bfe0ed36a21 // indirect
 	github.com/emersion/go-textwrapper v0.0.0-20200911093747-65d896831594 // indirect
 	github.com/geoffgarside/ber v1.1.0 // indirect
-	github.com/golang/protobuf v1.5.0 // indirect
 	github.com/golang/snappy v0.0.1 // indirect
 	github.com/google/uuid v1.2.0 // indirect
 	github.com/gookit/color v1.5.4 // indirect
@@ -47,8 +46,6 @@ require (
 	github.com/montanaflynn/stats v0.0.0-20171201202039-1bf9dbcd8cbe // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/rivo/uniseg v0.4.4 // indirect
-	github.com/shirou/w32 v0.0.0-20160930032740-bb4de0191aa4 // indirect
-	github.com/tomatome/win v0.3.1 // indirect
 	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
 	github.com/xdg-go/scram v1.1.2 // indirect
 	github.com/xdg-go/stringprep v1.0.4 // indirect
@@ -62,8 +59,7 @@ require (
 	golang.org/x/term v0.21.0 // indirect
 	golang.org/x/text v0.16.0 // indirect
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
-	google.golang.org/protobuf v1.28.1 // indirect
 	nhooyr.io/websocket v1.6.5 // indirect
 )
 
-replace github.com/tomatome/grdp => github.com/olljanat/grdp v0.0.0-20231109070701-045cbccd0693
+replace github.com/tomatome/grdp => github.com/olljanat/grdp v0.0.0-20231207101320-9e4c98c8d159
