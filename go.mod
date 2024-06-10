@@ -1,6 +1,6 @@
 module github.com/x90skysn3k/brutespray
 
-go 1.21.6
+go 1.22.4
 
 require (
 	github.com/emersion/go-imap v1.2.1
@@ -60,3 +60,5 @@ require (
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
 	nhooyr.io/websocket v1.6.5 // indirect
 )
+
+replace github.com/tomatome/grdp => github.com/olljanat/grdp v0.0.0-20231207101320-9e4c98c8d159
