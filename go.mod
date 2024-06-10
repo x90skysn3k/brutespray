@@ -13,7 +13,6 @@ require (
 	github.com/mitchellh/go-vnc v0.0.0-20150629162542-723ed9867aed
 	github.com/multiplay/go-ts3 v1.2.0
 	github.com/pterm/pterm v0.12.79
-	github.com/shadow1ng/fscan v0.0.0-20240115083114-eefd29d102e4
 	github.com/sijms/go-ora/v2 v2.8.10
 	github.com/tomatome/grdp v0.1.0
 	github.com/wenerme/astgo v0.0.0-20230926205800-1b5bc38663fa
@@ -31,8 +30,8 @@ require (
 	github.com/emersion/go-message v0.15.0 // indirect
 	github.com/emersion/go-sasl v0.0.0-20200509203442-7bfe0ed36a21 // indirect
 	github.com/emersion/go-textwrapper v0.0.0-20200911093747-65d896831594 // indirect
-	github.com/fatih/color v1.7.0 // indirect
 	github.com/geoffgarside/ber v1.1.0 // indirect
+	github.com/golang/protobuf v1.5.0 // indirect
 	github.com/golang/snappy v0.0.1 // indirect
 	github.com/google/uuid v1.2.0 // indirect
 	github.com/gookit/color v1.5.4 // indirect
@@ -43,8 +42,6 @@ require (
 	github.com/klauspost/compress v1.13.6 // indirect
 	github.com/lithammer/fuzzysearch v1.1.8 // indirect
 	github.com/lunixbochs/struc v0.0.0-20200707160740-784aaebc1d40 // indirect
-	github.com/mattn/go-colorable v0.1.2 // indirect
-	github.com/mattn/go-isatty v0.0.9 // indirect
 	github.com/mattn/go-runewidth v0.0.15 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/montanaflynn/stats v0.0.0-20171201202039-1bf9dbcd8cbe // indirect
@@ -58,11 +55,11 @@ require (
 	go.uber.org/atomic v1.6.0 // indirect
 	go.uber.org/multierr v1.5.0 // indirect
 	go.uber.org/zap v1.16.0 // indirect
-	golang.org/x/net v0.21.0 // indirect
 	golang.org/x/sync v0.1.0 // indirect
 	golang.org/x/sys v0.18.0 // indirect
 	golang.org/x/term v0.18.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
+	google.golang.org/protobuf v1.28.1 // indirect
 	nhooyr.io/websocket v1.6.5 // indirect
 )
