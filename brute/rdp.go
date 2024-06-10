@@ -2,9 +2,23 @@ package brute
 
 import (
 	"fmt"
-	"io"
+	"time"
+)
+
+func BruteRDP(host string, port int, user, password string, timeout time.Duration) (bool, bool) {
+	fmt.Println("not needed")
+	return false, false
+}
+
+/*
+package brute
+
+import (
+	"context"
+	"fmt"
 	"log"
 	"net"
+	"os"
 	"time"
 
 	"github.com/tomatome/grdp/core"
@@ -18,57 +32,105 @@ import (
 )
 
 func BruteRDP(host string, port int, user, password string, timeout time.Duration) (bool, bool) {
-	glog.SetLevel(pdu.STREAM_LOW)
-	logger := log.New(io.Discard, "", 0)
+	domain := ".\\"
+	width := 600
+	height := 600
+
+	target := fmt.Sprintf("%s:%d", host, port)
+
+	glog.SetLevel(glog.INFO)
+	logger := log.New(os.Stdout, "", 0)
 	glog.SetLogger(logger)
-	conn, err := net.DialTimeout("tcp", fmt.Sprintf("%s:%d", host, port), timeout)
-	if err != nil {
-		glog.Errorf("[dial err] %v", err)
-		return false, false
+
+	client := NewRdpClient(target, width, height, glog.INFO, user, password, domain)
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	type result struct {
+		success bool
+		err     error
 	}
-	defer conn.Close()
-	glog.Info(conn.LocalAddr().String())
-
-	tpkt := tpkt.New(core.NewSocketLayer(conn), nla.NewNTLMv2("", user, password))
-	x224 := x224.New(tpkt)
-	mcs := t125.NewMCSClient(x224)
-	sec := sec.NewClient(mcs)
-	pdu := pdu.NewClient(sec)
-
-	sec.SetUser(user)
-	sec.SetPwd(password)
-
-	tpkt.SetFastPathListener(sec)
-	sec.SetFastPathListener(pdu)
-	pdu.SetFastPathSender(tpkt)
-
-	success := make(chan bool, 1)
+	done := make(chan result)
 
 	go func() {
-		err := x224.Connect()
-		if err != nil {
-			glog.Errorf("[x224 connect err] %v", err)
-			success <- false
-		}
+		err := client.Login()
+		success := err == nil
+		done <- result{success, err}
+		client.Close()
 	}()
 
-	pdu.On("error", func(e error) {
-		glog.Error("error", e)
-		success <- false
-	})
-	pdu.On("close", func() {
-		glog.Info("on close")
-		success <- false
-	})
-	pdu.On("ready", func() {
-		glog.Info("on ready")
-		success <- true
-	})
-	pdu.On("success", func() {
-		glog.Info("on success")
-		success <- true
-	})
-
-	result := <-success
-	return result, true
+	select {
+	case <-ctx.Done():
+		return false, false
+	case res := <-done:
+		if res.err != nil {
+			return false, true
+		}
+		return true, true
+	}
 }
+
+type RdpClient struct {
+	Host     string // ip:port
+	Width    int
+	Height   int
+	user     string
+	password string
+	domain   string
+	tpkt     *tpkt.TPKT
+	x224     *x224.X224
+	mcs      *t125.MCSClient
+	sec      *sec.Client
+	pdu      *pdu.Client
+}
+
+func NewRdpClient(host string, width, height int, logLevel glog.LEVEL, user, password, domain string) *RdpClient {
+	return &RdpClient{
+		Host:     host,
+		Width:    width,
+		Height:   height,
+		user:     user,
+		password: password,
+		domain:   domain,
+	}
+}
+
+func (g *RdpClient) Login() error {
+	conn, err := net.DialTimeout("tcp", g.Host, 3*time.Second)
+	if err != nil {
+		return fmt.Errorf("[dial err] %v", err)
+	}
+	defer conn.Close()
+
+	g.tpkt = tpkt.New(core.NewSocketLayer(conn), nla.NewNTLMv2(g.domain, g.user, g.password))
+	g.x224 = x224.New(g.tpkt)
+
+	g.mcs = t125.NewMCSClient(g.x224)
+	g.sec = sec.NewClient(g.mcs)
+	g.pdu = pdu.NewClient(g.sec)
+
+	//g.mcs.SetClientDesktop(uint16(g.Width), uint16(g.Height))
+	g.sec.SetUser(g.user)
+	g.sec.SetPwd(g.password)
+	g.sec.SetDomain(g.domain)
+
+	g.tpkt.SetFastPathListener(g.sec)
+	g.sec.SetFastPathListener(g.pdu)
+	g.sec.SetChannelSender(g.mcs)
+
+	g.x224.SetRequestedProtocol(x224.PROTOCOL_SSL)
+
+	err = g.x224.Connect()
+	if err != nil {
+		return fmt.Errorf("[x224 connect err] %v", err)
+	}
+	return nil
+}
+
+func (g *RdpClient) Close() {
+	if g != nil && g.tpkt != nil {
+		g.tpkt.Close()
+	}
+}
+*/

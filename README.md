@@ -1,6 +1,6 @@
 # BruteSpray
 
-![Version](https://img.shields.io/badge/Version-2.2.3-red)[![goreleaser](https://github.com/x90skysn3k/brutespray/actions/workflows/release.yml/badge.svg)](https://github.com/x90skysn3k/brutespray/actions/workflows/release.yml)[![Go Report Card](https://goreportcard.com/badge/github.com/x90skysn3k/brutespray)](https://goreportcard.com/report/github.com/x90skysn3k/brutespray)
+![Version](https://img.shields.io/badge/Version-2.2.2-red)[![goreleaser](https://github.com/x90skysn3k/brutespray/actions/workflows/release.yml/badge.svg)](https://github.com/x90skysn3k/brutespray/actions/workflows/release.yml)[![Go Report Card](https://goreportcard.com/badge/github.com/x90skysn3k/brutespray)](https://goreportcard.com/report/github.com/x90skysn3k/brutespray)
 
 Created by: Shane Young/@t1d3nio && Jacob Robles/@shellfail 
 
@@ -91,14 +91,12 @@ Command: ```brutespray -H ssh://127.0.0.1 -C root:root```
 * teamspeak
 * oracle
 * xmpp
-* rdp
 
 # Services in Beta
 * asterisk
 * nntp
 * oracle
 * xmpp
-* rdp (currently local domain is supported)
 
 Feel free to open an issue if these work, or if you have any issues
 
