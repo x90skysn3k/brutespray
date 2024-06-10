@@ -2,9 +2,9 @@ package brute
 
 import (
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net"
-	"os"
 	"time"
 
 	"github.com/tomatome/grdp/core"
@@ -19,15 +19,14 @@ import (
 
 func BruteRDP(host string, port int, user, password string, timeout time.Duration) (bool, bool) {
 	glog.SetLevel(pdu.STREAM_LOW)
-	logger := log.New(os.Stdout, "", 0)
+	logger := log.New(ioutil.Discard, "", 0)
 	glog.SetLogger(logger)
 	conn, err := net.DialTimeout("tcp", fmt.Sprintf("%s:%d", host, port), timeout)
 	if err != nil {
 		glog.Errorf("[dial err] %v", err)
-		return false, false // Connection failed
+		return false, false
 	}
 	defer conn.Close()
-	fmt.Println("worked")
 	glog.Info(conn.LocalAddr().String())
 
 	tpkt := tpkt.New(core.NewSocketLayer(conn), nla.NewNTLMv2("", user, password))
@@ -45,7 +44,6 @@ func BruteRDP(host string, port int, user, password string, timeout time.Duratio
 
 	success := make(chan bool, 1)
 
-	// Register handlers
 	go func() {
 		err := x224.Connect()
 		if err != nil {
@@ -64,14 +62,13 @@ func BruteRDP(host string, port int, user, password string, timeout time.Duratio
 	})
 	pdu.On("ready", func() {
 		glog.Info("on ready")
-		success <- false
+		success <- true
 	})
 	pdu.On("success", func() {
 		glog.Info("on success")
 		success <- true
 	})
 
-	// Wait for result
 	result := <-success
-	return true, result
+	return result, true
 }
