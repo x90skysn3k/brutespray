@@ -98,13 +98,9 @@ Command: ```brutespray -H ssh://127.0.0.1 -C root:root```
 * nntp
 * oracle
 * xmpp
-* rdp
+* rdp (no custom domain support)
 
 Feel free to open an issue if these work, or if you have any issues
-
-# Services in Progress
-
-* rdp - the issue is no one has written a good library for NLA
 
 # Data Specs
 ```json
