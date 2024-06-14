@@ -166,8 +166,6 @@ github.com/multiplay/go-ts3 v1.2.0 h1:LaN6iz9TZjHXxhLwfU0gjUgDxX0Hq7BCbuyuRhYMl3
 github.com/multiplay/go-ts3 v1.2.0/go.mod h1:OdNmiO3uV++4SldaJDQTIGg8gNAu5MOiccZiAqVqUZA=
 github.com/nxadm/tail v1.4.4/go.mod h1:kenIhsEOeOJmVchQTgglprH7qJGnHDVpk1VPCcaMI8A=
 github.com/nxadm/tail v1.4.8/go.mod h1:+ncqLTQzXmGhMZNUePPaPqPvBxHAIsmXswZKocGu+AU=
-github.com/olljanat/grdp v0.0.0-20231207101320-9e4c98c8d159 h1:aXMzmpDffZbI5SorkdNihjum/GrYgQBBIR84vE58bHk=
-github.com/olljanat/grdp v0.0.0-20231207101320-9e4c98c8d159/go.mod h1:ru5UpP6hgzeLs08FF6x3N6ko6LJWjBUpavMWTJ2TPwE=
 github.com/onsi/ginkgo v1.6.0/go.mod h1:lLunBs/Ym6LB5Z9jYTR76FiuTmxDTDusOGeTQH+WWjE=
 github.com/onsi/ginkgo v1.8.0/go.mod h1:lLunBs/Ym6LB5Z9jYTR76FiuTmxDTDusOGeTQH+WWjE=
 github.com/onsi/ginkgo v1.12.1/go.mod h1:zj2OWP4+oCPe1qIXoGWkgMRwljMUYCdkwsT2108oapk=
@@ -221,6 +219,8 @@ github.com/stretchr/testify v1.8.4/go.mod h1:sz/lmYIOXD/1dqDmKjjqLyZ2RngseejIcXl
 github.com/twitchyliquid64/golang-asm v0.0.0-20190126203739-365674df15fc/go.mod h1:NoCfSFWosfqMqmmD7hApkirIK9ozpHjxRnRxs1l413A=
 github.com/wenerme/astgo v0.0.0-20230926205800-1b5bc38663fa h1:3ZDCT6V1icd65zFHJVhft0Qt+9wZVhAjQsLj2DA6jmI=
 github.com/wenerme/astgo v0.0.0-20230926205800-1b5bc38663fa/go.mod h1:3GHkdgEPEKD2hQHfHkpwDKgH2ZGDbUAeo8M4ZfmaIwI=
+github.com/x90skysn3k/grdp v0.0.0-20240614212340-82874dbd1eae h1:Yz6iX6RlkXxUgXb3EKbZcgYO11uWvywJ9IEecaCDOaY=
+github.com/x90skysn3k/grdp v0.0.0-20240614212340-82874dbd1eae/go.mod h1:SjYR4S95oYYshCtxWNv1JUzfKPZXru2YoKa95sZyCHs=
 github.com/xdg-go/pbkdf2 v1.0.0 h1:Su7DPu48wXMwC3bs7MCNG+z4FhcyEuz5dlvchbq0B0c=
 github.com/xdg-go/pbkdf2 v1.0.0/go.mod h1:jrpuAogTd400dnrH08LKmI/xc1MbPOebTwRqcT5RDeI=
 github.com/xdg-go/scram v1.1.2 h1:FHX5I5B4i4hKRVRBCFRxq1iQRej7WO3hhBuJf+UUySY=
