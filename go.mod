@@ -14,8 +14,8 @@ require (
 	github.com/multiplay/go-ts3 v1.2.0
 	github.com/pterm/pterm v0.12.79
 	github.com/sijms/go-ora/v2 v2.8.19
-	github.com/tomatome/grdp v0.1.0
 	github.com/wenerme/astgo v0.0.0-20230926205800-1b5bc38663fa
+	github.com/x90skysn3k/grdp v0.0.0-20240614212340-82874dbd1eae
 	go.mongodb.org/mongo-driver v1.15.0
 	golang.org/x/crypto v0.24.0
 	gosrc.io/xmpp v0.5.1
@@ -63,5 +63,3 @@ require (
 	google.golang.org/protobuf v1.28.1 // indirect
 	nhooyr.io/websocket v1.6.5 // indirect
 )
-
-replace github.com/tomatome/grdp => github.com/olljanat/grdp v0.0.0-20231207101320-9e4c98c8d159
