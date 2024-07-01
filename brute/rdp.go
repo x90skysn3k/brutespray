@@ -7,14 +7,14 @@ import (
 	"net"
 	"time"
 
-	"github.com/tomatome/grdp/core"
-	"github.com/tomatome/grdp/glog"
-	"github.com/tomatome/grdp/protocol/nla"
-	"github.com/tomatome/grdp/protocol/pdu"
-	"github.com/tomatome/grdp/protocol/sec"
-	"github.com/tomatome/grdp/protocol/t125"
-	"github.com/tomatome/grdp/protocol/tpkt"
-	"github.com/tomatome/grdp/protocol/x224"
+	"github.com/x90skysn3k/grdp/core"
+	"github.com/x90skysn3k/grdp/glog"
+	"github.com/x90skysn3k/grdp/protocol/nla"
+	"github.com/x90skysn3k/grdp/protocol/pdu"
+	"github.com/x90skysn3k/grdp/protocol/sec"
+	"github.com/x90skysn3k/grdp/protocol/t125"
+	"github.com/x90skysn3k/grdp/protocol/tpkt"
+	"github.com/x90skysn3k/grdp/protocol/x224"
 )
 
 func BruteRDP(host string, port int, user, password string, timeout time.Duration) (bool, bool) {
