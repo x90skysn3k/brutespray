@@ -2,12 +2,15 @@ package brute
 
 import (
 	"fmt"
+	"net"
 	"time"
 
+	"github.com/x90skysn3k/brutespray/modules"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/net/proxy"
 )
 
-func BruteSSH(host string, port int, user, password string, timeout time.Duration) (bool, bool) {
+func BruteSSH(host string, port int, user, password string, timeout time.Duration, socks5 string) (bool, bool) {
 	config := &ssh.ClientConfig{
 		User: user,
 		Auth: []ssh.AuthMethod{
@@ -23,9 +26,38 @@ func BruteSSH(host string, port int, user, password string, timeout time.Duratio
 		err    error
 	}
 	done := make(chan result)
+
+	var err error
+	var conn net.Conn
+	var service = "ssh"
+
+	if socks5 != "" {
+		dialer, err := proxy.SOCKS5("tcp", socks5, nil, nil)
+		if err != nil {
+			modules.PrintSocksError(service, fmt.Sprintf("%v", err))
+			return false, false
+		}
+		conn, err = dialer.Dial("tcp", fmt.Sprintf("%s:%d", host, port))
+		if err != nil {
+			modules.PrintSocksError(service, fmt.Sprintf("%v", err))
+			return false, false
+		}
+	} else {
+		conn, err = net.DialTimeout("tcp", fmt.Sprintf("%s:%d", host, port), timeout)
+		if err != nil {
+			modules.PrintSocksError(service, fmt.Sprintf("%v", err))
+			return false, false
+		}
+	}
+
 	go func() {
-		client, err := ssh.Dial("tcp", fmt.Sprintf("%s:%d", host, port), config)
-		done <- result{client, err}
+		clientConn, clientChannels, clientRequests, err := ssh.NewClientConn(conn, fmt.Sprintf("%s:%d", host, port), config)
+		if err != nil {
+			done <- result{nil, err}
+			return
+		}
+		client := ssh.NewClient(clientConn, clientChannels, clientRequests)
+		done <- result{client, nil}
 	}()
 
 	select {
@@ -37,6 +69,5 @@ func BruteSSH(host string, port int, user, password string, timeout time.Duratio
 		}
 		result.client.Close()
 		return true, true
-
 	}
 }
