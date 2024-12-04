@@ -12,12 +12,11 @@ require (
 	github.com/lib/pq v1.10.9
 	github.com/mitchellh/go-vnc v0.0.0-20150629162542-723ed9867aed
 	github.com/multiplay/go-ts3 v1.2.0
-  dependabot/go_modules/dev/github.com/sijms/go-ora/v2-2.8.22
+	github.com/pterm/pterm v0.12.80
 	github.com/sijms/go-ora/v2 v2.8.22
 	github.com/wenerme/astgo v0.0.0-20230926205800-1b5bc38663fa
 	github.com/x90skysn3k/grdp v0.0.0-20240614212340-82874dbd1eae
 	go.mongodb.org/mongo-driver v1.17.1
-	github.com/pterm/pterm v0.12.80
 	golang.org/x/crypto v0.29.0
 	golang.org/x/net v0.21.0
 	gosrc.io/xmpp v0.5.1
