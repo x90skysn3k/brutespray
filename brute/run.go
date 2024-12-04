@@ -7,7 +7,7 @@ import (
 	"github.com/x90skysn3k/brutespray/modules"
 )
 
-func RunBrute(h modules.Host, u string, p string, progressCh chan<- int, timeout time.Duration, retry int, output string) bool {
+func RunBrute(h modules.Host, u string, p string, progressCh chan<- int, timeout time.Duration, retry int, output string, socks5 string) bool {
 	service := h.Service
 	var result bool
 	var con_result bool
@@ -17,9 +17,9 @@ func RunBrute(h modules.Host, u string, p string, progressCh chan<- int, timeout
 	for i := 0; i < retry; i++ {
 		switch service {
 		case "ssh":
-			result, con_result = BruteSSH(h.Host, h.Port, u, p, timeout)
+			result, con_result = BruteSSH(h.Host, h.Port, u, p, timeout, socks5)
 		case "ftp":
-			result, con_result = BruteFTP(h.Host, h.Port, u, p, timeout)
+			result, con_result = BruteFTP(h.Host, h.Port, u, p, timeout, socks5)
 		case "mssql":
 			result, con_result = BruteMSSQL(h.Host, h.Port, u, p, timeout)
 		case "telnet":
