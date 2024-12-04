@@ -31,7 +31,7 @@ func RunBrute(h modules.Host, u string, p string, progressCh chan<- int, timeout
 		case "smtp":
 			result, con_result = BruteSMTP(h.Host, h.Port, u, p, timeout)
 		case "imap":
-			result, con_result = BruteIMAP(h.Host, h.Port, u, p, timeout)
+			result, con_result = BruteIMAP(h.Host, h.Port, u, p, timeout, socks5)
 		case "pop3":
 			result, con_result = BrutePOP3(h.Host, h.Port, u, p, timeout)
 		case "snmp":
@@ -41,7 +41,7 @@ func RunBrute(h modules.Host, u string, p string, progressCh chan<- int, timeout
 		case "vmauthd":
 			result, con_result = BruteVMAuthd(h.Host, h.Port, u, p, timeout)
 		case "asterisk":
-			result, con_result = BruteAsterisk(h.Host, h.Port, u, p, timeout)
+			result, con_result = BruteAsterisk(h.Host, h.Port, u, p, timeout, socks5)
 		case "vnc":
 			result, con_result = BruteVNC(h.Host, h.Port, u, p, timeout)
 		case "mongodb":
