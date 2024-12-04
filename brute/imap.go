@@ -1,38 +1,39 @@
 package brute
 
 import (
-	"crypto/tls"
 	"fmt"
 	"net"
 	"time"
 
 	"github.com/emersion/go-imap/client"
+	"github.com/x90skysn3k/brutespray/modules"
+	"golang.org/x/net/proxy"
 )
 
-func BruteIMAP(host string, port int, user, password string, timeout time.Duration) (bool, bool) {
+func BruteIMAP(host string, port int, user, password string, timeout time.Duration, socks5 string) (bool, bool) {
+	var service = "imap"
 	var (
 		conn net.Conn
 		err  error
 	)
 
-	conn, err = net.DialTimeout("tcp", fmt.Sprintf("%s:%d", host, port), timeout)
-
-	if err != nil {
-		tlsDialer := &tls.Dialer{
-			NetDialer: &net.Dialer{
-				Timeout: timeout,
-			},
-			Config: &tls.Config{
-				InsecureSkipVerify: true,
-			},
+	if socks5 != "" {
+		dialer, err := proxy.SOCKS5("tcp", socks5, nil, nil)
+		if err != nil {
+			modules.PrintSocksError(service, fmt.Sprintf("%v", err))
+			return false, false
 		}
 
-		_, err = tlsDialer.Dial("tcp", fmt.Sprintf("%s:%d", host, port))
-
+		conn, err = dialer.Dial("tcp", fmt.Sprintf("%s:%d", host, port))
 		if err != nil {
+			modules.PrintSocksError(service, fmt.Sprintf("%v", err))
 			return false, false
-		} else {
-			return false, true
+		}
+	} else {
+		conn, err = net.DialTimeout("tcp", fmt.Sprintf("%s:%d", host, port), timeout)
+		if err != nil {
+			modules.PrintSocksError(service, fmt.Sprintf("%v", err))
+			return false, false
 		}
 	}
 
