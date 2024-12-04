@@ -44,7 +44,7 @@ func BruteFTP(host string, port int, user, password string, timeout time.Duratio
 	}
 
 	go func() {
-		client, err := ftp.Dial(conn.RemoteAddr().String(), ftp.DialWithNetConn(conn))
+		client, err := ftp.Dial(conn.RemoteAddr().String(), ftp.DialWithDialFunc(func(network, addr string) (net.Conn, error) { return conn, nil }))
 		if err != nil {
 			done <- result{nil, err}
 			return
@@ -58,7 +58,9 @@ func BruteFTP(host string, port int, user, password string, timeout time.Duratio
 		return false, false
 	case result := <-done:
 		if result.client != nil {
-			result.client.Quit()
+			err := result.client.Quit()
+			if err != nil {
+			}
 		}
 		if result.err != nil {
 			return false, true
