@@ -64,13 +64,13 @@ Command: ```brutespray -H ssh://127.0.0.1 -C root:root```
 
 ```brutespray -H ssh://10.1.1.0/24:22 -t 1000```
 
-#### Print Found Services
-
-```brutespray -f nessus.nessus -P -q```
-
 #### Socks5 Proxy Support
 
 ```brutespray -H ssh://10.1.1.0/24:22 -socks5 localhost:1080```
+
+#### Print Found Services
+
+```brutespray -f nessus.nessus -P -q```
 
 <img src="https://i.imgur.com/97ENS23.png" width="500">
 
