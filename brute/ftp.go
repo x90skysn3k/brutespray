@@ -60,6 +60,7 @@ func BruteFTP(host string, port int, user, password string, timeout time.Duratio
 		if result.client != nil {
 			err := result.client.Quit()
 			if err != nil {
+				_ = err
 			}
 		}
 		if result.err != nil {
