@@ -1,6 +1,6 @@
 # BruteSpray
 
-![Version](https://img.shields.io/badge/Version-2.2.5-red)[![goreleaser](https://github.com/x90skysn3k/brutespray/actions/workflows/release.yml/badge.svg)](https://github.com/x90skysn3k/brutespray/actions/workflows/release.yml)[![Go Report Card](https://goreportcard.com/badge/github.com/x90skysn3k/brutespray)](https://goreportcard.com/report/github.com/x90skysn3k/brutespray)
+![Version](https://img.shields.io/badge/Version-2.3.0-red)[![goreleaser](https://github.com/x90skysn3k/brutespray/actions/workflows/release.yml/badge.svg)](https://github.com/x90skysn3k/brutespray/actions/workflows/release.yml)[![Go Report Card](https://goreportcard.com/badge/github.com/x90skysn3k/brutespray)](https://goreportcard.com/report/github.com/x90skysn3k/brutespray)
 
 Created by: Shane Young/@t1d3nio && Jacob Robles/@shellfail 
 
@@ -68,6 +68,10 @@ Command: ```brutespray -H ssh://127.0.0.1 -C root:root```
 
 ```brutespray -f nessus.nessus -P -q```
 
+#### Socks5 Proxy Support
+
+```brutespray -H ssh://10.1.1.0/24:22 -socks5 localhost:1080```
+
 <img src="https://i.imgur.com/97ENS23.png" width="500">
 
 # Supported Services
@@ -101,10 +105,6 @@ Command: ```brutespray -H ssh://127.0.0.1 -C root:root```
 * rdp (currently local domain is supported)
 
 Feel free to open an issue if these work, or if you have any issues
-
-# Services in Progress
-
-* rdp - the issue is no one has written a good library for NLA
 
 # Data Specs
 ```json
