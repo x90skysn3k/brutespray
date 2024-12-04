@@ -5,9 +5,9 @@ go 1.22.4
 require (
 	github.com/emersion/go-imap v1.2.1
 	github.com/go-sql-driver/mysql v1.8.1
-	github.com/goftp/ftp v0.0.0-20151217035233-5aad5a5ff76b
 	github.com/gosnmp/gosnmp v1.38.0
 	github.com/hirochachacha/go-smb2 v1.1.0
+	github.com/jlaffaye/ftp v0.2.0
 	github.com/knadh/go-pop3 v1.0.0
 	github.com/lib/pq v1.10.9
 	github.com/mitchellh/go-vnc v0.0.0-20150629162542-723ed9867aed

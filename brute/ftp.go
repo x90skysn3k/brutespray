@@ -5,7 +5,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/goftp/ftp"
+	"github.com/jlaffaye/ftp"
 	"github.com/x90skysn3k/brutespray/modules"
 	"golang.org/x/net/proxy"
 )
@@ -44,7 +44,7 @@ func BruteFTP(host string, port int, user, password string, timeout time.Duratio
 	}
 
 	go func() {
-		client, err := ftp.Dial(conn.RemoteAddr().String())
+		client, err := ftp.Dial(conn.RemoteAddr().String(), ftp.DialWithNetConn(conn))
 		if err != nil {
 			done <- result{nil, err}
 			return
