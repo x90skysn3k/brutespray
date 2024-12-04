@@ -97,6 +97,6 @@ func PrintWarningBeta(service string) {
 	pterm.Color(pterm.BgYellow).Println("Warning, the module", service, "is Beta, results may be inaccurate, use at your own risk")
 }
 
-func PrintSocksError(service string) {
-	pterm.Color(pterm.FgRed).Println("Error", service, "SOCKS5 connection error, please check your SOCKS5 server.")
+func PrintSocksError(service string, err string) {
+	pterm.Color(pterm.FgRed).Println("Error", service, "SOCKS5 connection error, please check your SOCKS5 server. Error:", err)
 }

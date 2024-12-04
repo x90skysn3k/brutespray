@@ -34,18 +34,18 @@ func BruteSSH(host string, port int, user, password string, timeout time.Duratio
 	if socks5 != "" {
 		dialer, err := proxy.SOCKS5("tcp", socks5, nil, nil)
 		if err != nil {
-			modules.PrintSocksError(service)
+			modules.PrintSocksError(service, fmt.Sprintf("%v", err))
 			return false, false
 		}
 		conn, err = dialer.Dial("tcp", fmt.Sprintf("%s:%d", host, port))
 		if err != nil {
-			modules.PrintSocksError(service)
+			modules.PrintSocksError(service, fmt.Sprintf("%v", err))
 			return false, false
 		}
 	} else {
 		conn, err = net.DialTimeout("tcp", fmt.Sprintf("%s:%d", host, port), timeout)
 		if err != nil {
-			modules.PrintSocksError(service)
+			modules.PrintSocksError(service, fmt.Sprintf("%v", err))
 			return false, false
 		}
 	}
