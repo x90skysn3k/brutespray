@@ -37,7 +37,7 @@ func RunBrute(h modules.Host, u string, p string, progressCh chan<- int, timeout
 		case "snmp":
 			result, con_result = BrutePOP3(h.Host, h.Port, u, p, timeout)
 		case "mysql":
-			result, con_result = BruteMYSQL(h.Host, h.Port, u, p, timeout)
+			result, con_result = BruteMYSQL(h.Host, h.Port, u, p, timeout, socks5)
 		case "vmauthd":
 			result, con_result = BruteVMAuthd(h.Host, h.Port, u, p, timeout)
 		case "asterisk":
@@ -47,9 +47,9 @@ func RunBrute(h modules.Host, u string, p string, progressCh chan<- int, timeout
 		case "mongodb":
 			result, con_result = BruteMongoDB(h.Host, h.Port, u, p, timeout, socks5)
 		case "nntp":
-			result, con_result = BruteNNTP(h.Host, h.Port, u, p, timeout)
+			result, con_result = BruteNNTP(h.Host, h.Port, u, p, timeout, socks5)
 		case "oracle":
-			result, con_result = BruteOracle(h.Host, h.Port, u, p, timeout)
+			result, con_result = BruteOracle(h.Host, h.Port, u, p, timeout, socks5)
 		case "teamspeak":
 			result, con_result = BruteTeamSpeak(h.Host, h.Port, u, p, timeout)
 		case "xmpp":
