@@ -46,6 +46,7 @@ func BruteMongoDB(host string, port int, user, password string, timeout time.Dur
 	}
 	defer func() {
 		if err := client.Disconnect(ctx); err != nil {
+			_ = err
 			//fmt.Printf("Failed to disconnect: %v\n", err)
 		}
 	}()
