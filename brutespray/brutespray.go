@@ -31,6 +31,7 @@ func Execute() {
 	threads := flag.Int("t", 10, "Number of threads to use")
 	hostParallelism := flag.Int("T", 5, "Number of hosts to bruteforce at the same time")
 	socksProxy := flag.String("socks5", "", "Socks5 proxy to use for bruteforce")
+	netInterface := flag.String("iface", "", "Specific network interface to use for bruteforce traffic")
 	serviceType := flag.String("s", "all", "Service type: ssh, ftp, smtp, etc; Default all")
 	listServices := flag.Bool("S", false, "List all supported services")
 	file := flag.String("f", "", "File to parse; Supported: Nmap, Nessus, Nexpose, Lists, etc")
@@ -242,7 +243,7 @@ func Execute() {
 										select {
 										case <-stopChan:
 										default:
-											brute.RunBrute(h, u, p, progressCh, *timeout, *retry, *output, *socksProxy)
+											brute.RunBrute(h, u, p, progressCh, *timeout, *retry, *output, *socksProxy, *netInterface)
 											bruteForceWg.Add(1)
 										}
 										progressCh <- 1
@@ -276,7 +277,7 @@ func Execute() {
 										select {
 										case <-stopChan:
 										default:
-											brute.RunBrute(h, u, p, progressCh, *timeout, *retry, *output, *socksProxy)
+											brute.RunBrute(h, u, p, progressCh, *timeout, *retry, *output, *socksProxy, *netInterface)
 											bruteForceWg.Add(1)
 										}
 										progressCh <- 1
@@ -314,7 +315,7 @@ func Execute() {
 										case <-stopChan:
 											return
 										default:
-											brute.RunBrute(h, u, p, progressCh, *timeout, *retry, *output, *socksProxy)
+											brute.RunBrute(h, u, p, progressCh, *timeout, *retry, *output, *socksProxy, *netInterface)
 											bruteForceWg.Add(1)
 										}
 										progressCh <- 1
@@ -351,7 +352,7 @@ func Execute() {
 											case <-stopChan:
 												return
 											default:
-												brute.RunBrute(h, u, p, progressCh, *timeout, *retry, *output, *socksProxy)
+												brute.RunBrute(h, u, p, progressCh, *timeout, *retry, *output, *socksProxy, *netInterface)
 												bruteForceWg.Add(1)
 											}
 											progressCh <- 1

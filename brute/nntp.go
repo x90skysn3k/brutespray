@@ -8,11 +8,11 @@ import (
 	"github.com/x90skysn3k/brutespray/modules"
 )
 
-func BruteNNTP(host string, port int, user, password string, timeout time.Duration, socks5 string) (bool, bool) {
+func BruteNNTP(host string, port int, user, password string, timeout time.Duration, socks5 string, netInterface string) (bool, bool) {
 	timer := time.NewTimer(timeout)
 	defer timer.Stop()
 
-	cm, err := modules.NewConnectionManager(socks5, timeout)
+	cm, err := modules.NewConnectionManager(socks5, timeout, netInterface)
 	if err != nil {
 		return false, false
 	}

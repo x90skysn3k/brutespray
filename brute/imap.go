@@ -8,9 +8,9 @@ import (
 	"github.com/x90skysn3k/brutespray/modules"
 )
 
-func BruteIMAP(host string, port int, user, password string, timeout time.Duration, socks5 string) (bool, bool) {
+func BruteIMAP(host string, port int, user, password string, timeout time.Duration, socks5 string, netInterface string) (bool, bool) {
 	var service = "imap"
-	cm, err := modules.NewConnectionManager(socks5, timeout)
+	cm, err := modules.NewConnectionManager(socks5, timeout, netInterface)
 	if err != nil {
 		modules.PrintSocksError(service, fmt.Sprintf("%v", err))
 		return false, false

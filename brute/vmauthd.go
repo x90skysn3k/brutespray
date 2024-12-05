@@ -9,10 +9,10 @@ import (
 	"github.com/x90skysn3k/brutespray/modules"
 )
 
-func BruteVMAuthd(host string, port int, user, password string, timeout time.Duration, socks5 string) (bool, bool) {
+func BruteVMAuthd(host string, port int, user, password string, timeout time.Duration, socks5 string, netInterface string) (bool, bool) {
 	address := fmt.Sprintf("%s:%d", host, port)
 
-	cm, err := modules.NewConnectionManager(socks5, timeout)
+	cm, err := modules.NewConnectionManager(socks5, timeout, netInterface)
 	if err != nil {
 		return false, false
 	}

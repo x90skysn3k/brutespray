@@ -11,8 +11,8 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 )
 
-func BruteMYSQL(host string, port int, user, password string, timeout time.Duration, socks5 string) (bool, bool) {
-	cm, err := modules.NewConnectionManager(socks5, timeout)
+func BruteMYSQL(host string, port int, user, password string, timeout time.Duration, socks5 string, netInterface string) (bool, bool) {
+	cm, err := modules.NewConnectionManager(socks5, timeout, netInterface)
 	if err != nil {
 		return false, false
 	}

@@ -10,9 +10,9 @@ import (
 )
 
 // this is very alpha and I have no idea if it even works
-func BruteAsterisk(host string, port int, user, password string, timeout time.Duration, socks5 string) (bool, bool) {
+func BruteAsterisk(host string, port int, user, password string, timeout time.Duration, socks5 string, netInterface string) (bool, bool) {
 	target := fmt.Sprintf("%s:%d", host, port)
-	connManager, err := modules.NewConnectionManager(socks5, timeout)
+	connManager, err := modules.NewConnectionManager(socks5, timeout, netInterface)
 	if err != nil {
 		return false, false
 	}
