@@ -4,14 +4,20 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"net"
 	"time"
+
+	"github.com/x90skysn3k/brutespray/modules"
 
 	_ "github.com/go-sql-driver/mysql"
 )
 
-func BruteMYSQL(host string, port int, user, password string, timeout time.Duration) (bool, bool) {
-	conn, err := net.DialTimeout("tcp", fmt.Sprintf("%s:%d", host, port), timeout)
+func BruteMYSQL(host string, port int, user, password string, timeout time.Duration, socks5 string) (bool, bool) {
+	cm, err := modules.NewConnectionManager(socks5, timeout)
+	if err != nil {
+		return false, false
+	}
+
+	conn, err := cm.Dial("tcp", fmt.Sprintf("%s:%d", host, port))
 	if err != nil {
 		return false, false
 	}
