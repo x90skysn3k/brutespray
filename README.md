@@ -135,9 +135,9 @@ user4:pass1
 
 * Add domain option for RDP, SMB
 * ~~Ability to set proxy~~
-* Ability to select interface
+* ~~Ability to select interface~~
 * More modules
-* Better connection handling
+* ~~Better connection handling~~
 
 # Star History
 

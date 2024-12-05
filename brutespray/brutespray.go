@@ -185,6 +185,25 @@ func Execute() {
 
 	}
 
+	if *netInterface != "" {
+		ifaceName, err := modules.ValidateNetworkInterface(*netInterface)
+		if err != nil {
+			fmt.Println("Error:", err)
+			os.Exit(1)
+		}
+		ipAddr, err := modules.GetIPv4Address(ifaceName)
+		if err != nil {
+			fmt.Println("Error:", err)
+			os.Exit(1)
+		}
+		pterm.Color(pterm.FgLightYellow).Printf("Network Interface: %s\n", *netInterface)
+		pterm.Color(pterm.FgLightYellow).Printf("Local Address: %s\n", ipAddr)
+	}
+
+	if *socksProxy != "" {
+		pterm.Color(pterm.FgLightYellow).Printf("Socks5 Proxy: %s\n", *socksProxy)
+	}
+
 	pterm.Color(pterm.FgLightYellow).Println("\nStarting to brute, please make sure to use the right amount of threads(-t) and parallel hosts(-T)...")
 
 	spinner, _ := pterm.DefaultSpinner.Start("Starting Bruteforce...")
