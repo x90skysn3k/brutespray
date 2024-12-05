@@ -55,7 +55,7 @@ func RunBrute(h modules.Host, u string, p string, progressCh chan<- int, timeout
 		case "xmpp":
 			result, con_result = BruteXMPP(h.Host, h.Port, u, p, timeout)
 		case "rdp":
-			result, con_result = BruteRDP(h.Host, h.Port, u, p, timeout)
+			result, con_result = BruteRDP(h.Host, h.Port, u, p, timeout, socks5)
 		default:
 			//fmt.Printf("Unsupported service: %s\n", h.Service)
 			return con_result

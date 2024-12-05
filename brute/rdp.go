@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"net"
 	"time"
 
+	"github.com/x90skysn3k/brutespray/modules" // Assuming this package is available
 	"github.com/x90skysn3k/grdp/core"
 	"github.com/x90skysn3k/grdp/glog"
 	"github.com/x90skysn3k/grdp/protocol/nla"
@@ -17,11 +17,18 @@ import (
 	"github.com/x90skysn3k/grdp/protocol/x224"
 )
 
-func BruteRDP(host string, port int, user, password string, timeout time.Duration) (bool, bool) {
+func BruteRDP(host string, port int, user, password string, timeout time.Duration, socks5 string) (bool, bool) {
 	glog.SetLevel(pdu.STREAM_LOW)
 	logger := log.New(io.Discard, "", 0)
 	glog.SetLogger(logger)
-	conn, err := net.DialTimeout("tcp", fmt.Sprintf("%s:%d", host, port), timeout)
+
+	cm, err := modules.NewConnectionManager(socks5, timeout)
+	if err != nil {
+		glog.Errorf("[connection manager error] %v", err)
+		return false, false
+	}
+
+	conn, err := cm.Dial("tcp", fmt.Sprintf("%s:%d", host, port))
 	if err != nil {
 		glog.Errorf("[dial err] %v", err)
 		return false, false
