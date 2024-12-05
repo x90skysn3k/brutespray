@@ -35,7 +35,7 @@ func RunBrute(h modules.Host, u string, p string, progressCh chan<- int, timeout
 		case "pop3":
 			result, con_result = BrutePOP3(h.Host, h.Port, u, p, timeout, socks5)
 		case "snmp":
-			result = BruteSNMP(h.Host, h.Port, u, p, timeout, socks5)
+			result, con_result = BruteSNMP(h.Host, h.Port, u, p, timeout, socks5)
 		case "mysql":
 			result, con_result = BruteMYSQL(h.Host, h.Port, u, p, timeout, socks5)
 		case "vmauthd":
