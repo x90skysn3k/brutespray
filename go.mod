@@ -3,6 +3,7 @@ module github.com/x90skysn3k/brutespray
 go 1.22.4
 
 require (
+	github.com/denisenkom/go-mssqldb v0.0.0-20191124224453-732737034ffd
 	github.com/emersion/go-imap v1.2.1
 	github.com/go-sql-driver/mysql v1.8.1
 	github.com/gosnmp/gosnmp v1.38.0
@@ -32,6 +33,7 @@ require (
 	github.com/emersion/go-sasl v0.0.0-20200509203442-7bfe0ed36a21 // indirect
 	github.com/emersion/go-textwrapper v0.0.0-20200911093747-65d896831594 // indirect
 	github.com/geoffgarside/ber v1.1.0 // indirect
+	github.com/golang-sql/civil v0.0.0-20190719163853-cb61b32ac6fe // indirect
 	github.com/golang/protobuf v1.5.0 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/google/uuid v1.2.0 // indirect
