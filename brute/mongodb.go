@@ -29,5 +29,6 @@ func BruteMongoDB(host string, port int, user, password string, timeout time.Dur
 	if err != nil {
 		return false, true
 	}
+
 	return true, true
 }

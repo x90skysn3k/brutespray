@@ -7,7 +7,6 @@ import (
 
 	"github.com/x90skysn3k/brutespray/modules"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/net/proxy"
 )
 
 func BruteSSH(host string, port int, user, password string, timeout time.Duration, socks5 string) (bool, bool) {
@@ -31,23 +30,15 @@ func BruteSSH(host string, port int, user, password string, timeout time.Duratio
 	var conn net.Conn
 	var service = "ssh"
 
-	if socks5 != "" {
-		dialer, err := proxy.SOCKS5("tcp", socks5, nil, nil)
-		if err != nil {
-			modules.PrintSocksError(service, fmt.Sprintf("%v", err))
-			return false, false
-		}
-		conn, err = dialer.Dial("tcp", fmt.Sprintf("%s:%d", host, port))
-		if err != nil {
-			modules.PrintSocksError(service, fmt.Sprintf("%v", err))
-			return false, false
-		}
-	} else {
-		conn, err = net.DialTimeout("tcp", fmt.Sprintf("%s:%d", host, port), timeout)
-		if err != nil {
-			modules.PrintSocksError(service, fmt.Sprintf("%v", err))
-			return false, false
-		}
+	cm, err := modules.NewConnectionManager(socks5, timeout)
+	if err != nil {
+		return false, false
+	}
+
+	conn, err = cm.Dial("tcp", fmt.Sprintf("%s:%d", host, port))
+	if err != nil {
+		modules.PrintSocksError(service, fmt.Sprintf("%v", err))
+		return false, false
 	}
 
 	go func() {
