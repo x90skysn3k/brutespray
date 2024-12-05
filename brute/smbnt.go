@@ -61,7 +61,7 @@ func BruteSMB(host string, port int, user, password string, timeout time.Duratio
 		if result.err != nil {
 			//fmt.Println("SMB login failed:", result.err)
 			if result.conn != nil {
-				result.conn.Close() // Explicitly close the connection if an error occurs
+				result.conn.Close()
 			}
 			return false, true
 		}
@@ -70,12 +70,12 @@ func BruteSMB(host string, port int, user, password string, timeout time.Duratio
 		_, err := result.session.ListSharenames()
 		if err != nil {
 			//fmt.Println("Failed to list share names:", err)
-			result.conn.Close() // Close the connection if the listing fails
+			result.conn.Close()
 			return false, true
 		}
 
 		//fmt.Println("Login successful. Shares:", shares)
-		result.conn.Close() // Close the connection after use
+		result.conn.Close()
 		return true, true
 	}
 }
