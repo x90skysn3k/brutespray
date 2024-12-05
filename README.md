@@ -1,4 +1,4 @@
-# BruteSpray
+# Brutespray
 
 ![Version](https://img.shields.io/badge/Version-2.3.0-red)[![goreleaser](https://github.com/x90skysn3k/brutespray/actions/workflows/release.yml/badge.svg)](https://github.com/x90skysn3k/brutespray/actions/workflows/release.yml)[![Go Report Card](https://goreportcard.com/badge/github.com/x90skysn3k/brutespray)](https://goreportcard.com/report/github.com/x90skysn3k/brutespray)
 
