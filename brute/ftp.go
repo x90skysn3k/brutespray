@@ -7,7 +7,6 @@ import (
 
 	"github.com/jlaffaye/ftp"
 	"github.com/x90skysn3k/brutespray/modules"
-	"golang.org/x/net/proxy"
 )
 
 func BruteFTP(host string, port int, user, password string, timeout time.Duration, socks5 string) (bool, bool) {
@@ -20,30 +19,19 @@ func BruteFTP(host string, port int, user, password string, timeout time.Duratio
 	}
 	done := make(chan result)
 
-	var err error
-	var conn net.Conn
-	var service = "ftp"
-
-	if socks5 != "" {
-		dialer, err := proxy.SOCKS5("tcp", socks5, nil, nil)
-		if err != nil {
-			modules.PrintSocksError(service, fmt.Sprintf("%v", err))
-			return false, false
-		}
-		conn, err = dialer.Dial("tcp", fmt.Sprintf("%s:%d", host, port))
-		if err != nil {
-			modules.PrintSocksError(service, fmt.Sprintf("%v", err))
-			return false, false
-		}
-	} else {
-		conn, err = net.DialTimeout("tcp", fmt.Sprintf("%s:%d", host, port), timeout)
-		if err != nil {
-			modules.PrintSocksError(service, fmt.Sprintf("%v", err))
-			return false, false
-		}
+	cm, err := modules.NewConnectionManager(socks5, timeout)
+	if err != nil {
+		return false, false
 	}
 
 	go func() {
+		conn, err := cm.Dial("tcp", fmt.Sprintf("%s:%d", host, port))
+		if err != nil {
+			done <- result{nil, err}
+			return
+		}
+		defer conn.Close()
+
 		client, err := ftp.Dial(conn.RemoteAddr().String(), ftp.DialWithDialFunc(func(network, addr string) (net.Conn, error) { return conn, nil }))
 		if err != nil {
 			done <- result{nil, err}
