@@ -51,7 +51,7 @@ func RunBrute(h modules.Host, u string, p string, progressCh chan<- int, timeout
 		case "oracle":
 			result, con_result = BruteOracle(h.Host, h.Port, u, p, timeout, socks5)
 		case "teamspeak":
-			result, con_result = BruteTeamSpeak(h.Host, h.Port, u, p, timeout)
+			result, con_result = BruteTeamSpeak(h.Host, h.Port, u, p, timeout, socks5)
 		case "xmpp":
 			result, con_result = BruteXMPP(h.Host, h.Port, u, p, timeout)
 		case "rdp":
