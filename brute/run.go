@@ -23,7 +23,7 @@ func RunBrute(h modules.Host, u string, p string, progressCh chan<- int, timeout
 		case "mssql":
 			result, con_result = BruteMSSQL(h.Host, h.Port, u, p, timeout, socks5)
 		case "telnet":
-			result, con_result = BruteTelnet(h.Host, h.Port, u, p, timeout)
+			result, con_result = BruteTelnet(h.Host, h.Port, u, p, timeout, socks5)
 		case "smbnt":
 			result, con_result = BruteSMB(h.Host, h.Port, u, p, timeout, socks5)
 		case "postgres":
