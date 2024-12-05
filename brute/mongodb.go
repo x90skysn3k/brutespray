@@ -17,11 +17,8 @@ type ContextDialerWrapper struct {
 }
 
 func (cdw *ContextDialerWrapper) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
-	if deadline, ok := ctx.Deadline(); ok {
-		timeout := time.Until(deadline)
-		if timeout > cdw.CM.Timeout {
-			timeout = cdw.CM.Timeout
-		}
+	if _, ok := ctx.Deadline(); ok {
+
 		return cdw.CM.DialFunc(network, address)
 	}
 	return cdw.CM.DialFunc(network, address)

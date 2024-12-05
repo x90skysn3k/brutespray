@@ -50,6 +50,7 @@ func BrutePostgres(host string, port int, user, password string, timeout time.Du
 		return false, false
 	case result := <-done:
 		if result.client != nil {
+			_ = result.client
 		}
 		if result.err != nil {
 			if result.err.Error() == "pq: password authentication failed for user" {
