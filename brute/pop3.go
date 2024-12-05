@@ -7,20 +7,27 @@ import (
 	"time"
 
 	"github.com/knadh/go-pop3"
+	"github.com/x90skysn3k/brutespray/modules"
 )
 
-func BrutePOP3(host string, port int, user, password string, timeout time.Duration) (bool, bool) {
-	options := []pop3.Opt{
-		{Host: host, Port: port, DialTimeout: timeout},
-		{Host: host, Port: port, TLSEnabled: true, DialTimeout: timeout},
-	}
-	_, err := net.DialTimeout("tcp", fmt.Sprintf("%s:%d", host, port), timeout)
+func BrutePOP3(host string, port int, user, password string, timeout time.Duration, socks5 string) (bool, bool) {
+	cm, err := modules.NewConnectionManager(socks5, timeout)
 	if err != nil {
 		return false, false
 	}
 
+	conn, err := cm.Dial("tcp", fmt.Sprintf("%s:%d", host, port))
+	if err != nil {
+		return false, false
+	}
+	defer conn.Close()
+
+	options := []pop3.Opt{
+		{Host: host, Port: port, DialTimeout: timeout},
+		{Host: host, Port: port, TLSEnabled: true, DialTimeout: timeout},
+	}
+
 	for _, opt := range options {
-		var conn net.Conn
 		var err error
 		if opt.TLSEnabled {
 			tlsDialer := &tls.Dialer{
@@ -31,19 +38,13 @@ func BrutePOP3(host string, port int, user, password string, timeout time.Durati
 					InsecureSkipVerify: true,
 				},
 			}
-
-			conn, err = tlsDialer.Dial("tcp", fmt.Sprintf("%s:%d", opt.Host, opt.Port))
+			_, err = tlsDialer.Dial("tcp", fmt.Sprintf("%s:%d", opt.Host, opt.Port))
 			if err != nil {
 				return false, true
 			}
 		} else {
-			conn, err = net.DialTimeout("tcp", fmt.Sprintf("%s:%d", opt.Host, opt.Port), timeout)
-			if err != nil {
-				return false, true
-			}
+			_, err = conn, nil
 		}
-
-		defer conn.Close()
 
 		p := pop3.New(opt)
 		c, err := p.NewConn()

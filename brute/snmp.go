@@ -9,7 +9,7 @@ import (
 	"github.com/gosnmp/gosnmp"
 )
 
-func BruteSNMP(host string, port int, user, password string, timeout time.Duration) bool {
+func BruteSNMP(host string, port int, user, password string, timeout time.Duration, socks5 string) bool {
 	timer := time.NewTimer(timeout)
 	defer timer.Stop()
 
