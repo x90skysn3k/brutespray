@@ -45,7 +45,7 @@ func NewConnectionManager(socks5 string, timeout time.Duration, iface ...string)
 		cm.DialFunc = cm.Dialer.Dial
 	} else {
 		// Bind to specific network interface
-		ipAddr, err := getIPv4Address(ifaceName)
+		ipAddr, err := GetIPv4Address(ifaceName)
 		if err != nil {
 			return nil, err
 		}
@@ -81,7 +81,7 @@ func (cm *ConnectionManager) DialUDP(network, address string) (*net.UDPConn, err
 	return udpConn, nil
 }
 
-func getIPv4Address(ifaceName string) (net.IP, error) {
+func GetIPv4Address(ifaceName string) (net.IP, error) {
 	iface, err := net.InterfaceByName(ifaceName)
 	if err != nil {
 		return nil, fmt.Errorf("interface %s not found: %v", ifaceName, err)
@@ -139,4 +139,35 @@ func getDefaultInterface() (string, error) {
 	}
 
 	return "", fmt.Errorf("no matching interface found for IP %s", localAddr.IP)
+}
+
+func ValidateNetworkInterface(iface string) (string, error) {
+	ifaceName := iface
+	if ifaceName == "" {
+		defaultIface, err := getDefaultInterface()
+		if err != nil {
+			return "", fmt.Errorf("failed to determine default interface: %v", err)
+		}
+		ifaceName = defaultIface
+		fmt.Printf("Using default interface: %s\n", ifaceName)
+	}
+
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return "", fmt.Errorf("error getting network interfaces: %v", err)
+	}
+
+	found := false
+	for _, iface := range ifaces {
+		if iface.Name == ifaceName {
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		return "", fmt.Errorf("network interface %s not found or not available", ifaceName)
+	}
+
+	return ifaceName, nil
 }
