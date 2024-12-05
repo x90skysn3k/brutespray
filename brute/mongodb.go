@@ -24,8 +24,8 @@ func (cdw *ContextDialerWrapper) DialContext(ctx context.Context, network, addre
 	return cdw.CM.DialFunc(network, address)
 }
 
-func BruteMongoDB(host string, port int, user, password string, timeout time.Duration, socks5 string) (bool, bool) {
-	cm, err := modules.NewConnectionManager(socks5, timeout)
+func BruteMongoDB(host string, port int, user, password string, timeout time.Duration, socks5 string, netInterface string) (bool, bool) {
+	cm, err := modules.NewConnectionManager(socks5, timeout, netInterface)
 	if err != nil {
 		//fmt.Printf("Failed to create connection manager: %v\n", err)
 		return false, false

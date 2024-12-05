@@ -9,8 +9,8 @@ import (
 	"github.com/x90skysn3k/brutespray/modules"
 )
 
-func BruteTelnet(host string, port int, user, password string, timeout time.Duration, socks5 string) (bool, bool) {
-	cm, err := modules.NewConnectionManager(socks5, timeout)
+func BruteTelnet(host string, port int, user, password string, timeout time.Duration, socks5 string, netInterface string) (bool, bool) {
+	cm, err := modules.NewConnectionManager(socks5, timeout, netInterface)
 	if err != nil {
 		return false, false
 	}

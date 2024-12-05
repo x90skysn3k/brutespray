@@ -10,10 +10,10 @@ import (
 	"github.com/x90skysn3k/brutespray/modules"
 )
 
-func BruteSMTP(host string, port int, user, password string, timeout time.Duration, socks5 string) (bool, bool) {
+func BruteSMTP(host string, port int, user, password string, timeout time.Duration, socks5 string, netInterface string) (bool, bool) {
 	auth := smtp.PlainAuth("", user, password, host)
 
-	cm, err := modules.NewConnectionManager(socks5, timeout)
+	cm, err := modules.NewConnectionManager(socks5, timeout, netInterface)
 	if err != nil {
 		return false, false
 	}

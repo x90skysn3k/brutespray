@@ -9,7 +9,7 @@ import (
 	"github.com/x90skysn3k/brutespray/modules"
 )
 
-func BruteSMB(host string, port int, user, password string, timeout time.Duration, socks5 string) (bool, bool) {
+func BruteSMB(host string, port int, user, password string, timeout time.Duration, socks5 string, netInterface string) (bool, bool) {
 	timer := time.NewTimer(timeout)
 	defer timer.Stop()
 
@@ -20,7 +20,7 @@ func BruteSMB(host string, port int, user, password string, timeout time.Duratio
 	}
 	done := make(chan result)
 
-	cm, err := modules.NewConnectionManager(socks5, timeout)
+	cm, err := modules.NewConnectionManager(socks5, timeout, netInterface)
 	if err != nil {
 		//fmt.Println("Failed to create connection manager:", err)
 		return false, false

@@ -10,10 +10,10 @@ import (
 	"github.com/x90skysn3k/brutespray/modules"
 )
 
-func BruteMSSQL(host string, port int, user, password string, timeout time.Duration, socks5 string) (bool, bool) {
+func BruteMSSQL(host string, port int, user, password string, timeout time.Duration, socks5 string, netInterface string) (bool, bool) {
 	connString := fmt.Sprintf("server=%s;port=%d;user id=%s;password=%s", host, port, user, password)
 
-	cm, err := modules.NewConnectionManager(socks5, timeout)
+	cm, err := modules.NewConnectionManager(socks5, timeout, netInterface)
 	if err != nil {
 		return false, false
 	}
