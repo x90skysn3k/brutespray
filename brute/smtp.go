@@ -6,12 +6,19 @@ import (
 	"net"
 	"net/smtp"
 	"time"
+
+	"github.com/x90skysn3k/brutespray/modules"
 )
 
-func BruteSMTP(host string, port int, user, password string, timeout time.Duration) (bool, bool) {
+func BruteSMTP(host string, port int, user, password string, timeout time.Duration, socks5 string) (bool, bool) {
 	auth := smtp.PlainAuth("", user, password, host)
 
-	conn, err := net.DialTimeout("tcp", fmt.Sprintf("%s:%d", host, port), timeout)
+	cm, err := modules.NewConnectionManager(socks5, timeout)
+	if err != nil {
+		return false, false
+	}
+
+	conn, err := cm.Dial("tcp", fmt.Sprintf("%s:%d", host, port))
 	if err != nil {
 		return false, false
 	}
@@ -25,7 +32,6 @@ func BruteSMTP(host string, port int, user, password string, timeout time.Durati
 	defer func() {
 		if err := smtpClient.Quit(); err != nil {
 			_ = err
-			//fmt.Printf("Failed to send QUIT command: %v\n", err)
 		}
 	}()
 
@@ -48,13 +54,13 @@ func BruteSMTP(host string, port int, user, password string, timeout time.Durati
 		defer func() {
 			if err := smtpClient.Quit(); err != nil {
 				_ = err
-				//fmt.Printf("Failed to send QUIT command: %v\n", err)
 			}
 		}()
 		if err := smtpClient.Auth(auth); err == nil {
 			return true, true
 		}
 	}
+
 	if err := smtpClient.Auth(auth); err == nil {
 		return true, false
 	}
