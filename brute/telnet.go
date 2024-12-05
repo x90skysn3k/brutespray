@@ -29,14 +29,14 @@ func BruteTelnet(host string, port int, user, password string, timeout time.Dura
 	reader := bufio.NewReader(connection)
 	var serverMessage string
 
-	serverMessage, err = reader.ReadString('\n')
+	//serverMessage, err = reader.ReadString('\n')
 	if err != nil {
 		return false, true
 	}
 
 	fmt.Fprintf(connection, "%s\n", user)
 
-	serverMessage, err = reader.ReadString('\n')
+	//serverMessage, err = reader.ReadString('\n')
 	if err != nil {
 		return false, true
 	}

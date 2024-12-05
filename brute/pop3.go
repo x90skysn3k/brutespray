@@ -44,6 +44,7 @@ func BrutePOP3(host string, port int, user, password string, timeout time.Durati
 			}
 		} else {
 			_, err = conn, nil
+			_ = err
 		}
 
 		p := pop3.New(opt)
