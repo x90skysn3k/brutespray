@@ -39,7 +39,7 @@ func RunBrute(h modules.Host, u string, p string, progressCh chan<- int, timeout
 		case "mysql":
 			result, con_result = BruteMYSQL(h.Host, h.Port, u, p, timeout, socks5)
 		case "vmauthd":
-			result, con_result = BruteVMAuthd(h.Host, h.Port, u, p, timeout)
+			result, con_result = BruteVMAuthd(h.Host, h.Port, u, p, timeout, socks5)
 		case "asterisk":
 			result, con_result = BruteAsterisk(h.Host, h.Port, u, p, timeout, socks5)
 		case "vnc":
