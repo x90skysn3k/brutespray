@@ -39,3 +39,21 @@ func NewConnectionManager(socks5 string, timeout time.Duration) (*ConnectionMana
 func (cm *ConnectionManager) Dial(network, address string) (net.Conn, error) {
 	return cm.DialFunc(network, address)
 }
+
+func (cm *ConnectionManager) DialUDP(network, address string) (*net.UDPConn, error) {
+	if network != "udp" {
+		return nil, fmt.Errorf("DialUDP requires 'udp' network, got %s", network)
+	}
+
+	conn, err := cm.DialFunc("udp", address)
+	if err != nil {
+		return nil, err
+	}
+
+	udpConn, ok := conn.(*net.UDPConn)
+	if !ok {
+		return nil, fmt.Errorf("failed to cast connection to *net.UDPConn")
+	}
+
+	return udpConn, nil
+}
