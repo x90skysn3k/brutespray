@@ -68,6 +68,10 @@ Command: ```brutespray -H ssh://127.0.0.1 -C root:root```
 
 ```brutespray -H ssh://10.1.1.0/24:22 -socks5 localhost:1080```
 
+#### Network Interface Support
+
+```brutespray -H ssh://10.1.1.0/24:22 -iface tun0```
+
 #### Print Found Services
 
 ```brutespray -f nessus.nessus -P -q```
