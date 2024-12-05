@@ -43,7 +43,7 @@ func RunBrute(h modules.Host, u string, p string, progressCh chan<- int, timeout
 		case "asterisk":
 			result, con_result = BruteAsterisk(h.Host, h.Port, u, p, timeout, socks5)
 		case "vnc":
-			result, con_result = BruteVNC(h.Host, h.Port, u, p, timeout)
+			result, con_result = BruteVNC(h.Host, h.Port, u, p, timeout, socks5)
 		case "mongodb":
 			result, con_result = BruteMongoDB(h.Host, h.Port, u, p, timeout, socks5)
 		case "nntp":

@@ -2,13 +2,13 @@ package brute
 
 import (
 	"fmt"
-	"net"
 	"time"
 
 	"github.com/mitchellh/go-vnc"
+	"github.com/x90skysn3k/brutespray/modules"
 )
 
-func BruteVNC(host string, port int, user string, password string, timeout time.Duration) (bool, bool) {
+func BruteVNC(host string, port int, user string, password string, timeout time.Duration, socks5 string) (bool, bool) {
 	config := &vnc.ClientConfig{
 		Auth: []vnc.ClientAuth{
 			&vnc.PasswordAuth{
@@ -17,8 +17,13 @@ func BruteVNC(host string, port int, user string, password string, timeout time.
 		},
 	}
 
+	cm, err := modules.NewConnectionManager(socks5, timeout)
+	if err != nil {
+		return false, false
+	}
+
 	addr := fmt.Sprintf("%s:%d", host, port)
-	conn, err := net.DialTimeout("tcp", addr, timeout)
+	conn, err := cm.Dial("tcp", addr)
 	if err != nil {
 		return false, false
 	}
