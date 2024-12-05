@@ -27,15 +27,15 @@ func RunBrute(h modules.Host, u string, p string, progressCh chan<- int, timeout
 		case "smbnt":
 			result, con_result = BruteSMB(h.Host, h.Port, u, p, timeout)
 		case "postgres":
-			result, con_result = BrutePostgres(h.Host, h.Port, u, p, timeout)
+			result, con_result = BrutePostgres(h.Host, h.Port, u, p, timeout, socks5)
 		case "smtp":
 			result, con_result = BruteSMTP(h.Host, h.Port, u, p, timeout)
 		case "imap":
 			result, con_result = BruteIMAP(h.Host, h.Port, u, p, timeout, socks5)
 		case "pop3":
-			result, con_result = BrutePOP3(h.Host, h.Port, u, p, timeout)
+			result, con_result = BrutePOP3(h.Host, h.Port, u, p, timeout, socks5)
 		case "snmp":
-			result, con_result = BrutePOP3(h.Host, h.Port, u, p, timeout)
+			result = BruteSNMP(h.Host, h.Port, u, p, timeout, socks5)
 		case "mysql":
 			result, con_result = BruteMYSQL(h.Host, h.Port, u, p, timeout, socks5)
 		case "vmauthd":
