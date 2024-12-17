@@ -28,7 +28,6 @@ func BruteSSH(host string, port int, user, password string, timeout time.Duratio
 
 	var err error
 	var conn net.Conn
-	var service = "ssh"
 
 	cm, err := modules.NewConnectionManager(socks5, timeout, netInterface)
 	if err != nil {
@@ -37,7 +36,7 @@ func BruteSSH(host string, port int, user, password string, timeout time.Duratio
 
 	conn, err = cm.Dial("tcp", fmt.Sprintf("%s:%d", host, port))
 	if err != nil {
-		modules.PrintSocksError(service, fmt.Sprintf("%v", err))
+		//modules.PrintSocksError(service, fmt.Sprintf("%v", err))
 		return false, false
 	}
 
