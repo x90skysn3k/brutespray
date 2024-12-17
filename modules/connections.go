@@ -35,6 +35,12 @@ func NewConnectionManager(socks5 string, timeout time.Duration, iface ...string)
 		Iface:   ifaceName,
 	}
 
+	ipAddr, err := GetIPv4Address(ifaceName)
+	if err != nil {
+		return nil, err
+	}
+	localAddr := &net.TCPAddr{IP: ipAddr}
+
 	if socks5 != "" {
 		dialer, err := proxy.SOCKS5("tcp", socks5, nil, nil)
 		if err != nil {
@@ -42,14 +48,15 @@ func NewConnectionManager(socks5 string, timeout time.Duration, iface ...string)
 			return nil, err
 		}
 		cm.Dialer = dialer
-		cm.DialFunc = cm.Dialer.Dial
+		cm.DialFunc = func(network, address string) (net.Conn, error) {
+			conn, err := dialer.Dial(network, address)
+			if err != nil {
+				PrintSocksError("Failed to connect to proxy:", fmt.Sprintf("%v", err))
+			}
+			return conn, err
+		}
 	} else {
 		// Bind to specific network interface
-		ipAddr, err := GetIPv4Address(ifaceName)
-		if err != nil {
-			return nil, err
-		}
-		localAddr := &net.TCPAddr{IP: ipAddr}
 		dialer := &net.Dialer{Timeout: timeout, LocalAddr: localAddr}
 		cm.DialFunc = dialer.Dial
 		//fmt.Printf("Binding to local address: %s\n", localAddr)
