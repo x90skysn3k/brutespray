@@ -11,13 +11,19 @@ Brutespray has been re-written in Golang, eliminating the requirement for additi
 
 <img src="https://i.imgur.com/6fQI6Qs.png" width="500">
 
-# Installation
+# Install
+
+```
+go install github.com/x90skysn3k/brutespray@latest
+```
 
 [Release Binaries](https://github.com/x90skysn3k/brutespray/releases)
 
 To Build:
 
-```go build -o brutespray main.go```
+```
+go build -o brutespray main.go
+```
 
 # Usage
 
