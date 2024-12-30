@@ -3,17 +3,20 @@ package modules
 import (
 	"fmt"
 	"net"
+	"sync"
 	"time"
 
 	"golang.org/x/net/proxy"
 )
 
 type ConnectionManager struct {
-	Socks5   string
-	Timeout  time.Duration
-	Iface    string
-	Dialer   proxy.Dialer
-	DialFunc func(network, address string) (net.Conn, error)
+	Socks5    string
+	Timeout   time.Duration
+	Iface     string
+	Dialer    proxy.Dialer
+	DialFunc  func(network, address string) (net.Conn, error)
+	ConnPool  map[string]chan net.Conn
+	PoolMutex sync.Mutex
 }
 
 func NewConnectionManager(socks5 string, timeout time.Duration, iface ...string) (*ConnectionManager, error) {
@@ -30,10 +33,17 @@ func NewConnectionManager(socks5 string, timeout time.Duration, iface ...string)
 	}
 
 	cm := &ConnectionManager{
-		Socks5:  socks5,
-		Timeout: timeout,
-		Iface:   ifaceName,
+		Socks5:   socks5,
+		Timeout:  timeout,
+		Iface:    ifaceName,
+		ConnPool: make(map[string]chan net.Conn),
 	}
+
+	ipAddr, err := GetIPv4Address(ifaceName)
+	if err != nil {
+		return nil, err
+	}
+	localAddr := &net.TCPAddr{IP: ipAddr}
 
 	if socks5 != "" {
 		dialer, err := proxy.SOCKS5("tcp", socks5, nil, nil)
@@ -42,14 +52,15 @@ func NewConnectionManager(socks5 string, timeout time.Duration, iface ...string)
 			return nil, err
 		}
 		cm.Dialer = dialer
-		cm.DialFunc = cm.Dialer.Dial
+		cm.DialFunc = func(network, address string) (net.Conn, error) {
+			conn, err := dialer.Dial(network, address)
+			if err != nil {
+				PrintSocksError("Failed to connect to proxy:", fmt.Sprintf("%v", err))
+			}
+			return conn, err
+		}
 	} else {
 		// Bind to specific network interface
-		ipAddr, err := GetIPv4Address(ifaceName)
-		if err != nil {
-			return nil, err
-		}
-		localAddr := &net.TCPAddr{IP: ipAddr}
 		dialer := &net.Dialer{Timeout: timeout, LocalAddr: localAddr}
 		cm.DialFunc = dialer.Dial
 		//fmt.Printf("Binding to local address: %s\n", localAddr)
@@ -59,7 +70,45 @@ func NewConnectionManager(socks5 string, timeout time.Duration, iface ...string)
 }
 
 func (cm *ConnectionManager) Dial(network, address string) (net.Conn, error) {
-	return cm.DialFunc(network, address)
+	key := fmt.Sprintf("%s:%s", network, address)
+
+	cm.PoolMutex.Lock()
+	if _, ok := cm.ConnPool[key]; !ok {
+		cm.ConnPool[key] = make(chan net.Conn, 10)
+	}
+	cm.PoolMutex.Unlock()
+
+	select {
+	case conn := <-cm.ConnPool[key]:
+		return conn, nil
+	default:
+		conn, err := cm.DialFunc(network, address)
+		if err != nil {
+			return nil, err
+		}
+		return conn, nil
+	}
+}
+
+func (cm *ConnectionManager) Release(conn net.Conn) {
+	if conn == nil {
+		return
+	}
+
+	cm.PoolMutex.Lock()
+	defer cm.PoolMutex.Unlock()
+
+	key := fmt.Sprintf("%s:%s", conn.RemoteAddr().Network(), conn.RemoteAddr().String())
+
+	if _, ok := cm.ConnPool[key]; !ok {
+		cm.ConnPool[key] = make(chan net.Conn, 10)
+	}
+
+	select {
+	case cm.ConnPool[key] <- conn:
+	default:
+		conn.Close()
+	}
 }
 
 func (cm *ConnectionManager) DialUDP(network, address string) (*net.UDPConn, error) {
