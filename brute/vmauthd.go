@@ -3,14 +3,21 @@ package brute
 import (
 	"crypto/tls"
 	"fmt"
-	"net"
 	"strings"
 	"time"
+
+	"github.com/x90skysn3k/brutespray/modules"
 )
 
-func BruteVMAuthd(host string, port int, user, password string, timeout time.Duration) (bool, bool) {
+func BruteVMAuthd(host string, port int, user, password string, timeout time.Duration, socks5 string, netInterface string) (bool, bool) {
 	address := fmt.Sprintf("%s:%d", host, port)
-	conn, err := net.DialTimeout("tcp", address, timeout)
+
+	cm, err := modules.NewConnectionManager(socks5, timeout, netInterface)
+	if err != nil {
+		return false, false
+	}
+
+	conn, err := cm.Dial("tcp", address)
 	if err != nil {
 		return false, false
 	}
@@ -20,6 +27,7 @@ func BruteVMAuthd(host string, port int, user, password string, timeout time.Dur
 	if err != nil {
 		return false, false
 	}
+
 	buf := make([]byte, 1024)
 	n, err := conn.Read(buf)
 	if err != nil {
@@ -71,7 +79,7 @@ func BruteVMAuthd(host string, port int, user, password string, timeout time.Dur
 	} else if strings.HasPrefix(response, "530 ") {
 		return false, true
 	} else {
-		//log.Printf("Unexpected response: %s", response)
+		// log.Printf("Unexpected response: %s", response)
 		return false, true
 	}
 }

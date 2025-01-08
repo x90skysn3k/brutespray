@@ -21,7 +21,7 @@ var masterServiceList = []string{"ssh", "ftp", "smtp", "mssql", "telnet", "smbnt
 
 var BetaServiceList = []string{"asterisk", "nntp", "oracle", "xmpp", "rdp"}
 
-var version = "v2.2.4"
+var version = "v2.3.1"
 
 func Execute() {
 	user := flag.String("u", "", "Username or user list to bruteforce")
@@ -30,7 +30,8 @@ func Execute() {
 	output := flag.String("o", "brutespray-output", "Directory containing successful attempts")
 	threads := flag.Int("t", 10, "Number of threads to use")
 	hostParallelism := flag.Int("T", 5, "Number of hosts to bruteforce at the same time")
-	//networkInterface := flag.String("i", "", "Network interface to use")
+	socksProxy := flag.String("socks5", "", "Socks5 proxy to use for bruteforce")
+	netInterface := flag.String("iface", "", "Specific network interface to use for bruteforce traffic")
 	serviceType := flag.String("s", "all", "Service type: ssh, ftp, smtp, etc; Default all")
 	listServices := flag.Bool("S", false, "List all supported services")
 	file := flag.String("f", "", "File to parse; Supported: Nmap, Nessus, Nexpose, Lists, etc")
@@ -184,6 +185,25 @@ func Execute() {
 
 	}
 
+	if *netInterface != "" {
+		ifaceName, err := modules.ValidateNetworkInterface(*netInterface)
+		if err != nil {
+			fmt.Println("Error:", err)
+			os.Exit(1)
+		}
+		ipAddr, err := modules.GetIPv4Address(ifaceName)
+		if err != nil {
+			fmt.Println("Error:", err)
+			os.Exit(1)
+		}
+		pterm.Color(pterm.FgLightYellow).Printf("Network Interface: %s\n", *netInterface)
+		pterm.Color(pterm.FgLightYellow).Printf("Local Address: %s\n", ipAddr)
+	}
+
+	if *socksProxy != "" {
+		pterm.Color(pterm.FgLightYellow).Printf("Socks5 Proxy: %s\n", *socksProxy)
+	}
+
 	pterm.Color(pterm.FgLightYellow).Println("\nStarting to brute, please make sure to use the right amount of threads(-t) and parallel hosts(-T)...")
 
 	spinner, _ := pterm.DefaultSpinner.Start("Starting Bruteforce...")
@@ -242,7 +262,7 @@ func Execute() {
 										select {
 										case <-stopChan:
 										default:
-											brute.RunBrute(h, u, p, progressCh, *timeout, *retry, *output)
+											brute.RunBrute(h, u, p, progressCh, *timeout, *retry, *output, *socksProxy, *netInterface)
 											bruteForceWg.Add(1)
 										}
 										progressCh <- 1
@@ -276,7 +296,7 @@ func Execute() {
 										select {
 										case <-stopChan:
 										default:
-											brute.RunBrute(h, u, p, progressCh, *timeout, *retry, *output)
+											brute.RunBrute(h, u, p, progressCh, *timeout, *retry, *output, *socksProxy, *netInterface)
 											bruteForceWg.Add(1)
 										}
 										progressCh <- 1
@@ -314,7 +334,7 @@ func Execute() {
 										case <-stopChan:
 											return
 										default:
-											brute.RunBrute(h, u, p, progressCh, *timeout, *retry, *output)
+											brute.RunBrute(h, u, p, progressCh, *timeout, *retry, *output, *socksProxy, *netInterface)
 											bruteForceWg.Add(1)
 										}
 										progressCh <- 1
@@ -351,7 +371,7 @@ func Execute() {
 											case <-stopChan:
 												return
 											default:
-												brute.RunBrute(h, u, p, progressCh, *timeout, *retry, *output)
+												brute.RunBrute(h, u, p, progressCh, *timeout, *retry, *output, *socksProxy, *netInterface)
 												bruteForceWg.Add(1)
 											}
 											progressCh <- 1
