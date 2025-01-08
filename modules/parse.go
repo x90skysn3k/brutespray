@@ -356,7 +356,7 @@ func (h *Host) Parse(host string) ([]Host, error) {
 		"smtp":      25,
 		"mssql":     1433,
 		"telnet":    23,
-		"smbnt":     139,
+		"smbnt":     445,
 		"postgres":  5432,
 		"imap":      143,
 		"pop3":      110,

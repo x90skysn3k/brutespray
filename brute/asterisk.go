@@ -2,18 +2,25 @@ package brute
 
 import (
 	"fmt"
-	"net"
 	"strings"
 	"time"
 
 	"github.com/wenerme/astgo/ami"
+	"github.com/x90skysn3k/brutespray/modules"
 )
 
 // this is very alpha and I have no idea if it even works
-func BruteAsterisk(host string, port int, user, password string, timeout time.Duration) (bool, bool) {
+func BruteAsterisk(host string, port int, user, password string, timeout time.Duration, socks5 string, netInterface string) (bool, bool) {
 	target := fmt.Sprintf("%s:%d", host, port)
-	conn, err := net.DialTimeout("tcp", target, timeout)
+	connManager, err := modules.NewConnectionManager(socks5, timeout, netInterface)
 	if err != nil {
+		return false, false
+	}
+
+	service := "asterisk"
+	conn, err := connManager.Dial("tcp", target)
+	if err != nil {
+		modules.PrintSocksError(service, fmt.Sprintf("%v", err))
 		return false, false
 	}
 	defer conn.Close()

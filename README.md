@@ -1,6 +1,6 @@
-# BruteSpray
+# Brutespray
 
-![Version](https://img.shields.io/badge/Version-2.2.4-red)[![goreleaser](https://github.com/x90skysn3k/brutespray/actions/workflows/release.yml/badge.svg)](https://github.com/x90skysn3k/brutespray/actions/workflows/release.yml)[![Go Report Card](https://goreportcard.com/badge/github.com/x90skysn3k/brutespray)](https://goreportcard.com/report/github.com/x90skysn3k/brutespray)
+![Version](https://img.shields.io/badge/Version-2.3.1-red)[![goreleaser](https://github.com/x90skysn3k/brutespray/actions/workflows/release.yml/badge.svg)](https://github.com/x90skysn3k/brutespray/actions/workflows/release.yml)[![Go Report Card](https://goreportcard.com/badge/github.com/x90skysn3k/brutespray)](https://goreportcard.com/report/github.com/x90skysn3k/brutespray)
 
 Created by: Shane Young/@t1d3nio && Jacob Robles/@shellfail 
 
@@ -11,13 +11,19 @@ Brutespray has been re-written in Golang, eliminating the requirement for additi
 
 <img src="https://i.imgur.com/6fQI6Qs.png" width="500">
 
-# Installation
+# Install
+
+```
+go install github.com/x90skysn3k/brutespray@latest
+```
 
 [Release Binaries](https://github.com/x90skysn3k/brutespray/releases)
 
 To Build:
 
-```go build -o brutespray main.go```
+```
+go build -o brutespray main.go
+```
 
 # Usage
 
@@ -64,6 +70,14 @@ Command: ```brutespray -H ssh://127.0.0.1 -C root:root```
 
 ```brutespray -H ssh://10.1.1.0/24:22 -t 1000```
 
+#### Socks5 Proxy Support
+
+```brutespray -H ssh://10.1.1.0/24:22 -socks5 localhost:1080```
+
+#### Network Interface Support
+
+```brutespray -H ssh://10.1.1.0/24:22 -iface tun0```
+
 #### Print Found Services
 
 ```brutespray -f nessus.nessus -P -q```
@@ -102,10 +116,6 @@ Command: ```brutespray -H ssh://127.0.0.1 -C root:root```
 
 Feel free to open an issue if these work, or if you have any issues
 
-# Services in Progress
-
-* rdp - the issue is no one has written a good library for NLA
-
 # Data Specs
 ```json
 {"host":"127.0.0.1","port":"3306","service":"mysql"}
@@ -134,10 +144,10 @@ user4:pass1
 # Planned Features
 
 * Add domain option for RDP, SMB
-* Ability to set proxy
-* Ability to select interface
+* ~~Ability to set proxy~~
+* ~~Ability to select interface~~
 * More modules
-* Better connection handling
+* ~~Better connection handling~~
 
 # Star History
 
