@@ -5,11 +5,12 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/x90skysn3k/brutespray/modules"
 	"gosrc.io/xmpp"
 	"gosrc.io/xmpp/stanza"
 )
 
-func BruteXMPP(host string, port int, user, password string, timeout time.Duration) (bool, bool) {
+func BruteXMPP(host string, port int, user, password string, timeout time.Duration, socks5 string, netInterface string) (bool, bool) {
 	portstr := strconv.Itoa(port)
 	hoststr := host + ":" + portstr
 	timer := time.NewTimer(timeout)
@@ -20,7 +21,20 @@ func BruteXMPP(host string, port int, user, password string, timeout time.Durati
 		err     error
 	}
 	done := make(chan result)
+
+	cm, err := modules.NewConnectionManager(socks5, timeout, netInterface)
+	if err != nil {
+		return false, false
+	}
+
 	go func() {
+		conn, err := cm.Dial("tcp", hoststr)
+		if err != nil {
+			done <- result{nil, err}
+			return
+		}
+		defer conn.Close()
+
 		router := xmpp.NewRouter()
 		config := &xmpp.Config{
 			TransportConfiguration: xmpp.TransportConfiguration{
@@ -45,7 +59,6 @@ func BruteXMPP(host string, port int, user, password string, timeout time.Durati
 	case res := <-done:
 		if res.err != nil {
 			_ = res.err
-			//log.Printf("Error while connecting: %v", res.err)
 			return false, true
 		}
 

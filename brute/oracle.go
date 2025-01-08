@@ -3,18 +3,27 @@ package brute
 import (
 	"database/sql"
 	"fmt"
-	"net"
 	"time"
 
 	_ "github.com/sijms/go-ora/v2"
+	"github.com/x90skysn3k/brutespray/modules"
 )
 
-func BruteOracle(host string, port int, user, password string, timeout time.Duration) (bool, bool) {
-	service := "ORCL"
-	connectionString := fmt.Sprintf("oracle://%s:%s@%s:%d/%s", user, password, host, port, service)
+func BruteOracle(host string, port int, user, password string, timeout time.Duration, socks5 string, netInterface string) (bool, bool) {
 
-	conn, err := net.DialTimeout("tcp", fmt.Sprintf("%s:%d", host, port), timeout)
+	connectionString := fmt.Sprintf("%s:%s@%s:%d", user, password, host, port)
+
+	cm, err := modules.NewConnectionManager(socks5, timeout, netInterface)
 	if err != nil {
+		_ = err
+		//fmt.Println("Connection Manager Error:", err)
+		return false, false
+	}
+
+	conn, err := cm.Dial("tcp", fmt.Sprintf("%s:%d", host, port))
+	if err != nil {
+		_ = err
+		//fmt.Println("Connection Error:", err)
 		return false, false
 	}
 	defer conn.Close()
@@ -43,6 +52,8 @@ func BruteOracle(host string, port int, user, password string, timeout time.Dura
 		return false, false
 	case res := <-done:
 		if res.err != nil {
+			_ = res.err
+			//fmt.Println("Database Ping Error:", res.err)
 			return false, true
 		}
 		defer res.db.Close()

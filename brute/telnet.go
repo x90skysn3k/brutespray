@@ -3,13 +3,19 @@ package brute
 import (
 	"bufio"
 	"fmt"
-	"net"
 	"strings"
 	"time"
+
+	"github.com/x90skysn3k/brutespray/modules"
 )
 
-func BruteTelnet(host string, port int, user, password string, timeout time.Duration) (bool, bool) {
-	connection, err := net.DialTimeout("tcp", fmt.Sprintf("%s:%d", host, port), timeout)
+func BruteTelnet(host string, port int, user, password string, timeout time.Duration, socks5 string, netInterface string) (bool, bool) {
+	cm, err := modules.NewConnectionManager(socks5, timeout, netInterface)
+	if err != nil {
+		return false, false
+	}
+
+	connection, err := cm.Dial("tcp", fmt.Sprintf("%s:%d", host, port))
 	if err != nil {
 		return false, false
 	}
@@ -23,7 +29,7 @@ func BruteTelnet(host string, port int, user, password string, timeout time.Dura
 	reader := bufio.NewReader(connection)
 	var serverMessage string
 
-	//serverMessage, err := reader.ReadString('\n')
+	//serverMessage, err = reader.ReadString('\n')
 	if err != nil {
 		return false, true
 	}
