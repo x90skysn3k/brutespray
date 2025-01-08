@@ -1,39 +1,25 @@
 package brute
 
 import (
-	"crypto/tls"
 	"fmt"
-	"net"
 	"time"
 
 	"github.com/emersion/go-imap/client"
+	"github.com/x90skysn3k/brutespray/modules"
 )
 
-func BruteIMAP(host string, port int, user, password string, timeout time.Duration) (bool, bool) {
-	var (
-		conn net.Conn
-		err  error
-	)
-
-	conn, err = net.DialTimeout("tcp", fmt.Sprintf("%s:%d", host, port), timeout)
-
+func BruteIMAP(host string, port int, user, password string, timeout time.Duration, socks5 string, netInterface string) (bool, bool) {
+	var service = "imap"
+	cm, err := modules.NewConnectionManager(socks5, timeout, netInterface)
 	if err != nil {
-		tlsDialer := &tls.Dialer{
-			NetDialer: &net.Dialer{
-				Timeout: timeout,
-			},
-			Config: &tls.Config{
-				InsecureSkipVerify: true,
-			},
-		}
+		modules.PrintSocksError(service, fmt.Sprintf("%v", err))
+		return false, false
+	}
 
-		_, err = tlsDialer.Dial("tcp", fmt.Sprintf("%s:%d", host, port))
-
-		if err != nil {
-			return false, false
-		} else {
-			return false, true
-		}
+	conn, err := cm.Dial("tcp", fmt.Sprintf("%s:%d", host, port))
+	if err != nil {
+		modules.PrintSocksError(service, fmt.Sprintf("%v", err))
+		return false, false
 	}
 
 	c, err := client.New(conn)
