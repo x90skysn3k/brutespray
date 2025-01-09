@@ -1,7 +1,6 @@
 package brute
 
 import (
-	"math"
 	"sync"
 	"time"
 
@@ -14,6 +13,9 @@ var skippedMap = make(map[string]bool)
 var retryMapMutex = &sync.Mutex{}
 
 func ClearMaps() {
+	retryMapMutex.Lock()
+	defer retryMapMutex.Unlock()
+
 	retryMap = make(map[string]int)
 	skipMap = make(map[string]bool)
 	skippedMap = make(map[string]bool)
@@ -21,32 +23,36 @@ func ClearMaps() {
 
 func RunBrute(h modules.Host, u string, p string, progressCh chan<- int, timeout time.Duration, maxRetries int, output string, socks5 string, netInterface string) bool {
 	service := h.Service
-	var result bool
-	var con_result bool
-	var retrying bool = false
-	var delayTime time.Duration = 1 * time.Second
+	var result, con_result bool
+	var retrying bool
+	var delayTime time.Duration
 
 	key := h.Host + ":" + h.Service
 
 	for {
 		retryMapMutex.Lock()
+
 		retries, ok := retryMap[key]
-		if !ok && !retrying {
+		if !ok {
 			retries = 0
 		}
-		if retries >= maxRetries && !skipMap[key] {
-			skipMap[key] = true
-			modules.PrintSkipping(h.Host, service, retries, maxRetries)
-			skippedMap[key] = true
+
+		if retries >= maxRetries {
+			if !skipMap[key] {
+				skipMap[key] = true
+				modules.PrintSkipping(h.Host, service, retries, maxRetries)
+			}
 			retryMapMutex.Unlock()
 			return false
 		}
-		retries++
-		retryMap[key] = retries
+
+		retryMap[key] = retries + 1
+		retrying = true
 		retryMapMutex.Unlock()
 
-		if skippedMap[key] {
-			return false
+		delayTime = timeout * time.Duration(retries)
+		if delayTime > 10*time.Second {
+			delayTime = 10 * time.Second
 		}
 
 		switch service {
@@ -91,23 +97,20 @@ func RunBrute(h modules.Host, u string, p string, progressCh chan<- int, timeout
 		case "rdp":
 			result, con_result = BruteRDP(h.Host, h.Port, u, p, timeout, socks5, netInterface)
 		default:
-			return con_result
+			return false
 		}
+
 		if con_result {
-			//fmt.Println(con_result, retries)
 			retryMapMutex.Lock()
-			retries--
-			retryMap[key] = retries
+			retryMap[key]--
 			retryMapMutex.Unlock()
 			break
 		} else {
-			delayTime = time.Duration(int64(time.Second) * int64(math.Min(float64(retries), float64(delayTime))))
-			//fmt.Println(con_result, retries)
-			retrying := true
 			modules.PrintResult(service, h.Host, h.Port, u, p, result, con_result, progressCh, retrying, output, delayTime)
 			time.Sleep(delayTime)
 		}
 	}
+
 	modules.PrintResult(service, h.Host, h.Port, u, p, result, con_result, progressCh, retrying, output, delayTime)
 	return con_result
 }
