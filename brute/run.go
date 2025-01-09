@@ -8,9 +8,9 @@ import (
 )
 
 var (
-	retryMap      = make(map[string]int)
-	skipMap       = make(map[string]bool)
-	skippedMap    = make(map[string]bool)
+	retryMap = make(map[string]int)
+	skipMap  = make(map[string]bool)
+	//skippedMap    = make(map[string]bool)
 	retryMapMutex = &sync.Mutex{}
 	skipWg        sync.WaitGroup
 )
@@ -21,7 +21,7 @@ func ClearMaps() {
 
 	retryMap = make(map[string]int)
 	skipMap = make(map[string]bool)
-	skippedMap = make(map[string]bool)
+	//skippedMap = make(map[string]bool)
 }
 
 func RunBrute(h modules.Host, u string, p string, progressCh chan<- int, timeout time.Duration, maxRetries int, output string, socks5 string, netInterface string) bool {
