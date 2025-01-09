@@ -156,17 +156,14 @@ func GetIPv4Address(ifaceName string) (net.IP, error) {
 }
 
 func getDefaultInterface() (string, error) {
-	// Connect to a known external address (e.g., 8.8.8.8:80)
 	conn, err := net.Dial("udp", "8.8.8.8:80")
 	if err != nil {
 		return "", fmt.Errorf("failed to determine default interface: %v", err)
 	}
 	defer conn.Close()
 
-	// Get the local address of the connection
 	localAddr := conn.LocalAddr().(*net.UDPAddr)
 
-	// Find the interface associated with the local address
 	ifaces, err := net.Interfaces()
 	if err != nil {
 		return "", fmt.Errorf("failed to list interfaces: %v", err)
