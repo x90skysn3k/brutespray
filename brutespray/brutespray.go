@@ -37,8 +37,8 @@ func Execute() {
 	file := flag.String("f", "", "File to parse; Supported: Nmap, Nessus, Nexpose, Lists, etc")
 	host := flag.String("H", "", "Target in the format service://host:port, CIDR ranges supported,\n default port will be used if not specified")
 	quiet := flag.Bool("q", false, "Suppress the banner")
-	timeout := flag.Duration("w", 5*time.Second, "Set timeout of bruteforce attempts")
-	retry := flag.Int("r", 3, "Amount of times to retry after receiving connection failed")
+	timeout := flag.Duration("w", 5*time.Second, "Set timeout delay of bruteforce attempts")
+	retry := flag.Int("r", 100, "Amount of times to retry after receiving connection failed")
 	printhosts := flag.Bool("P", false, "Print found hosts parsed from provided host and file arguments")
 
 	flag.Parse()
@@ -211,6 +211,16 @@ func Execute() {
 	}()
 
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+
+	totalHosts := len(hostsList)
+
+	if *hostParallelism > totalHosts {
+		*hostParallelism = totalHosts
+	}
+
+	if *threads > *retry {
+		*threads = *retry
+	}
 
 	for _, service := range supportedServices {
 		wg.Add(1)

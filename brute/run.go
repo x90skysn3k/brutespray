@@ -7,10 +7,13 @@ import (
 	"github.com/x90skysn3k/brutespray/modules"
 )
 
-var retryMap = make(map[string]int)
-var skipMap = make(map[string]bool)
-var skippedMap = make(map[string]bool)
-var retryMapMutex = &sync.Mutex{}
+var (
+	retryMap      = make(map[string]int)
+	skipMap       = make(map[string]bool)
+	skippedMap    = make(map[string]bool)
+	retryMapMutex = &sync.Mutex{}
+	skipWg        sync.WaitGroup
+)
 
 func ClearMaps() {
 	retryMapMutex.Lock()
@@ -40,7 +43,11 @@ func RunBrute(h modules.Host, u string, p string, progressCh chan<- int, timeout
 		if retries >= maxRetries {
 			if !skipMap[key] {
 				skipMap[key] = true
-				modules.PrintSkipping(h.Host, service, retries, maxRetries)
+				skipWg.Add(1)
+				go func(host, service string, retries, maxRetries int) {
+					defer skipWg.Done()
+					modules.PrintSkipping(host, service, retries, maxRetries)
+				}(h.Host, service, retries, maxRetries)
 			}
 			retryMapMutex.Unlock()
 			return false
@@ -113,4 +120,8 @@ func RunBrute(h modules.Host, u string, p string, progressCh chan<- int, timeout
 
 	modules.PrintResult(service, h.Host, h.Port, u, p, result, con_result, progressCh, retrying, output, delayTime)
 	return con_result
+}
+
+func WaitForSkipsToComplete() {
+	skipWg.Wait()
 }
