@@ -21,7 +21,7 @@ var masterServiceList = []string{"ssh", "ftp", "smtp", "mssql", "telnet", "smbnt
 
 var BetaServiceList = []string{"asterisk", "nntp", "oracle", "xmpp", "rdp"}
 
-var version = "v2.3.1"
+var version = "v2.3.2"
 
 func Execute() {
 	user := flag.String("u", "", "Username or user list to bruteforce")
@@ -55,26 +55,6 @@ func Execute() {
 		}
 		return masterServiceList
 	}
-
-	//if *networkInterface != "" {
-	//	interfaces, err := net.Interfaces()
-	//	if err != nil {
-	//		fmt.Println("Error getting network interfaces:", err)
-	//		os.Exit(1)
-	//	}
-	//	found := false
-	//	for _, iface := range interfaces {
-	//		if iface.Name == *networkInterface {
-	//			found = true
-	//			break
-	//		}
-	//	}
-	//
-	//		if !found {
-	//			fmt.Printf("Network interface %s not found or not available\n", *networkInterface)
-	//			os.Exit(1)
-	//		}
-	//	}
 
 	if *listServices {
 		pterm.DefaultSection.Println("Supported services:", strings.Join(getSupportedServices(*serviceType), ", "))
@@ -226,6 +206,7 @@ func Execute() {
 		pterm.Color(pterm.FgLightYellow).Println("\nReceived an interrupt signal, shutting down...")
 		time.Sleep(5 * time.Second)
 		_, _ = bar.Stop()
+		brute.ClearMaps()
 		os.Exit(0)
 	}()
 
@@ -394,4 +375,5 @@ func Execute() {
 	}
 	bruteForceWg.Wait()
 	_, _ = bar.Stop()
+	defer brute.ClearMaps()
 }
