@@ -17,7 +17,7 @@ require (
 	github.com/sijms/go-ora/v2 v2.8.22
 	github.com/wenerme/astgo v0.0.0-20230926205800-1b5bc38663fa
 	github.com/x90skysn3k/grdp v0.0.0-20240614212340-82874dbd1eae
-	go.mongodb.org/mongo-driver v1.17.1
+	go.mongodb.org/mongo-driver v1.17.2
 	golang.org/x/crypto v0.32.0
 	golang.org/x/net v0.34.0
 	gosrc.io/xmpp v0.5.1
@@ -43,7 +43,7 @@ require (
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/huin/asn1ber v0.0.0-20120622192748-af09f62e6358 // indirect
 	github.com/icodeface/tls v0.0.0-20190904083142-17aec93c60e5 // indirect
-	github.com/klauspost/compress v1.13.6 // indirect
+	github.com/klauspost/compress v1.16.7 // indirect
 	github.com/lithammer/fuzzysearch v1.1.8 // indirect
 	github.com/lunixbochs/struc v0.0.0-20200707160740-784aaebc1d40 // indirect
 	github.com/mattn/go-runewidth v0.0.16 // indirect
