@@ -14,7 +14,7 @@ require (
 	github.com/mitchellh/go-vnc v0.0.0-20150629162542-723ed9867aed
 	github.com/multiplay/go-ts3 v1.2.0
 	github.com/pterm/pterm v0.12.80
-	github.com/sijms/go-ora/v2 v2.8.22
+	github.com/sijms/go-ora/v2 v2.8.23
 	github.com/wenerme/astgo v0.0.0-20230926205800-1b5bc38663fa
 	github.com/x90skysn3k/grdp v0.0.0-20240614212340-82874dbd1eae
 	go.mongodb.org/mongo-driver v1.17.2
