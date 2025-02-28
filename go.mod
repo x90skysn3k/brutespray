@@ -1,6 +1,7 @@
 module github.com/x90skysn3k/brutespray
 
 go 1.22.4
+toolchain go1.23.6
 
 require (
 	github.com/denisenkom/go-mssqldb v0.12.3
@@ -18,7 +19,7 @@ require (
 	github.com/wenerme/astgo v0.0.0-20230926205800-1b5bc38663fa
 	github.com/x90skysn3k/grdp v0.0.0-20240614212340-82874dbd1eae
 	go.mongodb.org/mongo-driver v1.17.2
-	golang.org/x/crypto v0.33.0
+	golang.org/x/crypto v0.35.0
 	golang.org/x/net v0.35.0
 	gosrc.io/xmpp v0.5.1
 )
