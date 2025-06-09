@@ -57,7 +57,12 @@ func RunBrute(h modules.Host, u string, p string, progressCh chan<- int, timeout
 		case "xmpp":
 			result, con_result = BruteXMPP(h.Host, h.Port, u, p, timeout, socks5, netInterface)
 		case "rdp":
-			result, con_result = BruteRDP(h.Host, h.Port, u, p, timeout, socks5, netInterface)
+			// Try safe RDP brute force first
+			result, con_result = SafeBruteRDP(h.Host, h.Port, u, p, timeout, socks5, netInterface)
+			// If safe version fails with connection issue, try original as fallback
+			if !con_result {
+				result, con_result = BruteRDP(h.Host, h.Port, u, p, timeout, socks5, netInterface)
+			}
 		default:
 			//fmt.Printf("Unsupported service: %s\n", h.Service)
 			return con_result
