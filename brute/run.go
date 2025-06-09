@@ -52,8 +52,7 @@ func RunBrute(h modules.Host, u string, p string, progressCh chan<- int, timeout
 			return false
 		}
 
-		retryMap[key] = retries + 1
-		retrying = true
+		retrying = retries > 0
 		retryMapMutex.Unlock()
 
 		delayTime = timeout * time.Duration(retries)
@@ -116,11 +115,16 @@ func RunBrute(h modules.Host, u string, p string, progressCh chan<- int, timeout
 		}
 
 		if con_result {
+			// Connection succeeded: reset consecutive failure counter for this host/service.
 			retryMapMutex.Lock()
-			retryMap[key]--
+			retryMap[key] = 0
 			retryMapMutex.Unlock()
 			break
 		} else {
+			// Connection failed: increment the consecutive failure counter.
+			retryMapMutex.Lock()
+			retryMap[key] = retryMap[key] + 1
+			retryMapMutex.Unlock()
 			modules.PrintResult(service, h.Host, h.Port, u, p, result, con_result, progressCh, retrying, output, delayTime)
 			time.Sleep(delayTime)
 		}
