@@ -9,7 +9,7 @@ import (
 	"github.com/x90skysn3k/brutespray/modules"
 )
 
-func BruteSMB(host string, port int, user, password string, timeout time.Duration, socks5 string, netInterface string) (bool, bool) {
+func BruteSMB(host string, port int, user, password string, timeout time.Duration, socks5 string, netInterface string, domain string) (bool, bool) {
 	timer := time.NewTimer(timeout)
 	defer timer.Stop()
 
@@ -45,6 +45,7 @@ func BruteSMB(host string, port int, user, password string, timeout time.Duratio
 			Initiator: &smb2.NTLMInitiator{
 				User:     user,
 				Password: password,
+				Domain:   domain,
 			},
 		}
 

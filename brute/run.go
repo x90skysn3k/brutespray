@@ -70,7 +70,16 @@ func RunBrute(h modules.Host, u string, p string, progressCh chan<- int, timeout
 		case "telnet":
 			result, con_result = BruteTelnet(h.Host, h.Port, u, p, timeout, socks5, netInterface)
 		case "smbnt":
-			result, con_result = BruteSMB(h.Host, h.Port, u, p, timeout, socks5, netInterface)
+			parsedUser := u
+			parsedDomain := domain
+			if parsedDomain == "" && strings.Contains(u, "\\") {
+				parts := strings.SplitN(u, "\\", 2)
+				if len(parts) == 2 {
+					parsedDomain = parts[0]
+					parsedUser = parts[1]
+				}
+			}
+			result, con_result = BruteSMB(h.Host, h.Port, parsedUser, p, timeout, socks5, netInterface, parsedDomain)
 		case "postgres":
 			result, con_result = BrutePostgres(h.Host, h.Port, u, p, timeout, socks5, netInterface)
 		case "smtp":
