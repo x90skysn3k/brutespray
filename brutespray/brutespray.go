@@ -24,7 +24,7 @@ var BetaServiceList = []string{"asterisk", "nntp", "oracle", "xmpp", "rdp"}
 var version = "v2.3.2"
 
 func Execute() {
-	user := flag.String("u", "", "Username or user list to bruteforce")
+	user := flag.String("u", "", "Username or user list to bruteforce For SMBNT and RDP, use domain\\username format (e.g., CORP\\jdoe)")
 	password := flag.String("p", "", "Password or password file to use for bruteforce")
 	combo := flag.String("C", "", "Specify a combo wordlist deiminated by ':', example: user1:password")
 	output := flag.String("o", "brutespray-output", "Directory containing successful attempts")
