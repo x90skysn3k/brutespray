@@ -18,6 +18,13 @@ import (
 )
 
 func BruteRDP(host string, port int, user, password string, timeout time.Duration, socks5 string, netInterface string) (bool, bool) {
+	// Add panic recovery to handle makeslice errors
+	defer func() {
+		if r := recover(); r != nil {
+			glog.Errorf("[rdp panic recovered] %v", r)
+		}
+	}()
+
 	glog.SetLevel(pdu.STREAM_LOW)
 	logger := log.New(io.Discard, "", 0)
 	glog.SetLogger(logger)
@@ -36,6 +43,12 @@ func BruteRDP(host string, port int, user, password string, timeout time.Duratio
 	defer conn.Close()
 	glog.Info(conn.LocalAddr().String())
 
+	// Set a shorter timeout for individual operations
+	if timeout > 10*time.Second {
+		timeout = 10 * time.Second
+	}
+	conn.SetDeadline(time.Now().Add(timeout))
+
 	tpkt := tpkt.New(core.NewSocketLayer(conn), nla.NewNTLMv2("", user, password))
 	x224 := x224.New(tpkt)
 	mcs := t125.NewMCSClient(x224)
@@ -50,32 +63,70 @@ func BruteRDP(host string, port int, user, password string, timeout time.Duratio
 	pdu.SetFastPathSender(tpkt)
 
 	success := make(chan bool, 1)
+	done := make(chan bool, 1)
 
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				glog.Errorf("[rdp goroutine panic recovered] %v", r)
+				success <- false
+			}
+		}()
+
 		err := x224.Connect()
 		if err != nil {
 			glog.Errorf("[x224 connect err] %v", err)
 			success <- false
+			return
 		}
+		done <- true
 	}()
+
+	// Add timeout for the entire operation
+	operationTimeout := time.After(timeout + 5*time.Second)
 
 	pdu.On("error", func(e error) {
 		glog.Error("error", e)
-		success <- false
+		select {
+		case success <- false:
+		default:
+		}
 	})
 	pdu.On("close", func() {
 		glog.Info("on close")
-		success <- false
+		select {
+		case success <- false:
+		default:
+		}
 	})
 	pdu.On("ready", func() {
 		glog.Info("on ready")
-		success <- true
+		select {
+		case success <- true:
+		default:
+		}
 	})
 	pdu.On("success", func() {
 		glog.Info("on success")
-		success <- true
+		select {
+		case success <- true:
+		default:
+		}
 	})
 
-	result := <-success
-	return result, true
+	select {
+	case result := <-success:
+		return result, true
+	case <-done:
+		// Wait a bit more for success/error events
+		select {
+		case result := <-success:
+			return result, true
+		case <-time.After(2 * time.Second):
+			return false, true
+		}
+	case <-operationTimeout:
+		glog.Errorf("[rdp timeout] Connection to %s:%d timed out", host, port)
+		return false, false
+	}
 }
