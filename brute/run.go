@@ -1,6 +1,7 @@
 package brute
 
 import (
+	"strings"
 	"sync"
 	"time"
 
@@ -22,7 +23,7 @@ func ClearMaps() {
 	skipMap = make(map[string]bool)
 }
 
-func RunBrute(h modules.Host, u string, p string, progressCh chan<- int, timeout time.Duration, maxRetries int, output string, socks5 string, netInterface string) bool {
+func RunBrute(h modules.Host, u string, p string, progressCh chan<- int, timeout time.Duration, maxRetries int, output string, socks5 string, netInterface string, domain string) bool {
 	service := h.Service
 	var result, con_result bool
 	var retrying bool
@@ -100,7 +101,16 @@ func RunBrute(h modules.Host, u string, p string, progressCh chan<- int, timeout
 		case "xmpp":
 			result, con_result = BruteXMPP(h.Host, h.Port, u, p, timeout, socks5, netInterface)
 		case "rdp":
-			result, con_result = BruteRDP(h.Host, h.Port, u, p, timeout, socks5, netInterface)
+			parsedUser := u
+			parsedDomain := domain
+			if domain == "" && strings.Contains(u, "\\") {
+				parts := strings.SplitN(u, "\\", 2)
+				if len(parts) == 2 {
+					parsedDomain = parts[0]
+					parsedUser = parts[1]
+				}
+			}
+			result, con_result = BruteRDP(h.Host, h.Port, parsedUser, p, timeout, socks5, netInterface, parsedDomain)
 		default:
 			return false
 		}
