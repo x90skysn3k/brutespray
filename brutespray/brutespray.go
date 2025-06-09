@@ -38,8 +38,9 @@ func Execute() {
 	host := flag.String("H", "", "Target in the format service://host:port, CIDR ranges supported,\n default port will be used if not specified")
 	quiet := flag.Bool("q", false, "Suppress the banner")
 	timeout := flag.Duration("w", 5*time.Second, "Set timeout delay of bruteforce attempts")
-	retry := flag.Int("r", 100, "Amount of times to retry after receiving connection failed")
+	retry := flag.Int("r", 3, "Amount of times to retry after receiving connection failed")
 	printhosts := flag.Bool("P", false, "Print found hosts parsed from provided host and file arguments")
+	domain := flag.String("d", "", "Domain to use for RDP authentication (optional)")
 
 	flag.Parse()
 
@@ -253,7 +254,7 @@ func Execute() {
 										select {
 										case <-stopChan:
 										default:
-											brute.RunBrute(h, u, p, progressCh, *timeout, *retry, *output, *socksProxy, *netInterface)
+											brute.RunBrute(h, u, p, progressCh, *timeout, *retry, *output, *socksProxy, *netInterface, *domain)
 											bruteForceWg.Add(1)
 										}
 										progressCh <- 1
@@ -287,7 +288,7 @@ func Execute() {
 										select {
 										case <-stopChan:
 										default:
-											brute.RunBrute(h, u, p, progressCh, *timeout, *retry, *output, *socksProxy, *netInterface)
+											brute.RunBrute(h, u, p, progressCh, *timeout, *retry, *output, *socksProxy, *netInterface, *domain)
 											bruteForceWg.Add(1)
 										}
 										progressCh <- 1
@@ -325,7 +326,7 @@ func Execute() {
 										case <-stopChan:
 											return
 										default:
-											brute.RunBrute(h, u, p, progressCh, *timeout, *retry, *output, *socksProxy, *netInterface)
+											brute.RunBrute(h, u, p, progressCh, *timeout, *retry, *output, *socksProxy, *netInterface, *domain)
 											bruteForceWg.Add(1)
 										}
 										progressCh <- 1
@@ -362,7 +363,7 @@ func Execute() {
 											case <-stopChan:
 												return
 											default:
-												brute.RunBrute(h, u, p, progressCh, *timeout, *retry, *output, *socksProxy, *netInterface)
+												brute.RunBrute(h, u, p, progressCh, *timeout, *retry, *output, *socksProxy, *netInterface, *domain)
 												bruteForceWg.Add(1)
 											}
 											progressCh <- 1
