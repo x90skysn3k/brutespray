@@ -21,10 +21,10 @@ var masterServiceList = []string{"ssh", "ftp", "http", "smtp", "mssql", "telnet"
 
 var BetaServiceList = []string{"asterisk", "nntp", "oracle", "xmpp", "rdp"}
 
-var version = "v2.3.1"
+var version = "v2.3.2"
 
 func Execute() {
-	user := flag.String("u", "", "Username or user list to bruteforce")
+	user := flag.String("u", "", "Username or user list to bruteforce For SMBNT and RDP, use domain\\username format (e.g., CORP\\jdoe)")
 	password := flag.String("p", "", "Password or password file to use for bruteforce")
 	combo := flag.String("C", "", "Specify a combo wordlist deiminated by ':', example: user1:password")
 	output := flag.String("o", "brutespray-output", "Directory containing successful attempts")
@@ -37,9 +37,10 @@ func Execute() {
 	file := flag.String("f", "", "File to parse; Supported: Nmap, Nessus, Nexpose, Lists, etc")
 	host := flag.String("H", "", "Target in the format service://host:port, CIDR ranges supported,\n default port will be used if not specified")
 	quiet := flag.Bool("q", false, "Suppress the banner")
-	timeout := flag.Duration("w", 5*time.Second, "Set timeout of bruteforce attempts")
+	timeout := flag.Duration("w", 5*time.Second, "Set timeout delay of bruteforce attempts")
 	retry := flag.Int("r", 3, "Amount of times to retry after receiving connection failed")
 	printhosts := flag.Bool("P", false, "Print found hosts parsed from provided host and file arguments")
+	domain := flag.String("d", "", "Domain to use for RDP authentication (optional)")
 
 	flag.Parse()
 
@@ -55,26 +56,6 @@ func Execute() {
 		}
 		return masterServiceList
 	}
-
-	//if *networkInterface != "" {
-	//	interfaces, err := net.Interfaces()
-	//	if err != nil {
-	//		fmt.Println("Error getting network interfaces:", err)
-	//		os.Exit(1)
-	//	}
-	//	found := false
-	//	for _, iface := range interfaces {
-	//		if iface.Name == *networkInterface {
-	//			found = true
-	//			break
-	//		}
-	//	}
-	//
-	//		if !found {
-	//			fmt.Printf("Network interface %s not found or not available\n", *networkInterface)
-	//			os.Exit(1)
-	//		}
-	//	}
 
 	if *listServices {
 		pterm.DefaultSection.Println("Supported services:", strings.Join(getSupportedServices(*serviceType), ", "))
@@ -226,10 +207,21 @@ func Execute() {
 		pterm.Color(pterm.FgLightYellow).Println("\nReceived an interrupt signal, shutting down...")
 		time.Sleep(5 * time.Second)
 		_, _ = bar.Stop()
+		brute.ClearMaps()
 		os.Exit(0)
 	}()
 
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+
+	totalHosts := len(hostsList)
+
+	if *hostParallelism > totalHosts {
+		*hostParallelism = totalHosts
+	}
+
+	if *threads > *retry {
+		*threads = *retry
+	}
 
 	for _, service := range supportedServices {
 		wg.Add(1)
@@ -262,7 +254,7 @@ func Execute() {
 										select {
 										case <-stopChan:
 										default:
-											brute.RunBrute(h, u, p, progressCh, *timeout, *retry, *output, *socksProxy, *netInterface)
+											brute.RunBrute(h, u, p, progressCh, *timeout, *retry, *output, *socksProxy, *netInterface, *domain)
 											bruteForceWg.Add(1)
 										}
 										progressCh <- 1
@@ -296,7 +288,7 @@ func Execute() {
 										select {
 										case <-stopChan:
 										default:
-											brute.RunBrute(h, u, p, progressCh, *timeout, *retry, *output, *socksProxy, *netInterface)
+											brute.RunBrute(h, u, p, progressCh, *timeout, *retry, *output, *socksProxy, *netInterface, *domain)
 											bruteForceWg.Add(1)
 										}
 										progressCh <- 1
@@ -334,7 +326,7 @@ func Execute() {
 										case <-stopChan:
 											return
 										default:
-											brute.RunBrute(h, u, p, progressCh, *timeout, *retry, *output, *socksProxy, *netInterface)
+											brute.RunBrute(h, u, p, progressCh, *timeout, *retry, *output, *socksProxy, *netInterface, *domain)
 											bruteForceWg.Add(1)
 										}
 										progressCh <- 1
@@ -371,7 +363,7 @@ func Execute() {
 											case <-stopChan:
 												return
 											default:
-												brute.RunBrute(h, u, p, progressCh, *timeout, *retry, *output, *socksProxy, *netInterface)
+												brute.RunBrute(h, u, p, progressCh, *timeout, *retry, *output, *socksProxy, *netInterface, *domain)
 												bruteForceWg.Add(1)
 											}
 											progressCh <- 1
@@ -394,4 +386,5 @@ func Execute() {
 	}
 	bruteForceWg.Wait()
 	_, _ = bar.Stop()
+	defer brute.ClearMaps()
 }

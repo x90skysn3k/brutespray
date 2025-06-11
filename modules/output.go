@@ -100,3 +100,7 @@ func PrintWarningBeta(service string) {
 func PrintSocksError(service string, err string) {
 	pterm.Color(pterm.FgRed).Println("Error", service, "SOCKS5 connection error, please check your SOCKS5 server. Error:", err)
 }
+
+func PrintSkipping(host string, service string, retries int, maxRetries int) {
+	pterm.Color(pterm.FgRed).Println("Warning, giving up on attempting", service, "on host", host, " max retries", retries, "out of", maxRetries)
+}
