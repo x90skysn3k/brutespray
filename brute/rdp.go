@@ -17,14 +17,7 @@ import (
 	"github.com/x90skysn3k/grdp/protocol/x224"
 )
 
-func BruteRDP(host string, port int, user, password string, timeout time.Duration, socks5 string, netInterface string) (bool, bool) {
-	// Add panic recovery to handle makeslice errors
-	defer func() {
-		if r := recover(); r != nil {
-			glog.Errorf("[rdp panic recovered] %v", r)
-		}
-	}()
-
+func BruteRDP(host string, port int, user, password string, timeout time.Duration, socks5 string, netInterface string, domain string) (bool, bool) {
 	glog.SetLevel(pdu.STREAM_LOW)
 	logger := log.New(io.Discard, "", 0)
 	glog.SetLogger(logger)
@@ -43,13 +36,7 @@ func BruteRDP(host string, port int, user, password string, timeout time.Duratio
 	defer conn.Close()
 	glog.Info(conn.LocalAddr().String())
 
-	// Set a shorter timeout for individual operations
-	if timeout > 10*time.Second {
-		timeout = 10 * time.Second
-	}
-	conn.SetDeadline(time.Now().Add(timeout))
-
-	tpkt := tpkt.New(core.NewSocketLayer(conn), nla.NewNTLMv2("", user, password))
+	tpkt := tpkt.New(core.NewSocketLayer(conn), nla.NewNTLMv2(domain, user, password))
 	x224 := x224.New(tpkt)
 	mcs := t125.NewMCSClient(x224)
 	sec := sec.NewClient(mcs)
