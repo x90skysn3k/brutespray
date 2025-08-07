@@ -22,6 +22,7 @@ var masterServiceList = []string{"ssh", "ftp", "smtp", "mssql", "telnet", "smbnt
 var BetaServiceList = []string{"asterisk", "nntp", "oracle", "xmpp", "rdp"}
 
 var version = "v2.3.2"
+var NoColorMode bool
 
 func Execute() {
 	user := flag.String("u", "", "Username or user list to bruteforce For SMBNT and RDP, use domain\\username format (e.g., CORP\\jdoe)")
@@ -41,10 +42,14 @@ func Execute() {
 	retry := flag.Int("r", 3, "Amount of times to retry after receiving connection failed")
 	printhosts := flag.Bool("P", false, "Print found hosts parsed from provided host and file arguments")
 	domain := flag.String("d", "", "Domain to use for RDP authentication (optional)")
+	noColor := flag.Bool("nc", false, "Disable colored output")
+	verbose := flag.Bool("v", false, "Verbose mode - show failed authentication attempts")
 
 	flag.Parse()
 
-	banner.Banner(version, *quiet)
+	NoColorMode = *noColor
+	modules.NoColorMode = *noColor
+	banner.Banner(version, *quiet, NoColorMode)
 
 	getSupportedServices := func(serviceType string) []string {
 		if serviceType != "all" {
@@ -130,7 +135,7 @@ func Execute() {
 
 	if *printhosts {
 
-		pterm.Color(pterm.FgLightGreen).Println("Found Services:")
+		modules.PrintlnColored(pterm.FgLightGreen, "Found Services:")
 		data := pterm.TableData{}
 
 		header := []string{"IP", "Service and Port"}
@@ -177,15 +182,15 @@ func Execute() {
 			fmt.Println("Error:", err)
 			os.Exit(1)
 		}
-		pterm.Color(pterm.FgLightYellow).Printf("Network Interface: %s\n", *netInterface)
-		pterm.Color(pterm.FgLightYellow).Printf("Local Address: %s\n", ipAddr)
+		modules.PrintfColored(pterm.FgLightYellow, "Network Interface: %s\n", *netInterface)
+		modules.PrintfColored(pterm.FgLightYellow, "Local Address: %s\n", ipAddr)
 	}
 
 	if *socksProxy != "" {
-		pterm.Color(pterm.FgLightYellow).Printf("Socks5 Proxy: %s\n", *socksProxy)
+		modules.PrintfColored(pterm.FgLightYellow, "Socks5 Proxy: %s\n", *socksProxy)
 	}
 
-	pterm.Color(pterm.FgLightYellow).Println("\nStarting to brute, please make sure to use the right amount of threads(-t) and parallel hosts(-T)...")
+	modules.PrintlnColored(pterm.FgLightYellow, "\nStarting to brute, please make sure to use the right amount of threads(-t) and parallel hosts(-T)...")
 
 	spinner, _ := pterm.DefaultSpinner.Start("Starting Bruteforce...")
 	time.Sleep(3 * time.Second)
@@ -204,7 +209,7 @@ func Execute() {
 
 	go func() {
 		<-sigs
-		pterm.Color(pterm.FgLightYellow).Println("\nReceived an interrupt signal, shutting down...")
+		modules.PrintlnColored(pterm.FgLightYellow, "\nReceived an interrupt signal, shutting down...")
 		time.Sleep(5 * time.Second)
 		_, _ = bar.Stop()
 		brute.ClearMaps()
