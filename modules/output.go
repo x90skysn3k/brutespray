@@ -63,15 +63,16 @@ func WriteToFile(service string, content string, port int, output string) error 
 func PrintResult(service string, host string, port int, user string, pass string, result bool, con_result bool, progressCh chan<- int, retrying bool, output string, delayTime time.Duration) {
 
 	if result && con_result {
+		// SUCCESS - Always show these
 		if service == "vnc" {
-			pterm.Color(pterm.BgGreen).Println("Attempt", service, "SUCCESS on host", host, "port", port, "with password", pass, getResultString(result))
+			PrintlnColored(pterm.BgGreen, "✓ SUCCESS:", service, "on", host, "port", port, "with password", pass)
 			content := fmt.Sprintf("Attempt %s SUCCESS on host %s port %d with password %s %s\n", service, host, port, pass, getResultString(result))
 			err := WriteToFile(service, content, port, output)
 			if err != nil {
 				fmt.Println("write file error:", err)
 			}
 		} else {
-			pterm.Color(pterm.BgGreen).Println("Attempt", service, "SUCCESS on host", host, "port", port, "with username", user, "and password", pass, getResultString(result))
+			PrintlnColored(pterm.BgGreen, "✓ SUCCESS:", service, "on", host, "port", port, "with", user+":"+pass)
 			content := fmt.Sprintf("Attempt %s SUCCESS on host %s port %d with username %s and password %s %s\n", service, host, port, user, pass, getResultString(result))
 			err := WriteToFile(service, content, port, output)
 			if err != nil {
@@ -79,28 +80,37 @@ func PrintResult(service string, host string, port int, user string, pass string
 			}
 		}
 	} else if !result && con_result {
+		// Authentication failed but connection succeeded - only show in verbose mode or for specific cases
+		// For now, we'll suppress these to keep output clean
+		// Uncomment the lines below if you want to see failed auth attempts
+		/*
 		if service == "vnc" {
-			pterm.Color(pterm.FgLightRed).Println("Attempt", service, "on host", host, "port", port, "with password", pass, getResultString(result))
+			PrintlnColored(pterm.FgLightRed, "✗ FAILED:", service, "on", host, "port", port, "with password", pass)
 		} else {
-			pterm.Color(pterm.FgLightRed).Println("Attempt", service, "on host", host, "port", port, "with username", user, "and password", pass, getResultString(result))
+			PrintlnColored(pterm.FgLightRed, "✗ FAILED:", service, "on", host, "port", port, "with", user+":"+pass)
 		}
+		*/
 	} else if !result && !con_result {
-		if service == "vnc" {
-			pterm.Color(pterm.FgRed).Println("Attempt", service, "on host", host, "port", port, "with password", pass, getConResultString(con_result, retrying, delayTime))
-		} else {
-			pterm.Color(pterm.FgRed).Println("Attempt", service, "on host", host, "port", port, "with username", user, "and password", pass, getConResultString(con_result, retrying, delayTime))
+		// Connection failed - only show retry messages, not every attempt
+		if retrying {
+			if service == "vnc" {
+				PrintlnColored(pterm.FgRed, "⚠ RETRY:", service, "on", host, "port", port, "with password", pass, "-", getConResultString(con_result, retrying, delayTime))
+			} else {
+				PrintlnColored(pterm.FgRed, "⚠ RETRY:", service, "on", host, "port", port, "with", user+":"+pass, "-", getConResultString(con_result, retrying, delayTime))
+			}
 		}
+		// Suppress individual failed connection attempts to keep output clean
 	}
 }
 
 func PrintWarningBeta(service string) {
-	pterm.Color(pterm.BgYellow).Println("Warning, the module", service, "is Beta, results may be inaccurate, use at your own risk")
+	PrintlnColored(pterm.BgYellow, "⚠ Warning:", service, "is Beta, results may be inaccurate")
 }
 
 func PrintSocksError(service string, err string) {
-	pterm.Color(pterm.FgRed).Println("Error", service, "SOCKS5 connection error, please check your SOCKS5 server. Error:", err)
+	PrintlnColored(pterm.FgRed, "✗ SOCKS5 Error:", service, "-", err)
 }
 
 func PrintSkipping(host string, service string, retries int, maxRetries int) {
-	pterm.Color(pterm.FgRed).Println("Warning, giving up on attempting", service, "on host", host, " max retries", retries, "out of", maxRetries)
+	PrintlnColored(pterm.FgRed, "⚠ SKIPPING:", service, "on", host, "after", retries, "retries")
 }
