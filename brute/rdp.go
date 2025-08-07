@@ -50,32 +50,70 @@ func BruteRDP(host string, port int, user, password string, timeout time.Duratio
 	pdu.SetFastPathSender(tpkt)
 
 	success := make(chan bool, 1)
+	done := make(chan bool, 1)
 
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				glog.Errorf("[rdp goroutine panic recovered] %v", r)
+				success <- false
+			}
+		}()
+
 		err := x224.Connect()
 		if err != nil {
 			glog.Errorf("[x224 connect err] %v", err)
 			success <- false
+			return
 		}
+		done <- true
 	}()
+
+	// Add timeout for the entire operation
+	operationTimeout := time.After(timeout + 5*time.Second)
 
 	pdu.On("error", func(e error) {
 		glog.Error("error", e)
-		success <- false
+		select {
+		case success <- false:
+		default:
+		}
 	})
 	pdu.On("close", func() {
 		glog.Info("on close")
-		success <- false
+		select {
+		case success <- false:
+		default:
+		}
 	})
 	pdu.On("ready", func() {
 		glog.Info("on ready")
-		success <- true
+		select {
+		case success <- true:
+		default:
+		}
 	})
 	pdu.On("success", func() {
 		glog.Info("on success")
-		success <- true
+		select {
+		case success <- true:
+		default:
+		}
 	})
 
-	result := <-success
-	return result, true
+	select {
+	case result := <-success:
+		return result, true
+	case <-done:
+		// Wait a bit more for success/error events
+		select {
+		case result := <-success:
+			return result, true
+		case <-time.After(2 * time.Second):
+			return false, true
+		}
+	case <-operationTimeout:
+		glog.Errorf("[rdp timeout] Connection to %s:%d timed out", host, port)
+		return false, false
+	}
 }
