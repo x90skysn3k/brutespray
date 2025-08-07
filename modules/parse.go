@@ -67,6 +67,7 @@ type NmapPort struct {
 	Protocol  string      `xml:"protocol,attr"`
 	PortState NmapState   `xml:"state"`
 	Service   NmapService `xml:"service"`
+	Scripts   []NmapScript `xml:"script"`
 }
 
 type NmapState struct {
@@ -75,6 +76,10 @@ type NmapState struct {
 
 type NmapService struct {
 	Name string `xml:"name,attr"`
+}
+
+type NmapScript struct {
+	Id string `xml:"id,attr"`
 }
 
 func contains(s []string, e string) bool {
@@ -103,6 +108,7 @@ var NAME_MAP = map[string]string{
 	"textui":         "teamspeak",
 	"xmpp-client":    "xmpp",
 	"ms-wbt-server":  "rdp",
+	"https":          "http",
 }
 
 func MapService(service string) string {
@@ -116,7 +122,7 @@ func ParseGNMAP(filename string) (map[Host]int, error) {
 	supported := []string{"ssh", "ftp", "postgres", "telnet", "mysql", "ms-sql-s", "shell",
 		"vnc", "imap", "imaps", "nntp", "pcanywheredata", "pop3", "pop3s",
 		"exec", "login", "microsoft-ds", "smtp", "smtps", "submission",
-		"svn", "iss-realsecure", "snmptrap", "snmp", "ms-wbt-server", "mongod", "nntp", "oracle", "textui", "xmpp-client"}
+		"svn", "iss-realsecure", "snmptrap", "snmp", "ms-wbt-server", "mongod", "nntp", "oracle", "textui", "xmpp-client", "http", "https"}
 
 	hosts := make(map[Host]int)
 
@@ -156,7 +162,7 @@ func ParseJSON(filename string) (map[Host]int, error) {
 	supported := []string{"ssh", "ftp", "postgres", "telnet", "mysql", "ms-sql-s", "shell",
 		"vnc", "imap", "imaps", "nntp", "pcanywheredata", "pop3", "pop3s",
 		"exec", "login", "microsoft-ds", "smtp", "smtps", "submission",
-		"svn", "iss-realsecure", "snmptrap", "snmp", "mongodb", "nntp", "oracle", "textui", "xmpp-client", "ms-wbt-server"}
+		"svn", "iss-realsecure", "snmptrap", "snmp", "mongodb", "nntp", "oracle", "textui", "xmpp-client", "ms-wbt-server", "http", "https"}
 
 	hosts := make(map[Host]int)
 
@@ -190,7 +196,7 @@ func ParseXML(filename string) (map[Host]int, error) {
 	supported := []string{"ssh", "ftp", "postgresql", "telnet", "mysql", "ms-sql-s", "rsh",
 		"vnc", "imap", "imaps", "nntp", "pcanywheredata", "pop3", "pop3s",
 		"exec", "login", "microsoft-ds", "smtp", "smtps", "submission",
-		"svn", "iss-realsecure", "snmptrap", "snmp", "mongod", "nntp", "oracle", "textui", "xmpp-client", "ms-wbt-server"}
+		"svn", "iss-realsecure", "snmptrap", "snmp", "mongod", "nntp", "oracle", "textui", "xmpp-client", "ms-wbt-server", "http", "https"}
 
 	hosts := make(map[Host]int)
 
@@ -215,8 +221,18 @@ func ParseXML(filename string) (map[Host]int, error) {
 				if contains(supported, name) {
 					p, _ := strconv.Atoi(port.PortId)
 					mappedService := MapService(name)
-					h := Host{Service: mappedService, Host: ip, Port: p}
-					hosts[h] = 1
+					
+					// Check http-auth script for http service
+					if mappedService == "http" {
+						if hasHttpAuthScript(port.Scripts) {
+							h := Host{Service: mappedService, Host: ip, Port: p}
+							hosts[h] = 1
+						}
+					} else {
+						// No changes for other services
+						h := Host{Service: mappedService, Host: ip, Port: p}
+						hosts[h] = 1
+					}
 				}
 			}
 		}
@@ -228,7 +244,7 @@ func ParseNexpose(filename string) (map[Host]int, error) {
 	supported := []string{"ssh", "ftp", "postgresql", "telnet", "mysql", "ms-sql-s", "rsh",
 		"vnc", "imap", "imaps", "nntp", "pcanywheredata", "pop3", "pop3s",
 		"exec", "login", "microsoft-ds", "smtp", "smtps", "submission",
-		"svn", "iss-realsecure", "snmptrap", "snmp", "cifs", "mongod", "nntp", "oracle", "textui", "xmpp-client", "ms-wbt-server"}
+		"svn", "iss-realsecure", "snmptrap", "snmp", "cifs", "mongod", "nntp", "oracle", "textui", "xmpp-client", "ms-wbt-server", "http", "https"}
 
 	hosts := make(map[Host]int)
 	file, err := os.Open(filename)
@@ -278,7 +294,7 @@ func ParseNessus(filename string) (map[Host]int, error) {
 	supported := []string{"ssh", "ftp", "postgresql", "telnet", "mysql", "ms-sql-s", "rsh",
 		"vnc", "imap", "imaps", "nntp", "pcanywheredata", "pop3", "pop3s",
 		"exec", "login", "microsoft-ds", "smtp", "smtps", "submission",
-		"svn", "iss-realsecure", "snmptrap", "snmp", "cifs", "mongod", "nntp", "oracle", "textui", "xmpp-client", "ms-wbt-server"}
+		"svn", "iss-realsecure", "snmptrap", "snmp", "cifs", "mongod", "nntp", "oracle", "textui", "xmpp-client", "ms-wbt-server", "http", "https"}
 
 	hosts := make(map[Host]int)
 	file, err := os.Open(filename)
@@ -311,7 +327,7 @@ func ParseNessus(filename string) (map[Host]int, error) {
 	return hosts, nil
 }
 func ParseList(filename string) (map[Host]int, error) {
-	supportedServices := []string{"ssh", "ftp", "smtp", "mssql", "telnet", "smbnt", "postgres", "imap", "pop3", "snmp", "mysql", "vmauthd", "asterisk", "vnc", "mongod", "nntp", "oracle", "teamspeak", "xmpp", "rdp"}
+	supportedServices := []string{"ssh", "ftp", "http", "smtp", "mssql", "telnet", "smbnt", "postgres", "imap", "pop3", "snmp", "mysql", "vmauthd", "asterisk", "vnc", "mongod", "nntp", "oracle", "teamspeak", "xmpp", "rdp"}
 	file, err := os.Open(filename)
 	if err != nil {
 		return nil, err
@@ -353,6 +369,8 @@ func (h *Host) Parse(host string) ([]Host, error) {
 	supportedServices := map[string]int{
 		"ssh":       22,
 		"ftp":       21,
+		"http":      80,
+		"https":     443,
 		"smtp":      25,
 		"mssql":     1433,
 		"telnet":    23,
@@ -449,4 +467,14 @@ func inc(ip net.IP) {
 			break
 		}
 	}
+}
+
+// hasHttpAuthScript проверяет, есть ли скрипт http-auth в списке скриптов порта
+func hasHttpAuthScript(scripts []NmapScript) bool {
+	for _, script := range scripts {
+		if script.Id == "http-auth" {
+			return true
+		}
+	}
+	return false
 }
