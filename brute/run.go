@@ -65,8 +65,6 @@ func RunBrute(h modules.Host, u string, p string, progressCh chan<- int, timeout
 			result, con_result = BruteSSH(h.Host, h.Port, u, p, timeout, socks5, netInterface)
 		case "ftp":
 			result, con_result = BruteFTP(h.Host, h.Port, u, p, timeout, socks5, netInterface)
-		case "http":
-			result, con_result = BruteHTTP(h.Host, h.Port, u, p, timeout, socks5, netInterface)
 		case "mssql":
 			result, con_result = BruteMSSQL(h.Host, h.Port, u, p, timeout, socks5, netInterface)
 		case "telnet":
