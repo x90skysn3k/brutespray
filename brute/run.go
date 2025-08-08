@@ -26,7 +26,6 @@ func ClearMaps() {
 func RunBrute(h modules.Host, u string, p string, progressCh chan<- int, timeout time.Duration, maxRetries int, output string, socks5 string, netInterface string, domain string) bool {
 	service := h.Service
 	var result, con_result bool
-	var retrying bool
 	var delayTime time.Duration
 
 	key := h.Host + ":" + h.Service
@@ -52,13 +51,7 @@ func RunBrute(h modules.Host, u string, p string, progressCh chan<- int, timeout
 			return false
 		}
 
-		retrying = retries > 0
 		retryMapMutex.Unlock()
-
-		delayTime = timeout * time.Duration(retries)
-		if delayTime > 10*time.Second {
-			delayTime = 10 * time.Second
-		}
 
 		switch service {
 		case "ssh":
@@ -130,16 +123,28 @@ func RunBrute(h modules.Host, u string, p string, progressCh chan<- int, timeout
 			retryMapMutex.Unlock()
 			break
 		} else {
-			// Connection failed: increment the consecutive failure counter.
+			// Connection failed: increment the consecutive failure counter, compute next delay, and decide whether we will retry.
 			retryMapMutex.Lock()
-			retryMap[key] = retryMap[key] + 1
+			nextRetries := retryMap[key] + 1
+			retryMap[key] = nextRetries
 			retryMapMutex.Unlock()
-			modules.PrintResult(service, h.Host, h.Port, u, p, result, con_result, progressCh, retrying, output, delayTime)
-			time.Sleep(delayTime)
+
+			willRetry := nextRetries < maxRetries
+
+			delayTime = timeout * time.Duration(nextRetries)
+			if delayTime > 10*time.Second {
+				delayTime = 10 * time.Second
+			}
+
+			modules.PrintResult(service, h.Host, h.Port, u, p, result, con_result, progressCh, willRetry, output, delayTime)
+
+			if willRetry {
+				time.Sleep(delayTime)
+			}
 		}
 	}
 
-	modules.PrintResult(service, h.Host, h.Port, u, p, result, con_result, progressCh, retrying, output, delayTime)
+	modules.PrintResult(service, h.Host, h.Port, u, p, result, con_result, progressCh, false, output, 0)
 	return con_result
 }
 
