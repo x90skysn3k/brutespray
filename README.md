@@ -42,6 +42,29 @@ Command: ```brutespray -H ssh://127.0.0.1:22 -u userlist -p passlist```
 
 Command: ```brutespray -H ssh://127.0.0.1 -C root:root```
 
+# Command Line Options
+
+| Flag | Description | Example |
+|------|-------------|---------|
+| `-u` | Username or user list to bruteforce. For SMBNT and RDP, use domain\\username format (e.g., CORP\\jdoe) | `-u admin` or `-u userlist.txt` |
+| `-p` | Password or password file to use for bruteforce | `-p password` or `-p passlist.txt` |
+| `-C` | Specify a combo wordlist delimited by ':', example: user1:password | `-C root:root` |
+| `-o` | Directory containing successful attempts (default: brutespray-output) | `-o results` |
+| `-t` | Number of threads per host (default: 10) | `-t 20` |
+| `-T` | Number of hosts to bruteforce at the same time (default: 5) | `-T 10` |
+| `-socks5` | SOCKS5 proxy to use for bruteforce | `-socks5 socks5://user:pass@host:port` |
+| `-iface` | Specific network interface to use for bruteforce traffic | `-iface tun0` |
+| `-s` | Service type: ssh, ftp, smtp, etc; Default all | `-s ssh,ftp` |
+| `-S` | List all supported services | `-S` |
+| `-f` | File to parse; Supported: Nmap, Nessus, Nexpose, Lists, etc | `-f nmap.gnmap` |
+| `-H` | Target in the format service://host:port, CIDR ranges supported, default port will be used if not specified | `-H ssh://192.168.1.1:22` |
+| `-q` | Suppress the banner | `-q` |
+| `-w` | Set timeout delay of bruteforce attempts (default: 5s) | `-w 10s` |
+| `-r` | Amount of times to retry after receiving connection failed (default: 3) | `-r 5` |
+| `-P` | Print found hosts parsed from provided host and file arguments | `-P` |
+| `-d` | Domain to use for RDP authentication (optional) | `-d CORP` |
+| `-nc` | Disable colored output | `-nc` |
+
 # Examples
 
 <img src="brutespray.gif" width="512">
@@ -70,11 +93,25 @@ Command: ```brutespray -H ssh://127.0.0.1 -C root:root```
 
 ```brutespray -H ssh://10.1.1.0/24:22 -t 1000```
 
-#### Socks5 Proxy Support
+#### SOCKS5 Proxy Support
 
-```brutespray -H ssh://10.1.1.0/24:22 -socks5 localhost:1080```
+Brutespray supports SOCKS5 proxies for all services. You can use different formats:
+
+**Basic SOCKS5 proxy:**
+```brutespray -H ssh://10.1.1.0/24:22 -socks5 127.0.0.1:1080```
+
+**SOCKS5 with authentication:**
+```brutespray -H ssh://10.1.1.0/24:22 -socks5 socks5://user:pass@127.0.0.1:1080```
+
+**SOCKS5 with hostname resolution (socks5h):**
+```brutespray -H ssh://10.1.1.0/24:22 -socks5 socks5h://user:pass@proxy.example.com:1080```
+
+**Full URL format:**
+```brutespray -H ssh://10.1.1.0/24:22 -socks5 socks5://user:pass@proxy.example.com:1080```
 
 #### Network Interface Support
+
+Specify a specific network interface for all connections:
 
 ```brutespray -H ssh://10.1.1.0/24:22 -iface tun0```
 
@@ -83,6 +120,27 @@ Command: ```brutespray -H ssh://127.0.0.1 -C root:root```
 ```brutespray -f nessus.nessus -P -q```
 
 <img src="https://i.imgur.com/97ENS23.png" width="500">
+
+#### Advanced Threading and Performance
+
+**High-performance bruteforce with custom threading:**
+```brutespray -f nmap.gnmap -u admin -p password -t 50 -T 10```
+
+**Conservative approach with lower resource usage:**
+```brutespray -f nmap.gnmap -u admin -p password -t 5 -T 2```
+
+#### RDP with Domain Authentication
+
+```brutespray -H rdp://192.168.1.100:3389 -u admin -p password -d CORP```
+
+#### Timeout and Retry Configuration
+
+**Custom timeout and retry settings:**
+```brutespray -f nmap.gnmap -u admin -p password -w 10s -r 5```
+
+#### Disable Color Output
+
+```brutespray -f nmap.gnmap -u admin -p password -nc```
 
 # Supported Services
 
@@ -116,6 +174,24 @@ Command: ```brutespray -H ssh://127.0.0.1 -C root:root```
 
 Feel free to open an issue if these work, or if you have any issues
 
+# SOCKS5 Proxy Features
+
+Brutespray includes comprehensive SOCKS5 proxy support with the following features:
+
+- **Authentication Support**: Username/password authentication for SOCKS5 proxies
+- **Hostname Resolution**: Support for both local (socks5://) and remote (socks5h://) hostname resolution
+- **Interface Binding**: All proxy connections bind to the specified network interface
+- **Connection Pooling**: Optimized connection management for better performance
+- **Error Handling**: Comprehensive error handling and reporting for proxy connections
+- **All Services**: SOCKS5 proxy support works across all supported services
+
+# Network Interface Features
+
+- **Interface Selection**: Specify any network interface for all connections
+- **Automatic Detection**: Falls back to default interface if specified interface is unavailable
+- **IPv4 Address Binding**: All connections bind to the IPv4 address of the specified interface
+- **Proxy Integration**: Network interface binding works seamlessly with SOCKS5 proxies
+
 # Data Specs
 ```json
 {"host":"127.0.0.1","port":"3306","service":"mysql"}
@@ -140,6 +216,15 @@ user3:pass
 user4:pass1
 ...
 ```
+
+# Performance Features
+
+- **Per-Host Threading**: Each host gets its own thread pool for optimal performance
+- **Host Parallelism**: Control how many hosts are processed simultaneously
+- **Connection Pooling**: Reuses connections for better performance
+- **Dynamic Performance Tracking**: Monitors response times and success rates
+- **Graceful Shutdown**: Proper cleanup and resource management
+- **Progress Tracking**: Real-time progress bars and status updates
 
 # Planned Features
 
