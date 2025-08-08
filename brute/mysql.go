@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/x90skysn3k/brutespray/v2/modules"
+	"github.com/x90skysn3k/brutespray/modules"
 
 	_ "github.com/go-sql-driver/mysql"
 )

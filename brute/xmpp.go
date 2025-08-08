@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/x90skysn3k/brutespray/v2/modules"
+	"github.com/x90skysn3k/brutespray/modules"
 	"gosrc.io/xmpp"
 	"gosrc.io/xmpp/stanza"
 )
