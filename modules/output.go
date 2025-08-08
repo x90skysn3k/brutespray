@@ -9,6 +9,28 @@ import (
 	"github.com/pterm/pterm"
 )
 
+// NoColorMode controls whether colored output is disabled
+var NoColorMode bool
+
+// PrintlnColored prints a colored message with newline
+func PrintlnColored(color pterm.Color, msg string) {
+	if NoColorMode {
+		fmt.Println(msg)
+	} else {
+		pterm.Println(pterm.NewStyle(color).Sprint(msg))
+	}
+}
+
+// PrintfColored prints a formatted colored message
+func PrintfColored(color pterm.Color, format string, args ...interface{}) {
+	msg := fmt.Sprintf(format, args...)
+	if NoColorMode {
+		fmt.Print(msg)
+	} else {
+		pterm.Print(pterm.NewStyle(color).Sprint(msg))
+	}
+}
+
 func getResultString(result bool) string {
 	if result {
 		return "succeeded"
@@ -100,17 +122,17 @@ func PrintResult(service string, host string, port int, user string, pass string
 		}
 	}
 
-	PrintlnColored(color, msg)
+	pterm.Println(pterm.NewStyle(color).Sprint(msg))
 }
 
 func PrintWarningBeta(service string) {
-	PrintlnColored(pterm.BgYellow, fmt.Sprintf("[!] Warning: %s module is in Beta - results may be inaccurate", service))
+	pterm.Println(pterm.NewStyle(pterm.BgYellow).Sprint(fmt.Sprintf("[!] Warning: %s module is in Beta - results may be inaccurate", service)))
 }
 
 func PrintSocksError(service string, err string) {
-	PrintlnColored(pterm.FgRed, fmt.Sprintf("[!] Error: %s SOCKS5 connection failed - %s", service, err))
+	pterm.Println(pterm.NewStyle(pterm.FgRed).Sprint(fmt.Sprintf("[!] Error: %s SOCKS5 connection failed - %s", service, err)))
 }
 
 func PrintSkipping(host string, service string, retries int, maxRetries int) {
-	PrintlnColored(pterm.FgRed, fmt.Sprintf("[!] Warning: Skipping %s on %s - max retries (%d/%d) reached", service, host, retries, maxRetries))
+	pterm.Println(pterm.NewStyle(pterm.FgRed).Sprint(fmt.Sprintf("[!] Warning: Skipping %s on %s - max retries (%d/%d) reached", service, host, retries, maxRetries)))
 }
