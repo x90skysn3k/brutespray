@@ -61,18 +61,22 @@ func WriteToFile(service string, content string, port int, output string) error 
 }
 
 func PrintResult(service string, host string, port int, user string, pass string, result bool, con_result bool, progressCh chan<- int, retrying bool, output string, delayTime time.Duration) {
+	var msg string
+	var color pterm.Color
 
 	if result && con_result {
 		if service == "vnc" {
-			PrintlnColored(pterm.BgGreen, "Attempt", service, "SUCCESS on host", host, "port", port, "with password", pass, getResultString(result))
-			content := fmt.Sprintf("Attempt %s SUCCESS on host %s port %d with password %s %s\n", service, host, port, pass, getResultString(result))
+			msg = fmt.Sprintf("[%s] %s:%d - Password '%s' - %s", service, host, port, pass, "SUCCESS")
+			color = pterm.BgGreen
+			content := fmt.Sprintf("[%s] %s:%d - Password '%s' - %s\n", service, host, port, pass, "SUCCESS")
 			err := WriteToFile(service, content, port, output)
 			if err != nil {
 				fmt.Println("write file error:", err)
 			}
 		} else {
-			PrintlnColored(pterm.BgGreen, "Attempt", service, "SUCCESS on host", host, "port", port, "with username", user, "and password", pass, getResultString(result))
-			content := fmt.Sprintf("Attempt %s SUCCESS on host %s port %d with username %s and password %s %s\n", service, host, port, user, pass, getResultString(result))
+			msg = fmt.Sprintf("[%s] %s:%d - User '%s' - Pass '%s' - %s", service, host, port, user, pass, "SUCCESS")
+			color = pterm.BgGreen
+			content := fmt.Sprintf("[%s] %s:%d - User '%s' - Pass '%s' - %s\n", service, host, port, user, pass, "SUCCESS")
 			err := WriteToFile(service, content, port, output)
 			if err != nil {
 				fmt.Println("write file error:", err)
@@ -80,27 +84,33 @@ func PrintResult(service string, host string, port int, user string, pass string
 		}
 	} else if !result && con_result {
 		if service == "vnc" {
-			PrintlnColored(pterm.FgLightRed, "Attempt", service, "on host", host, "port", port, "with password", pass, getResultString(result))
+			msg = fmt.Sprintf("[%s] %s:%d - Password '%s' - %s", service, host, port, pass, "FAILED")
+			color = pterm.FgLightRed
 		} else {
-			PrintlnColored(pterm.FgLightRed, "Attempt", service, "on host", host, "port", port, "with username", user, "and password", pass, getResultString(result))
+			msg = fmt.Sprintf("[%s] %s:%d - User '%s' - Pass '%s' - %s", service, host, port, user, pass, "FAILED")
+			color = pterm.FgLightRed
 		}
 	} else if !result && !con_result {
 		if service == "vnc" {
-			PrintlnColored(pterm.FgRed, "Attempt", service, "on host", host, "port", port, "with password", pass, getConResultString(con_result, retrying, delayTime))
+			msg = fmt.Sprintf("[%s] %s:%d - Password '%s' - %s", service, host, port, pass, getConResultString(con_result, retrying, delayTime))
+			color = pterm.FgRed
 		} else {
-			PrintlnColored(pterm.FgRed, "Attempt", service, "on host", host, "port", port, "with username", user, "and password", pass, getConResultString(con_result, retrying, delayTime))
+			msg = fmt.Sprintf("[%s] %s:%d - User '%s' - Pass '%s' - %s", service, host, port, user, pass, getConResultString(con_result, retrying, delayTime))
+			color = pterm.FgRed
 		}
 	}
+
+	PrintlnColored(color, msg)
 }
 
 func PrintWarningBeta(service string) {
-	PrintlnColored(pterm.BgYellow, "Warning, the module", service, "is Beta, results may be inaccurate, use at your own risk")
+	PrintlnColored(pterm.BgYellow, fmt.Sprintf("[!] Warning: %s module is in Beta - results may be inaccurate", service))
 }
 
 func PrintSocksError(service string, err string) {
-	PrintlnColored(pterm.FgRed, "Error", service, "SOCKS5 connection error, please check your SOCKS5 server. Error:", err)
+	PrintlnColored(pterm.FgRed, fmt.Sprintf("[!] Error: %s SOCKS5 connection failed - %s", service, err))
 }
 
 func PrintSkipping(host string, service string, retries int, maxRetries int) {
-	PrintlnColored(pterm.FgRed, "Warning, giving up on attempting", service, "on host", host, " max retries", retries, "out of", maxRetries)
+	PrintlnColored(pterm.FgRed, fmt.Sprintf("[!] Warning: Skipping %s on %s - max retries (%d/%d) reached", service, host, retries, maxRetries))
 }
