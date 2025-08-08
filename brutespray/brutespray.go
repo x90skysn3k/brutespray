@@ -95,14 +95,6 @@ func NewWorkerPool(threadsPerHost int, progressCh chan int, hostParallelism int,
 	}
 }
 
-// Helper function for max
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}
-
 // Start starts the host-specific worker pool
 func (hwp *HostWorkerPool) Start(timeout time.Duration, retry int, output string, socksProxy string, netInterface string, domain string, noStats bool) {
 	for i := 0; i < hwp.workers; i++ {
@@ -285,12 +277,6 @@ func (wp *WorkerPool) calculateOptimalThreadsForHost(host modules.Host) int {
 }
 
 // Helper function for min
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
 
 // ProcessHost processes a single host with all its credentials using dedicated host worker pool
 func (wp *WorkerPool) ProcessHost(host modules.Host, service string, combo string, user string, password string, version string, timeout time.Duration, retry int, output string, socksProxy string, netInterface string, domain string) {
