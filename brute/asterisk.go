@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/wenerme/astgo/ami"
-	"github.com/x90skysn3k/brutespray/modules"
+	"github.com/x90skysn3k/brutespray/v2/modules"
 )
 
 // this is very alpha and I have no idea if it even works

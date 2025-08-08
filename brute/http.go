@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/x90skysn3k/brutespray/modules"
+	"github.com/x90skysn3k/brutespray/v2/modules"
 )
 
 func BruteHTTP(host string, port int, user, password string, timeout time.Duration, socks5 string, netInterface string) (bool, bool) {
