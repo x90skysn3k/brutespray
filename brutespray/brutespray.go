@@ -43,7 +43,6 @@ func Execute() {
 	printhosts := flag.Bool("P", false, "Print found hosts parsed from provided host and file arguments")
 	domain := flag.String("d", "", "Domain to use for RDP authentication (optional)")
 	noColor := flag.Bool("nc", false, "Disable colored output")
-	verbose := flag.Bool("v", false, "Verbose mode - show failed authentication attempts")
 
 	flag.Parse()
 
@@ -63,12 +62,20 @@ func Execute() {
 	}
 
 	if *listServices {
-		pterm.DefaultSection.Println("Supported services:", strings.Join(getSupportedServices(*serviceType), ", "))
+		if NoColorMode {
+			fmt.Println("Supported services:", strings.Join(getSupportedServices(*serviceType), ", "))
+		} else {
+			pterm.DefaultSection.Println("Supported services:", strings.Join(getSupportedServices(*serviceType), ", "))
+		}
 		os.Exit(1)
 	} else {
 		if flag.NFlag() == 0 {
 			flag.Usage()
-			pterm.DefaultSection.Println("Supported services:", strings.Join(getSupportedServices(*serviceType), ", "))
+			if NoColorMode {
+				fmt.Println("Supported services:", strings.Join(getSupportedServices(*serviceType), ", "))
+			} else {
+				pterm.DefaultSection.Println("Supported services:", strings.Join(getSupportedServices(*serviceType), ", "))
+			}
 			os.Exit(1)
 		}
 	}
@@ -158,15 +165,33 @@ func Execute() {
 			data = append(data, row)
 		}
 
-		err := pterm.DefaultTable.WithRowSeparator("-").WithHeaderRowSeparator("-").WithData(data).Render()
-		if err != nil {
-			_ = err
+		if NoColorMode {
+			// Print table data in plain text format
+			fmt.Println("Found Services:")
+			for i, row := range data {
+				if i == 0 {
+					fmt.Println("IP\tService and Port")
+					fmt.Println("--\t----------------")
+				} else {
+					fmt.Printf("%s\t%s\n", row[0], row[1])
+				}
+			}
+		} else {
+			err := pterm.DefaultTable.WithRowSeparator("-").WithHeaderRowSeparator("-").WithData(data).Render()
+			if err != nil {
+				_ = err
+			}
 		}
-		spinner, _ := pterm.DefaultSpinner.Start("Waiting...")
-		time.Sleep(3 * time.Second)
-		err = spinner.Stop()
-		if err != nil {
-			_ = err
+		if NoColorMode {
+			fmt.Println("Waiting...")
+			time.Sleep(3 * time.Second)
+		} else {
+			spinner, _ := pterm.DefaultSpinner.Start("Waiting...")
+			time.Sleep(3 * time.Second)
+			err := spinner.Stop()
+			if err != nil {
+				_ = err
+			}
 		}
 
 	}
@@ -192,18 +217,34 @@ func Execute() {
 
 	modules.PrintlnColored(pterm.FgLightYellow, "\nStarting to brute, please make sure to use the right amount of threads(-t) and parallel hosts(-T)...")
 
-	spinner, _ := pterm.DefaultSpinner.Start("Starting Bruteforce...")
-	time.Sleep(3 * time.Second)
-	err = spinner.Stop()
-	if err != nil {
-		_ = err
+	if NoColorMode {
+		fmt.Println("Starting Bruteforce...")
+		time.Sleep(3 * time.Second)
+	} else {
+		spinner, _ := pterm.DefaultSpinner.Start("Starting Bruteforce...")
+		time.Sleep(3 * time.Second)
+		err = spinner.Stop()
+		if err != nil {
+			_ = err
+		}
 	}
 
-	bar, _ := pterm.DefaultProgressbar.WithTotal((totalCombinations) - nopassServices).WithTitle("Bruteforcing...").Start()
+	var bar *pterm.ProgressbarPrinter
+	if NoColorMode {
+		fmt.Printf("Bruteforcing... (0/%d)\n", (totalCombinations)-nopassServices)
+	} else {
+		bar, _ = pterm.DefaultProgressbar.WithTotal((totalCombinations) - nopassServices).WithTitle("Bruteforcing...").Start()
+	}
 
 	go func() {
+		counter := 0
 		for range progressCh {
-			bar.Increment()
+			counter++
+			if NoColorMode {
+				fmt.Printf("\rBruteforcing... (%d/%d)\n", counter, (totalCombinations)-nopassServices)
+			} else {
+				bar.Increment()
+			}
 		}
 	}()
 
@@ -211,7 +252,9 @@ func Execute() {
 		<-sigs
 		modules.PrintlnColored(pterm.FgLightYellow, "\nReceived an interrupt signal, shutting down...")
 		time.Sleep(5 * time.Second)
-		_, _ = bar.Stop()
+		if !NoColorMode {
+			_, _ = bar.Stop()
+		}
 		brute.ClearMaps()
 		os.Exit(0)
 	}()
@@ -390,6 +433,8 @@ func Execute() {
 		sem <- struct{}{}
 	}
 	bruteForceWg.Wait()
-	_, _ = bar.Stop()
+	if !NoColorMode {
+		_, _ = bar.Stop()
+	}
 	defer brute.ClearMaps()
 }

@@ -1,6 +1,7 @@
 package banner
 
 import (
+	"fmt"
 	"math/rand"
 	"strings"
 	"time"
@@ -72,8 +73,8 @@ Inspired by: Leon Johnson/@sho-luv`
 	//ascii art by: Cara Pearson
 	if !banner_flag {
 		if noColor {
-			pterm.Println(banner)
-			pterm.Println(banner2)
+			fmt.Println(banner)
+			fmt.Println(banner2)
 		} else {
 			horns := color_banner(banner)
 			pterm.Println(horns)
@@ -83,7 +84,7 @@ Inspired by: Leon Johnson/@sho-luv`
 	}
 
 	if noColor {
-		pterm.Println(quiet_banner)
+		fmt.Println(quiet_banner)
 	} else {
 		pterm.FgRed.Println(quiet_banner)
 	}
