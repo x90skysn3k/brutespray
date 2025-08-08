@@ -261,7 +261,7 @@ user4:pass1
 
 # Planned Features
 
-* Add domain option for RDP, SMB
+* ~~Add domain option for RDP, SMB~~
 * ~~Ability to set proxy~~
 * ~~Ability to select interface~~
 * More modules
