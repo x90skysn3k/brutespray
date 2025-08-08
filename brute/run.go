@@ -28,7 +28,8 @@ func RunBrute(h modules.Host, u string, p string, progressCh chan<- int, timeout
 	var result, con_result bool
 	var delayTime time.Duration
 
-	key := h.Host + ":" + h.Service
+	// Scope retries to the specific credential attempt (host, service, user, pass)
+	key := h.Host + ":" + h.Service + ":" + u + ":" + p
 
 	for {
 		retryMapMutex.Lock()
