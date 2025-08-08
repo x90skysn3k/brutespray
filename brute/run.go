@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/x90skysn3k/brutespray/v2/modules"
+	"github.com/x90skysn3k/brutespray/modules"
 )
 
 var (

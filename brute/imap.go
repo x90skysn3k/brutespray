@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/emersion/go-imap/client"
-	"github.com/x90skysn3k/brutespray/v2/modules"
+	"github.com/x90skysn3k/brutespray/modules"
 )
 
 func BruteIMAP(host string, port int, user, password string, timeout time.Duration, socks5 string, netInterface string) (bool, bool) {
