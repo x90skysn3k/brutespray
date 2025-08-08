@@ -48,6 +48,21 @@ func Execute() {
 
 	NoColorMode = *noColor
 	modules.NoColorMode = *noColor
+	// If -p was provided explicitly and is empty (length zero), instruct
+	// modules to use a single blank password instead of default wordlist.
+	// We detect this by checking the presence of -p in the provided args.
+	{
+		providedEmptyPass := false
+		for _, arg := range os.Args[1:] {
+			if arg == "-p" || strings.HasPrefix(arg, "-p=") || arg == "--p" || strings.HasPrefix(arg, "--p=") {
+				providedEmptyPass = true
+				break
+			}
+		}
+		if providedEmptyPass && *password == "" {
+			modules.UseEmptyPassword = true
+		}
+	}
 	banner.Banner(version, *quiet, NoColorMode)
 
 	getSupportedServices := func(serviceType string) []string {
