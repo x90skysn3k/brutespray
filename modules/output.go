@@ -19,7 +19,7 @@ func getResultString(result bool) string {
 
 func getConResultString(con_result bool, retrying bool, delayTime time.Duration) string {
 	var delaying bool
-	if delayTime > 2 {
+	if delayTime > 2*time.Second {
 		delaying = true
 	}
 	if !retrying {
