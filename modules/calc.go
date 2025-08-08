@@ -8,6 +8,11 @@ import (
 	"strings"
 )
 
+// UseEmptyPassword instructs GetUsersAndPasswords to include a single empty
+// string (blank password) when the password flag was explicitly provided as
+// empty by the user (e.g., -p ”).
+var UseEmptyPassword bool
+
 func GetUsersAndPasswordsCombo(h *Host, combo string, version string) ([]string, []string) {
 	userSlice := []string{}
 	passSlice := []string{}
@@ -88,9 +93,14 @@ func GetUsersAndPasswords(h *Host, user string, password string, version string)
 				passCh <- password
 			}
 		} else {
-			var passwords []string = GetPasswordsFromDefaultWordlist(version, h.Service)
-			for _, p := range passwords {
-				passCh <- p
+			if UseEmptyPassword {
+				// Use a single empty password as explicitly requested
+				passCh <- ""
+			} else {
+				var passwords []string = GetPasswordsFromDefaultWordlist(version, h.Service)
+				for _, p := range passwords {
+					passCh <- p
+				}
 			}
 		}
 	}()

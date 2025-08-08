@@ -1,6 +1,7 @@
 package banner
 
 import (
+	"fmt"
 	"math/rand"
 	"strings"
 	"time"
@@ -33,7 +34,7 @@ func color_banner(text string) string {
 	return fadeInfo
 }
 
-func Banner(version string, banner_flag bool) {
+func Banner(version string, banner_flag bool, noColor bool) {
 
 	banner := `
                               #@                           @/
@@ -71,12 +72,21 @@ Created by: Shane Young/@t1d3nio && Jacob Robles/@shellfail
 Inspired by: Leon Johnson/@sho-luv`
 	//ascii art by: Cara Pearson
 	if !banner_flag {
-		horns := color_banner(banner)
-		pterm.Println(horns)
-		brutespray := color_banner(banner2)
-		pterm.Println(brutespray)
+		if noColor {
+			fmt.Println(banner)
+			fmt.Println(banner2)
+		} else {
+			horns := color_banner(banner)
+			pterm.Println(horns)
+			brutespray := color_banner(banner2)
+			pterm.Println(brutespray)
+		}
 	}
 
-	pterm.FgRed.Println(quiet_banner)
+	if noColor {
+		fmt.Println(quiet_banner)
+	} else {
+		pterm.FgRed.Println(quiet_banner)
+	}
 
 }

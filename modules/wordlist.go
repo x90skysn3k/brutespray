@@ -9,9 +9,33 @@ import (
 	"os/user"
 	"path/filepath"
 	"runtime"
+	"sync"
 
 	"github.com/pterm/pterm"
 )
+
+// WordlistCache provides thread-safe caching of wordlists
+type WordlistCache struct {
+	cache map[string][]string
+	mutex sync.RWMutex
+}
+
+var wordlistCache = &WordlistCache{
+	cache: make(map[string][]string),
+}
+
+func (wc *WordlistCache) Get(key string) ([]string, bool) {
+	wc.mutex.RLock()
+	defer wc.mutex.RUnlock()
+	words, exists := wc.cache[key]
+	return words, exists
+}
+
+func (wc *WordlistCache) Set(key string, words []string) {
+	wc.mutex.Lock()
+	defer wc.mutex.Unlock()
+	wc.cache[key] = words
+}
 
 func downloadFileFromGithub(url, localPath string) error {
 	resp, err := http.Get(url)
@@ -34,7 +58,8 @@ func downloadFileFromGithub(url, localPath string) error {
 	}
 	defer file.Close()
 
-	buf := make([]byte, 4096)
+	// Use larger buffer for better performance
+	buf := make([]byte, 8192)
 	var downloaded int
 	for {
 		n, err := resp.Body.Read(buf)
@@ -58,45 +83,51 @@ func downloadFileFromGithub(url, localPath string) error {
 	return nil
 }
 
-func ReadUsersFromFile(filename string) ([]string, error) {
+// readFileLines reads lines from a file with optimized buffering
+func readFileLines(filename string) ([]string, error) {
 	file, err := os.Open(filename)
 	if err != nil {
 		return nil, err
 	}
 	defer file.Close()
 
+	// Use larger buffer for better performance
 	scanner := bufio.NewScanner(file)
-	users := []string{}
+	scanner.Buffer(make([]byte, 64*1024), 1024*1024) // 64KB buffer, 1MB max line length
+
+	// Pre-allocate slice with reasonable capacity
+	lines := make([]string, 0, 1000)
+
 	for scanner.Scan() {
-		users = append(users, scanner.Text())
+		line := scanner.Text()
+		if line != "" { // Skip empty lines
+			lines = append(lines, line)
+		}
 	}
+
 	if err := scanner.Err(); err != nil {
 		return nil, err
 	}
 
-	return users, nil
+	return lines, nil
+}
+
+func ReadUsersFromFile(filename string) ([]string, error) {
+	return readFileLines(filename)
 }
 
 func ReadPasswordsFromFile(filename string) ([]string, error) {
-	file, err := os.Open(filename)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-
-	scanner := bufio.NewScanner(file)
-	passwords := []string{}
-	for scanner.Scan() {
-		passwords = append(passwords, scanner.Text())
-	}
-	if err := scanner.Err(); err != nil {
-		return nil, err
-	}
-
-	return passwords, nil
+	return readFileLines(filename)
 }
 
 func GetUsersFromDefaultWordlist(version string, serviceType string) []string {
+	cacheKey := fmt.Sprintf("users_%s_%s", version, serviceType)
+
+	// Check cache first
+	if cached, exists := wordlistCache.Get(cacheKey); exists {
+		return cached
+	}
+
 	wordlistPath := filepath.Join("wordlist", serviceType, "user")
 	url := fmt.Sprintf("https://raw.githubusercontent.com/x90skysn3k/brutespray/%s/wordlist/%s/user", version, serviceType)
 
@@ -129,27 +160,26 @@ func GetUsersFromDefaultWordlist(version string, serviceType string) []string {
 		}
 	}
 
-	f, err := os.Open(wordlistPath)
+	users, err := readFileLines(wordlistPath)
 	if err != nil {
-		fmt.Printf("Error opening %s wordlist: %s\n", "user", err)
+		fmt.Printf("Error reading user wordlist: %s\n", err)
 		os.Exit(1)
 	}
-	defer f.Close()
 
-	scanner := bufio.NewScanner(f)
-	users := []string{}
-	for scanner.Scan() {
-		users = append(users, scanner.Text())
-	}
-	if err := scanner.Err(); err != nil {
-		fmt.Printf("Error reading %s wordlist: %s\n", "user", err)
-		os.Exit(1)
-	}
+	// Cache the result
+	wordlistCache.Set(cacheKey, users)
 
 	return users
 }
 
 func GetPasswordsFromDefaultWordlist(version string, serviceType string) []string {
+	cacheKey := fmt.Sprintf("passwords_%s_%s", version, serviceType)
+
+	// Check cache first
+	if cached, exists := wordlistCache.Get(cacheKey); exists {
+		return cached
+	}
+
 	wordlistPath := filepath.Join("wordlist", serviceType, "password")
 	url := fmt.Sprintf("https://raw.githubusercontent.com/x90skysn3k/brutespray/%s/wordlist/%s/password", version, serviceType)
 
@@ -182,22 +212,14 @@ func GetPasswordsFromDefaultWordlist(version string, serviceType string) []strin
 		}
 	}
 
-	f, err := os.Open(wordlistPath)
+	passwords, err := readFileLines(wordlistPath)
 	if err != nil {
-		fmt.Printf("Error opening %s wordlist: %s\n", "pass", err)
-		os.Exit(1)
-	}
-	defer f.Close()
-
-	scanner := bufio.NewScanner(f)
-	users := []string{}
-	for scanner.Scan() {
-		users = append(users, scanner.Text())
-	}
-	if err := scanner.Err(); err != nil {
-		fmt.Printf("Error reading %s wordlist: %s\n", "pass", err)
+		fmt.Printf("Error reading password wordlist: %s\n", err)
 		os.Exit(1)
 	}
 
-	return users
+	// Cache the result
+	wordlistCache.Set(cacheKey, passwords)
+
+	return passwords
 }
