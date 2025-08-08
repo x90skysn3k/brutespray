@@ -170,7 +170,7 @@ Specify a specific network interface for all connections:
 * nntp
 * oracle
 * xmpp
-* rdp (currently local domain is supported)
+* rdp
 
 Feel free to open an issue if these work, or if you have any issues
 
