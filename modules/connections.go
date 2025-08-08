@@ -3,6 +3,8 @@ package modules
 import (
 	"fmt"
 	"net"
+	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -16,7 +18,10 @@ type ConnectionManager struct {
 	Dialer    proxy.Dialer
 	DialFunc  func(network, address string) (net.Conn, error)
 	ConnPool  map[string]chan net.Conn
-	PoolMutex sync.Mutex
+	PoolMutex sync.RWMutex // Use RWMutex for better performance
+	// Add connection pool for better performance
+	connCache  map[string]*net.Conn
+	cacheMutex sync.RWMutex
 }
 
 func NewConnectionManager(socks5 string, timeout time.Duration, iface ...string) (*ConnectionManager, error) {
@@ -29,14 +34,14 @@ func NewConnectionManager(socks5 string, timeout time.Duration, iface ...string)
 			return nil, fmt.Errorf("failed to determine default interface: %v", err)
 		}
 		ifaceName = defaultIface
-		//fmt.Printf("Using default interface: %s\n", ifaceName)
 	}
 
 	cm := &ConnectionManager{
-		Socks5:   socks5,
-		Timeout:  timeout,
-		Iface:    ifaceName,
-		ConnPool: make(map[string]chan net.Conn),
+		Socks5:    socks5,
+		Timeout:   timeout,
+		Iface:     ifaceName,
+		ConnPool:  make(map[string]chan net.Conn),
+		connCache: make(map[string]*net.Conn),
 	}
 
 	ipAddr, err := GetIPv4Address(ifaceName)
@@ -46,11 +51,34 @@ func NewConnectionManager(socks5 string, timeout time.Duration, iface ...string)
 	localAddr := &net.TCPAddr{IP: ipAddr}
 
 	if socks5 != "" {
-		dialer, err := proxy.SOCKS5("tcp", socks5, nil, nil)
+		// Ensure the TCP connection to the proxy binds to the desired interface
+		forward := &net.Dialer{Timeout: timeout, LocalAddr: localAddr}
+
+		var dialer proxy.Dialer
+		var err error
+
+		// Support full URL format like socks5://user:pass@host:port and socks5h://...
+		if strings.Contains(socks5, "://") {
+			parsed, perr := url.Parse(socks5)
+			if perr != nil {
+				PrintSocksError("connection_manager", fmt.Sprintf("invalid proxy URL: %v", perr))
+				return nil, perr
+			}
+			// Normalize socks5h to socks5. Hostname resolution will still be done by SOCKS5.
+			if strings.EqualFold(parsed.Scheme, "socks5h") {
+				parsed.Scheme = "socks5"
+			}
+			dialer, err = proxy.FromURL(parsed, forward)
+		} else {
+			// host:port format without credentials
+			dialer, err = proxy.SOCKS5("tcp", socks5, nil, forward)
+		}
+
 		if err != nil {
 			PrintSocksError("connection_manager", fmt.Sprintf("%v", err))
 			return nil, err
 		}
+
 		cm.Dialer = dialer
 		cm.DialFunc = func(network, address string) (net.Conn, error) {
 			conn, err := dialer.Dial(network, address)
@@ -60,10 +88,14 @@ func NewConnectionManager(socks5 string, timeout time.Duration, iface ...string)
 			return conn, err
 		}
 	} else {
-		// Bind to specific network interface
-		dialer := &net.Dialer{Timeout: timeout, LocalAddr: localAddr}
+		// Bind to specific network interface with optimized dialer
+		dialer := &net.Dialer{
+			Timeout:   timeout,
+			LocalAddr: localAddr,
+			// Add keep-alive settings for better performance
+			KeepAlive: 30 * time.Second,
+		}
 		cm.DialFunc = dialer.Dial
-		//fmt.Printf("Binding to local address: %s\n", localAddr)
 	}
 
 	return cm, nil
@@ -72,22 +104,61 @@ func NewConnectionManager(socks5 string, timeout time.Duration, iface ...string)
 func (cm *ConnectionManager) Dial(network, address string) (net.Conn, error) {
 	key := fmt.Sprintf("%s:%s", network, address)
 
-	cm.PoolMutex.Lock()
-	if _, ok := cm.ConnPool[key]; !ok {
-		cm.ConnPool[key] = make(chan net.Conn, 10)
-	}
-	cm.PoolMutex.Unlock()
-
-	select {
-	case conn := <-cm.ConnPool[key]:
-		return conn, nil
-	default:
-		conn, err := cm.DialFunc(network, address)
-		if err != nil {
-			return nil, err
+	// Try to get from cache first
+	cm.cacheMutex.RLock()
+	if cachedConn, exists := cm.connCache[key]; exists && *cachedConn != nil {
+		conn := *cachedConn
+		// Check if connection is still alive
+		if conn != nil {
+			// Quick check if connection is still usable
+			if tcpConn, ok := conn.(*net.TCPConn); ok {
+				if tcpConn != nil {
+					// Try to get connection state
+					if _, err := tcpConn.Write([]byte{}); err == nil {
+						cm.cacheMutex.RUnlock()
+						return conn, nil
+					}
+				}
+			}
 		}
-		return conn, nil
+		// Remove dead connection from cache
+		delete(cm.connCache, key)
 	}
+	cm.cacheMutex.RUnlock()
+
+	// Try connection pool
+	cm.PoolMutex.RLock()
+	if pool, ok := cm.ConnPool[key]; ok {
+		cm.PoolMutex.RUnlock()
+		select {
+		case conn := <-pool:
+			if conn != nil {
+				// Verify connection is still alive
+				if tcpConn, ok := conn.(*net.TCPConn); ok {
+					if _, err := tcpConn.Write([]byte{}); err == nil {
+						return conn, nil
+					}
+				}
+				conn.Close()
+			}
+		default:
+		}
+	} else {
+		cm.PoolMutex.RUnlock()
+	}
+
+	// Create new connection
+	conn, err := cm.DialFunc(network, address)
+	if err != nil {
+		return nil, err
+	}
+
+	// Cache the connection for reuse
+	cm.cacheMutex.Lock()
+	cm.connCache[key] = &conn
+	cm.cacheMutex.Unlock()
+
+	return conn, nil
 }
 
 func (cm *ConnectionManager) Release(conn net.Conn) {
@@ -95,20 +166,22 @@ func (cm *ConnectionManager) Release(conn net.Conn) {
 		return
 	}
 
-	cm.PoolMutex.Lock()
-	defer cm.PoolMutex.Unlock()
-
 	key := fmt.Sprintf("%s:%s", conn.RemoteAddr().Network(), conn.RemoteAddr().String())
 
+	// Try to add to pool first
+	cm.PoolMutex.Lock()
 	if _, ok := cm.ConnPool[key]; !ok {
-		cm.ConnPool[key] = make(chan net.Conn, 10)
+		cm.ConnPool[key] = make(chan net.Conn, 5) // Reduced pool size for better memory management
 	}
 
 	select {
 	case cm.ConnPool[key] <- conn:
+		// Successfully added to pool
 	default:
+		// Pool is full, close the connection
 		conn.Close()
 	}
+	cm.PoolMutex.Unlock()
 }
 
 func (cm *ConnectionManager) DialUDP(network, address string) (*net.UDPConn, error) {
@@ -128,6 +201,35 @@ func (cm *ConnectionManager) DialUDP(network, address string) (*net.UDPConn, err
 	}
 
 	return udpConn, nil
+}
+
+// ClearCache clears all cached connections
+func (cm *ConnectionManager) ClearCache() {
+	cm.cacheMutex.Lock()
+	defer cm.cacheMutex.Unlock()
+
+	for _, connPtr := range cm.connCache {
+		if connPtr != nil && *connPtr != nil {
+			(*connPtr).Close()
+		}
+	}
+	cm.connCache = make(map[string]*net.Conn)
+}
+
+// ClearPool clears all pooled connections
+func (cm *ConnectionManager) ClearPool() {
+	cm.PoolMutex.Lock()
+	defer cm.PoolMutex.Unlock()
+
+	for _, pool := range cm.ConnPool {
+		close(pool)
+		for conn := range pool {
+			if conn != nil {
+				conn.Close()
+			}
+		}
+	}
+	cm.ConnPool = make(map[string]chan net.Conn)
 }
 
 func GetIPv4Address(ifaceName string) (net.IP, error) {
@@ -156,17 +258,14 @@ func GetIPv4Address(ifaceName string) (net.IP, error) {
 }
 
 func getDefaultInterface() (string, error) {
-	// Connect to a known external address (e.g., 8.8.8.8:80)
 	conn, err := net.Dial("udp", "8.8.8.8:80")
 	if err != nil {
 		return "", fmt.Errorf("failed to determine default interface: %v", err)
 	}
 	defer conn.Close()
 
-	// Get the local address of the connection
 	localAddr := conn.LocalAddr().(*net.UDPAddr)
 
-	// Find the interface associated with the local address
 	ifaces, err := net.Interfaces()
 	if err != nil {
 		return "", fmt.Errorf("failed to list interfaces: %v", err)
