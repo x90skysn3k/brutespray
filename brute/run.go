@@ -207,6 +207,19 @@ func RunBrute(h modules.Host, u string, p string, progressCh chan<- int, timeout
 
 			// Record successful attempt
 			metrics.RecordAttempt(result, time.Since(startTime))
+
+			// Record in new statistics system
+			if result {
+				// Authentication succeeded
+				modules.RecordSuccess(service, h.Host, h.Port, u, p, time.Since(startTime))
+			} else {
+				// Authentication failed
+				modules.RecordError(false) // Authentication error
+			}
+
+			// Record the attempt (success or failure)
+			modules.RecordAttempt(result)
+
 			break
 		} else {
 			// Connection failed: increment the consecutive failure counter
