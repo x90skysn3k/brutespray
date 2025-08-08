@@ -64,6 +64,8 @@ Command: ```brutespray -H ssh://127.0.0.1 -C root:root```
 | `-P` | Print found hosts parsed from provided host and file arguments | `-P` |
 | `-d` | Domain to use for RDP authentication (optional) | `-d CORP` |
 | `-nc` | Disable colored output | `-nc` |
+| `-summary` | Generate comprehensive summary report with statistics | `-summary` |
+| `-no-stats` | Disable statistics tracking for better performance | `-no-stats` |
 
 # Examples
 
@@ -92,6 +94,35 @@ Command: ```brutespray -H ssh://127.0.0.1 -C root:root```
 #### Bruteforce a CIDR range
 
 ```brutespray -H ssh://10.1.1.0/24:22 -t 1000```
+
+#### Enhanced Output and Statistics
+
+Brutespray now includes comprehensive output and statistics tracking:
+
+**Summary Report:**
+```bash
+brutespray -f nmap.gnmap -u admin -p password -summary
+```
+
+This generates:
+- `brutespray-summary.json` - Machine-readable JSON report
+- `brutespray-summary.csv` - CSV format for analysis
+- `brutespray-summary.txt` - Human-readable summary
+- Console output with key statistics
+
+**Disable Statistics (for performance):**
+```bash
+brutespray -f nmap.gnmap -u admin -p password -no-stats
+```
+
+**Output Statistics Include:**
+- Session duration and timing
+- Total attempts and success rates
+- Connection vs authentication errors
+- Performance metrics (attempts/second, response times)
+- Service and host breakdown
+- Successful credentials list
+- Peak concurrency levels
 
 #### SOCKS5 Proxy Support
 

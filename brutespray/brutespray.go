@@ -61,6 +61,8 @@ type WorkerPool struct {
 	dynamicAllocation bool
 	minThreadsPerHost int
 	maxThreadsPerHost int
+	// Statistics control
+	noStats bool
 }
 
 // NewHostWorkerPool creates a new host-specific worker pool
@@ -102,15 +104,17 @@ func max(a, b int) int {
 }
 
 // Start starts the host-specific worker pool
-func (hwp *HostWorkerPool) Start(timeout time.Duration, retry int, output string, socksProxy string, netInterface string, domain string) {
+func (hwp *HostWorkerPool) Start(timeout time.Duration, retry int, output string, socksProxy string, netInterface string, domain string, noStats bool) {
 	for i := 0; i < hwp.workers; i++ {
 		hwp.wg.Add(1)
-		go hwp.worker(timeout, retry, output, socksProxy, netInterface, domain)
+		go hwp.worker(timeout, retry, output, socksProxy, netInterface, domain, noStats)
 	}
 }
 
 // Start starts all host worker pools
-func (wp *WorkerPool) Start(timeout time.Duration, retry int, output string, socksProxy string, netInterface string, domain string) {
+func (wp *WorkerPool) Start(timeout time.Duration, retry int, output string, socksProxy string, netInterface string, domain string, noStats bool) {
+	// Store noStats for use in ProcessHost
+	wp.noStats = noStats
 	// Host worker pools are started individually when hosts are processed
 }
 
@@ -166,7 +170,7 @@ func (wp *WorkerPool) Stop() {
 }
 
 // worker is the main worker goroutine for host-specific worker pool
-func (hwp *HostWorkerPool) worker(timeout time.Duration, retry int, output string, socksProxy string, netInterface string, domain string) {
+func (hwp *HostWorkerPool) worker(timeout time.Duration, retry int, output string, socksProxy string, netInterface string, domain string, noStats bool) {
 	defer hwp.wg.Done()
 
 	for {
@@ -184,8 +188,20 @@ func (hwp *HostWorkerPool) worker(timeout time.Duration, retry int, output strin
 			// Execute the brute force attempt
 			success := brute.RunBrute(cred.Host, cred.User, cred.Password, hwp.progressCh, timeout, retry, output, socksProxy, netInterface, domain)
 
+			// Record statistics (if enabled)
+			duration := time.Since(startTime)
+			if !noStats {
+				// Note: success here is the connection result, not authentication result
+				// The actual authentication result is handled in brute.RunBrute
+				// We don't record attempts here because they're handled in the brute module
+				// Only record connection errors with host information
+				if !success {
+					modules.RecordConnectionError(cred.Host.Host) // Connection error with host
+				}
+			}
+
 			// Update performance metrics
-			hwp.updatePerformanceMetrics(success, time.Since(startTime))
+			hwp.updatePerformanceMetrics(success, duration)
 			hwp.progressCh <- 1
 		}
 	}
@@ -304,7 +320,7 @@ func (wp *WorkerPool) ProcessHost(host modules.Host, service string, combo strin
 	hostPool := wp.getOrCreateHostPool(host)
 
 	// Start the host worker pool
-	hostPool.Start(timeout, retry, output, socksProxy, netInterface, domain)
+	hostPool.Start(timeout, retry, output, socksProxy, netInterface, domain, wp.noStats)
 
 	// Debug output to show host processing
 	if !NoColorMode {
@@ -454,6 +470,8 @@ func Execute() {
 	password := flag.String("p", "", "Password or password file to use for bruteforce")
 	combo := flag.String("C", "", "Specify a combo wordlist deiminated by ':', example: user1:password")
 	output := flag.String("o", "brutespray-output", "Directory containing successful attempts")
+	summary := flag.Bool("summary", false, "Generate comprehensive summary report with statistics")
+	noStats := flag.Bool("no-stats", false, "Disable statistics tracking for better performance")
 	threads := flag.Int("t", 10, "Number of threads per host")
 	hostParallelism := flag.Int("T", 5, "Number of hosts to bruteforce at the same time")
 	socksProxy := flag.String("socks5", "", "Socks5 proxy to use for bruteforce")
@@ -738,6 +756,15 @@ func Execute() {
 		modules.PrintlnColored(pterm.FgLightYellow, fmt.Sprintf("[*] Final Status: %d/%d combinations tested", currentCounter, (totalCombinations)-nopassServices))
 		counterMutex.Unlock()
 
+		// Set total hosts and services for statistics (if not already set)
+		modules.SetTotalHostsAndServices(totalHosts, len(supportedServices))
+
+		// Print comprehensive summary report if requested (even on interrupt)
+		if *summary {
+			modules.PrintlnColored(pterm.FgLightYellow, "[*] Generating summary report...")
+			modules.PrintComprehensiveSummary(*output)
+		}
+
 		// Clean up and exit immediately
 		brute.ClearMaps()
 		modules.PrintlnColored(pterm.FgLightYellow, "[*] Cleanup completed. Exiting...")
@@ -747,7 +774,7 @@ func Execute() {
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 
 	// Start the worker pool
-	workerPool.Start(*timeout, *retry, *output, *socksProxy, *netInterface, *domain)
+	workerPool.Start(*timeout, *retry, *output, *socksProxy, *netInterface, *domain, *noStats)
 
 	// Process hosts with proper parallelism
 	var hostWg sync.WaitGroup
@@ -793,7 +820,15 @@ func Execute() {
 		_, _ = bar.Stop()
 	}
 
-	// Print performance report
+	// Set total hosts and services for statistics
+	modules.SetTotalHostsAndServices(totalHosts, len(supportedServices))
+
+	// Print comprehensive summary report if requested
+	if *summary {
+		modules.PrintComprehensiveSummary(*output)
+	}
+
+	// Print performance report (legacy)
 	metrics := modules.GetGlobalMetrics()
 	metrics.PrintPerformanceReport()
 
