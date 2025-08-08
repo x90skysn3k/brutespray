@@ -3,6 +3,8 @@ package modules
 import (
 	"fmt"
 	"net"
+	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -46,11 +48,34 @@ func NewConnectionManager(socks5 string, timeout time.Duration, iface ...string)
 	localAddr := &net.TCPAddr{IP: ipAddr}
 
 	if socks5 != "" {
-		dialer, err := proxy.SOCKS5("tcp", socks5, nil, nil)
+		// Ensure the TCP connection to the proxy binds to the desired interface
+		forward := &net.Dialer{Timeout: timeout, LocalAddr: localAddr}
+
+		var dialer proxy.Dialer
+		var err error
+
+		// Support full URL format like socks5://user:pass@host:port and socks5h://...
+		if strings.Contains(socks5, "://") {
+			parsed, perr := url.Parse(socks5)
+			if perr != nil {
+				PrintSocksError("connection_manager", fmt.Sprintf("invalid proxy URL: %v", perr))
+				return nil, perr
+			}
+			// Normalize socks5h to socks5. Hostname resolution will still be done by SOCKS5.
+			if strings.EqualFold(parsed.Scheme, "socks5h") {
+				parsed.Scheme = "socks5"
+			}
+			dialer, err = proxy.FromURL(parsed, forward)
+		} else {
+			// host:port format without credentials
+			dialer, err = proxy.SOCKS5("tcp", socks5, nil, forward)
+		}
+
 		if err != nil {
 			PrintSocksError("connection_manager", fmt.Sprintf("%v", err))
 			return nil, err
 		}
+
 		cm.Dialer = dialer
 		cm.DialFunc = func(network, address string) (net.Conn, error) {
 			conn, err := dialer.Dial(network, address)
