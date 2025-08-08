@@ -104,28 +104,10 @@ func BruteTelnet(host string, port int, user, password string, timeout time.Dura
 	}
 }
 
-// consumeUntil reads lines up to maxReads or until any of the tokens appear.
-// It returns true if any token was found, false otherwise. Errors are ignored to remain lenient with telnet nuances.
-func consumeUntil(reader *bufio.Reader, tokens []string, maxReads int, timeout time.Duration) bool {
-	// Deprecated in favor of readUntil; kept for compatibility if referenced elsewhere
-	out, ok := readUntil(reader, tokens, 2048)
-	_ = out
-	return ok
-}
-
-// readAccumulated keeps reading up to maxReads lines, accumulating the output.
-// Any read error stops the loop and returns what has been accumulated.
-func readAccumulated(reader *bufio.Reader, maxReads int, timeout time.Duration) string {
-	// Deprecated in favor of readSome; kept for compatibility if referenced elsewhere
-	out, _ := readSome(reader, 2048)
-	return out
-}
-
 // readUntil reads up to maxBytes or until any token is found. It relies on connection deadlines
 // set by the caller to avoid long blocking reads.
 func readUntil(reader *bufio.Reader, tokens []string, maxBytes int) (string, bool) {
 	var b strings.Builder
-	found := false
 	for b.Len() < maxBytes {
 		by, err := reader.ReadByte()
 		if err != nil {
@@ -135,12 +117,11 @@ func readUntil(reader *bufio.Reader, tokens []string, maxBytes int) (string, boo
 		s := b.String()
 		for _, t := range tokens {
 			if strings.Contains(s, t) {
-				found = true
 				return s, true
 			}
 		}
 	}
-	return b.String(), found
+	return b.String(), false
 }
 
 // readSome reads up to maxBytes or until a read error occurs, returning what was read.

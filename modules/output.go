@@ -49,6 +49,27 @@ type OutputStats struct {
 	mutex                sync.RWMutex
 }
 
+// OutputStatsCopy is a copy of OutputStats without the mutex for safe copying
+type OutputStatsCopy struct {
+	StartTime            time.Time       `json:"start_time"`
+	EndTime              time.Time       `json:"end_time"`
+	TotalAttempts        int64           `json:"total_attempts"`
+	SuccessfulAttempts   int64           `json:"successful_attempts"`
+	FailedAttempts       int64           `json:"failed_attempts"`
+	ConnectionErrors     int64           `json:"connection_errors"`
+	AuthenticationErrors int64           `json:"authentication_errors"`
+	SuccessRate          float64         `json:"success_rate"`
+	AttemptsPerSecond    float64         `json:"attempts_per_second"`
+	AverageResponseTime  time.Duration   `json:"average_response_time"`
+	PeakConcurrency      int             `json:"peak_concurrency"`
+	TotalHosts           int             `json:"total_hosts"`
+	TotalServices        int             `json:"total_services"`
+	SuccessfulResults    []SuccessResult `json:"successful_results"`
+	ServiceBreakdown     map[string]int  `json:"service_breakdown"`
+	HostBreakdown        map[string]int  `json:"host_breakdown"`
+	ConnectionErrorHosts map[string]int  `json:"connection_error_hosts"`
+}
+
 var globalStats = &OutputStats{
 	StartTime:            time.Now(),
 	SuccessfulResults:    make([]SuccessResult, 0),
@@ -73,14 +94,6 @@ func PrintfColored(color pterm.Color, format string, args ...interface{}) {
 		fmt.Print(msg)
 	} else {
 		pterm.Print(pterm.NewStyle(color).Sprint(msg))
-	}
-}
-
-func getResultString(result bool) string {
-	if result {
-		return "succeeded"
-	} else {
-		return "failed"
 	}
 }
 
@@ -201,11 +214,28 @@ func SetTotalHostsAndServices(hosts int, services int) {
 }
 
 // GetStats returns a copy of current statistics
-func GetStats() OutputStats {
+func GetStats() OutputStatsCopy {
 	globalStats.mutex.RLock()
 	defer globalStats.mutex.RUnlock()
 
-	stats := *globalStats
+	// Create a new struct without the mutex to avoid copy locks
+	stats := OutputStatsCopy{
+		StartTime:            globalStats.StartTime,
+		EndTime:              globalStats.EndTime,
+		TotalAttempts:        globalStats.TotalAttempts,
+		SuccessfulAttempts:   globalStats.SuccessfulAttempts,
+		FailedAttempts:       globalStats.FailedAttempts,
+		ConnectionErrors:     globalStats.ConnectionErrors,
+		AuthenticationErrors: globalStats.AuthenticationErrors,
+		SuccessRate:          globalStats.SuccessRate,
+		AttemptsPerSecond:    globalStats.AttemptsPerSecond,
+		AverageResponseTime:  globalStats.AverageResponseTime,
+		PeakConcurrency:      globalStats.PeakConcurrency,
+		TotalHosts:           globalStats.TotalHosts,
+		TotalServices:        globalStats.TotalServices,
+	}
+
+	// Copy slices and maps
 	stats.SuccessfulResults = make([]SuccessResult, len(globalStats.SuccessfulResults))
 	copy(stats.SuccessfulResults, globalStats.SuccessfulResults)
 
@@ -228,7 +258,7 @@ func GetStats() OutputStats {
 }
 
 // CalculateFinalStats calculates final statistics
-func CalculateFinalStats() OutputStats {
+func CalculateFinalStats() OutputStatsCopy {
 	stats := GetStats()
 	stats.EndTime = time.Now()
 
@@ -309,24 +339,27 @@ func PrintComprehensiveSummary(outputDir string) {
 
 	// Create output directory if it doesn't exist
 	if _, err := os.Stat(outputDir); os.IsNotExist(err) {
-		os.Mkdir(outputDir, 0755)
+		if err := os.Mkdir(outputDir, 0755); err != nil {
+			fmt.Printf("Error creating output directory: %v\n", err)
+			return
+		}
 	}
 
 	// Print to console
-	printSummaryToConsole(stats)
+	printSummaryToConsole(&stats)
 
 	// Write JSON report
-	writeJSONReport(stats, outputDir)
+	writeJSONReport(&stats, outputDir)
 
 	// Write CSV report
-	writeCSVReport(stats, outputDir)
+	writeCSVReport(&stats, outputDir)
 
 	// Write human-readable summary
-	writeHumanReadableSummary(stats, outputDir)
+	writeHumanReadableSummary(&stats, outputDir)
 }
 
 // printSummaryToConsole prints the summary to console
-func printSummaryToConsole(stats OutputStats) {
+func printSummaryToConsole(stats *OutputStatsCopy) {
 	fmt.Println("\n" + strings.Repeat("=", 60))
 	fmt.Println("                    BRUTESPRAY SUMMARY REPORT")
 	fmt.Println(strings.Repeat("=", 60))
@@ -380,7 +413,7 @@ func printSummaryToConsole(stats OutputStats) {
 }
 
 // writeJSONReport writes a JSON report
-func writeJSONReport(stats OutputStats, outputDir string) {
+func writeJSONReport(stats *OutputStatsCopy, outputDir string) {
 	jsonData, err := json.MarshalIndent(stats, "", "  ")
 	if err != nil {
 		fmt.Printf("Error creating JSON report: %v\n", err)
@@ -398,7 +431,7 @@ func writeJSONReport(stats OutputStats, outputDir string) {
 }
 
 // writeCSVReport writes a CSV report
-func writeCSVReport(stats OutputStats, outputDir string) {
+func writeCSVReport(stats *OutputStatsCopy, outputDir string) {
 	filename := filepath.Join(outputDir, "brutespray-summary.csv")
 	file, err := os.Create(filename)
 	if err != nil {
@@ -428,26 +461,47 @@ func writeCSVReport(stats OutputStats, outputDir string) {
 		{"Total Services", fmt.Sprintf("%d", stats.TotalServices)},
 	}
 
-	writer.WriteAll(summaryData)
+	if err := writer.WriteAll(summaryData); err != nil {
+		fmt.Printf("Error writing CSV data: %v\n", err)
+		return
+	}
 
 	// Write connection error hosts if any
 	if len(stats.ConnectionErrorHosts) > 0 {
-		writer.Write([]string{}) // Empty line
-		writer.Write([]string{"Connection Error Hosts"})
-		writer.Write([]string{"Host", "Error Count"})
+		if err := writer.Write([]string{}); err != nil { // Empty line
+			fmt.Printf("Error writing CSV data: %v\n", err)
+			return
+		}
+		if err := writer.Write([]string{"Connection Error Hosts"}); err != nil {
+			fmt.Printf("Error writing CSV data: %v\n", err)
+			return
+		}
+		if err := writer.Write([]string{"Host", "Error Count"}); err != nil {
+			fmt.Printf("Error writing CSV data: %v\n", err)
+			return
+		}
 
 		for host, count := range stats.ConnectionErrorHosts {
-			writer.Write([]string{host, fmt.Sprintf("%d", count)})
+			if err := writer.Write([]string{host, fmt.Sprintf("%d", count)}); err != nil {
+				fmt.Printf("Error writing CSV data: %v\n", err)
+				return
+			}
 		}
 	}
 
 	// Write successful results
 	if len(stats.SuccessfulResults) > 0 {
-		writer.Write([]string{}) // Empty line
-		writer.Write([]string{"Service", "Host", "Port", "User", "Password", "Time", "Duration"})
+		if err := writer.Write([]string{}); err != nil { // Empty line
+			fmt.Printf("Error writing CSV data: %v\n", err)
+			return
+		}
+		if err := writer.Write([]string{"Service", "Host", "Port", "User", "Password", "Time", "Duration"}); err != nil {
+			fmt.Printf("Error writing CSV data: %v\n", err)
+			return
+		}
 
 		for _, result := range stats.SuccessfulResults {
-			writer.Write([]string{
+			if err := writer.Write([]string{
 				result.Service,
 				result.Host,
 				fmt.Sprintf("%d", result.Port),
@@ -455,7 +509,10 @@ func writeCSVReport(stats OutputStats, outputDir string) {
 				result.Password,
 				result.Time.Format("2006-01-02 15:04:05"),
 				result.Duration,
-			})
+			}); err != nil {
+				fmt.Printf("Error writing CSV data: %v\n", err)
+				return
+			}
 		}
 	}
 
@@ -463,7 +520,7 @@ func writeCSVReport(stats OutputStats, outputDir string) {
 }
 
 // writeHumanReadableSummary writes a human-readable summary
-func writeHumanReadableSummary(stats OutputStats, outputDir string) {
+func writeHumanReadableSummary(stats *OutputStatsCopy, outputDir string) {
 	filename := filepath.Join(outputDir, "brutespray-summary.txt")
 	file, err := os.Create(filename)
 	if err != nil {
