@@ -194,6 +194,10 @@ func RunBrute(h modules.Host, u string, p string, progressCh chan<- int, timeout
 				}
 			}
 			result, con_result = BruteRDP(h.Host, h.Port, parsedUser, p, timeout, socks5, netInterface, parsedDomain)
+		case "http":
+			result, con_result = BruteHTTP(h.Host, h.Port, u, p, timeout, socks5, netInterface)
+		case "https":
+			result, con_result = BruteHTTP(h.Host, h.Port, u, p, timeout, socks5, netInterface)
 		default:
 			metrics.RecordAttempt(false, time.Since(startTime))
 			return false

@@ -195,6 +195,8 @@ Specify a specific network interface for all connections:
 * oracle
 * xmpp
 * rdp
+* http (basic auth) - *manual targeting only*
+* https (basic auth) - *manual targeting only*
 
 # Services in Beta
 * asterisk
