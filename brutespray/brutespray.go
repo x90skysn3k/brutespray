@@ -215,14 +215,14 @@ func Execute() {
 		modules.PrintfColored(pterm.FgLightYellow, "Socks5 Proxy: %s\n", *socksProxy)
 	}
 
-	modules.PrintlnColored(pterm.FgLightYellow, "\nStarting to brute, please make sure to use the right amount of threads(-t) and parallel hosts(-T)...")
+	modules.PrintlnColored(pterm.FgLightYellow, "\nStarting bruteforce attack...")
+	modules.PrintlnColored(pterm.FgLightYellow, fmt.Sprintf("Threads: %d, Parallel Hosts: %d, Total Combinations: %d", *threads, *hostParallelism, (totalCombinations)-nopassServices))
 
 	if NoColorMode {
-		fmt.Println("Starting Bruteforce...")
-		time.Sleep(3 * time.Second)
+		fmt.Println("\n[*] Testing credentials...")
 	} else {
-		spinner, _ := pterm.DefaultSpinner.Start("Starting Bruteforce...")
-		time.Sleep(3 * time.Second)
+		spinner, _ := pterm.DefaultSpinner.Start("[*] Testing credentials...")
+		time.Sleep(1 * time.Second)
 		err = spinner.Stop()
 		if err != nil {
 			_ = err
@@ -230,31 +230,39 @@ func Execute() {
 	}
 
 	var bar *pterm.ProgressbarPrinter
-	if NoColorMode {
-		fmt.Printf("Bruteforcing... (0/%d)\n", (totalCombinations)-nopassServices)
-	} else {
-		bar, _ = pterm.DefaultProgressbar.WithTotal((totalCombinations) - nopassServices).WithTitle("Bruteforcing...").Start()
+	if !NoColorMode {
+		bar, _ = pterm.DefaultProgressbar.WithTotal((totalCombinations) - nopassServices).WithTitle("Progress").Start()
 	}
 
+	currentCounter := 0          // Keep track of progress outside the goroutine
+	counterMutex := sync.Mutex{} // Protect the counter
+
 	go func() {
-		counter := 0
 		for range progressCh {
-			counter++
+			counterMutex.Lock()
+			currentCounter++
 			if NoColorMode {
-				fmt.Printf("\rBruteforcing... (%d/%d)\n", counter, (totalCombinations)-nopassServices)
+				// Update progress every 10 attempts
+				if currentCounter%((*threads)/2) == 0 || currentCounter == (totalCombinations)-nopassServices {
+					fmt.Printf("\n[*] Progress: %d/%d combinations tested\n", currentCounter, (totalCombinations)-nopassServices)
+				}
 			} else {
 				bar.Increment()
 			}
+			counterMutex.Unlock()
 		}
 	}()
 
 	go func() {
 		<-sigs
-		modules.PrintlnColored(pterm.FgLightYellow, "\nReceived an interrupt signal, shutting down...")
-		time.Sleep(5 * time.Second)
+		modules.PrintlnColored(pterm.FgLightYellow, "\n[!] Interrupting: Cleaning up and shutting down...")
+		time.Sleep(2 * time.Second)
 		if !NoColorMode {
 			_, _ = bar.Stop()
 		}
+		counterMutex.Lock()
+		modules.PrintlnColored(pterm.FgLightYellow, fmt.Sprintf("[*] Final Status: %d/%d combinations tested", currentCounter, (totalCombinations)-nopassServices))
+		counterMutex.Unlock()
 		brute.ClearMaps()
 		os.Exit(0)
 	}()
