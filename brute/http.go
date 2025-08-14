@@ -1,6 +1,7 @@
 package brute
 
 import (
+	"crypto/tls"
 	"encoding/base64"
 	"fmt"
 	"io"
@@ -27,9 +28,11 @@ func BruteHTTP(host string, port int, user, password string, timeout time.Durati
 
 	// Create HTTP client with custom transport for proxy/interface support
 	transport := &http.Transport{
-		Dial: cm.DialFunc,
-		// Disable TLS verification for testing purposes
-		TLSHandshakeTimeout: timeout,
+		Dial:                  cm.DialFunc,
+		TLSHandshakeTimeout:   timeout,
+		ResponseHeaderTimeout: timeout,
+		ExpectContinueTimeout: 1 * time.Second,
+		TLSClientConfig:       &tls.Config{InsecureSkipVerify: modules.InsecureTLS},
 	}
 
 	client := &http.Client{
