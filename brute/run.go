@@ -1,6 +1,7 @@
 package brute
 
 import (
+	"math/rand"
 	"strings"
 	"sync"
 	"time"
@@ -90,8 +91,9 @@ func calculateBackoff(retryCount int, baseTimeout time.Duration) time.Duration {
 	}
 
 	// Add jitter (±25%)
-	jitter := backoff / 4
-	backoff = backoff + time.Duration(float64(jitter)*(0.5-0.25))
+	// random in [-0.25, +0.25]
+	factor := 1 + (rand.Float64()*0.5 - 0.25)
+	backoff = time.Duration(float64(backoff) * factor)
 
 	return backoff
 }
