@@ -189,17 +189,28 @@ func (cm *ConnectionManager) DialUDP(network, address string) (*net.UDPConn, err
 		return nil, fmt.Errorf("DialUDP requires 'udp' network, got %s", network)
 	}
 
-	conn, err := cm.DialFunc("udp", address)
+	// UDP over SOCKS5 via golang.org/x/net/proxy is not supported (requires UDP ASSOC)
+	if cm.Socks5 != "" {
+		return nil, fmt.Errorf("UDP dialing over SOCKS5 is not supported")
+	}
+
+	// Resolve remote address
+	raddr, err := net.ResolveUDPAddr("udp", address)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve UDP address %s: %v", address, err)
+	}
+
+	// Bind to interface's IPv4 address if provided/available
+	ipAddr, err := GetIPv4Address(cm.Iface)
 	if err != nil {
 		return nil, err
 	}
+	laddr := &net.UDPAddr{IP: ipAddr}
 
-	// Cast the net.Conn to *net.UDPConn
-	udpConn, ok := conn.(*net.UDPConn)
-	if !ok {
-		return nil, fmt.Errorf("failed to cast connection to *net.UDPConn")
+	udpConn, err := net.DialUDP("udp", laddr, raddr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to dial UDP %s from %s: %v", raddr.String(), laddr.String(), err)
 	}
-
 	return udpConn, nil
 }
 

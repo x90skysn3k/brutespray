@@ -21,7 +21,7 @@ var masterServiceList = []string{"ssh", "ftp", "smtp", "mssql", "telnet", "smbnt
 
 var BetaServiceList = []string{"asterisk", "nntp", "oracle", "xmpp", "rdp"}
 
-var version = "v2.4.0"
+var version = "v2.4.1"
 var NoColorMode bool
 
 // Credential represents a single credential attempt
@@ -511,7 +511,7 @@ func Execute() {
 		} else {
 			pterm.DefaultSection.Println("Supported services:", strings.Join(getSupportedServices(*serviceType), ", "))
 		}
-		os.Exit(1)
+		os.Exit(0)
 	} else {
 		if flag.NFlag() == 0 {
 			flag.Usage()
@@ -520,13 +520,13 @@ func Execute() {
 			} else {
 				pterm.DefaultSection.Println("Supported services:", strings.Join(getSupportedServices(*serviceType), ", "))
 			}
-			os.Exit(1)
+			os.Exit(2)
 		}
 	}
 
 	if *host == "" && *file == "" {
 		flag.Usage()
-		os.Exit(1)
+		os.Exit(2)
 	}
 
 	hosts, err := modules.ParseFile(*file)
@@ -798,6 +798,9 @@ func Execute() {
 		fmt.Println("[*] Waiting for hosts to finish current operations...")
 		// Give a brief moment for graceful shutdown, then force exit will happen in signal handler
 	}
+
+	// Close progress channel to stop progress goroutine cleanly
+	close(progressCh)
 
 	// Stop the worker pool after all work is done
 	workerPool.Stop()

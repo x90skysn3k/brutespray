@@ -121,8 +121,7 @@ func WriteToFile(service string, content string, port int, output string) error 
 	}
 
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		err := os.Mkdir(dir, 0755)
-		if err != nil {
+		if err := os.MkdirAll(dir, 0755); err != nil {
 			return err
 		}
 	}
