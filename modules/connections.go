@@ -11,6 +11,9 @@ import (
 	"golang.org/x/net/proxy"
 )
 
+// InsecureTLS controls whether HTTPS/TLS verification is disabled for HTTP(S) modules
+var InsecureTLS bool
+
 type ConnectionManager struct {
 	Socks5    string
 	Timeout   time.Duration
@@ -308,7 +311,6 @@ func ValidateNetworkInterface(iface string) (string, error) {
 			return "", fmt.Errorf("failed to determine default interface: %v", err)
 		}
 		ifaceName = defaultIface
-		fmt.Printf("Using default interface: %s\n", ifaceName)
 	}
 
 	ifaces, err := net.Interfaces()

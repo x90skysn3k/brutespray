@@ -590,8 +590,8 @@ func Execute() {
 	logEvery := flag.Int("log-every", 1, "Print every N attempts when not in silent mode (>=1)")
 	threads := flag.Int("t", 10, "Number of threads per host (also acts as max threads per host)")
 	hostParallelism := flag.Int("T", 5, "Number of hosts to bruteforce at the same time")
-	socksProxy := flag.String("socks5", "", "Socks5 proxy to use for bruteforce")
-	netInterface := flag.String("iface", "", "Specific network interface to use for bruteforce traffic")
+	socksProxy := flag.String("socks5", "", "Socks5 proxy to use for bruteforce (supports socks5://user:pass@host:port or host:port)")
+	netInterface := flag.String("iface", "", "Specific network interface to use for bruteforce traffic (defaults to active interface)")
 	serviceType := flag.String("s", "all", "Service type: ssh, ftp, smtp, etc; Default all")
 	listServices := flag.Bool("S", false, "List all supported services")
 	file := flag.String("f", "", "File to parse; Supported: Nmap, Nessus, Nexpose, Lists, etc")
@@ -599,6 +599,7 @@ func Execute() {
 	flag.Var(&hostArgs, "H", "Target in the format service://host:port, CIDR ranges supported; can be specified multiple times")
 	quiet := flag.Bool("q", false, "Suppress the banner")
 	timeout := flag.Duration("w", 5*time.Second, "Set timeout delay of bruteforce attempts")
+	insecureTLS := flag.Bool("insecure", false, "Disable TLS certificate verification for HTTPS bruteforce")
 	retry := flag.Int("r", 3, "Amount of times to retry after receiving connection failed")
 	printhosts := flag.Bool("P", false, "Print found hosts parsed from provided host and file arguments")
 	domain := flag.String("d", "", "Domain to use for RDP authentication (optional)")
@@ -608,6 +609,7 @@ func Execute() {
 
 	NoColorMode = *noColor
 	modules.NoColorMode = *noColor
+	modules.InsecureTLS = *insecureTLS
 	modules.Silent = *silent
 	if *logEvery < 1 {
 		*logEvery = 1
