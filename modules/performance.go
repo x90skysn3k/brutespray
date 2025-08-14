@@ -2,180 +2,93 @@ package modules
 
 import (
 	"fmt"
-	"sync"
 	"time"
 )
 
-// PerformanceMetrics tracks various performance metrics
-type PerformanceMetrics struct {
-	StartTime            time.Time
-	TotalAttempts        int64
-	SuccessfulAttempts   int64
-	FailedAttempts       int64
-	ConnectionErrors     int64
-	AuthenticationErrors int64
-	AverageResponseTime  time.Duration
-	PeakConcurrency      int
-	CurrentConcurrency   int
-	mutex                sync.RWMutex
-}
+// Deprecated: PerformanceMetrics is superseded by OutputStats. Kept to avoid breaking imports.
+// It now proxies to the OutputStats-based implementation.
+type PerformanceMetrics struct{}
 
-var metrics = &PerformanceMetrics{
-	StartTime: time.Now(),
-}
+var metrics = &PerformanceMetrics{}
 
-// RecordAttempt records a brute force attempt
+// RecordAttempt proxies to the new stats system.
 func (pm *PerformanceMetrics) RecordAttempt(success bool, responseTime time.Duration) {
-	pm.mutex.Lock()
-	defer pm.mutex.Unlock()
-
-	pm.TotalAttempts++
-
-	if success {
-		pm.SuccessfulAttempts++
+	RecordAttempt(success)
+	// Approximate moving average for compatibility
+	globalStats.mutex.Lock()
+	if globalStats.TotalAttempts == 1 {
+		globalStats.AverageResponseTime = responseTime
 	} else {
-		pm.FailedAttempts++
-	}
-
-	// Update average response time
-	if pm.TotalAttempts == 1 {
-		pm.AverageResponseTime = responseTime
-	} else {
-		// Exponential moving average
 		alpha := 0.1
-		pm.AverageResponseTime = time.Duration(float64(pm.AverageResponseTime)*(1-alpha) + float64(responseTime)*alpha)
+		globalStats.AverageResponseTime = time.Duration(float64(globalStats.AverageResponseTime)*(1-alpha) + float64(responseTime)*alpha)
 	}
+	globalStats.mutex.Unlock()
 }
 
-// RecordError records a connection or authentication error
-func (pm *PerformanceMetrics) RecordError(isConnectionError bool) {
-	pm.mutex.Lock()
-	defer pm.mutex.Unlock()
+// RecordError proxies to the new stats system.
+func (pm *PerformanceMetrics) RecordError(isConnectionError bool) { RecordError(isConnectionError) }
 
-	if isConnectionError {
-		pm.ConnectionErrors++
-	} else {
-		pm.AuthenticationErrors++
-	}
-}
+// UpdateConcurrency proxies to OutputStats peak concurrency tracking.
+func (pm *PerformanceMetrics) UpdateConcurrency(current int) { UpdateConcurrency(current) }
 
-// UpdateConcurrency updates the current concurrency level
-func (pm *PerformanceMetrics) UpdateConcurrency(current int) {
-	pm.mutex.Lock()
-	defer pm.mutex.Unlock()
-
-	pm.CurrentConcurrency = current
-	if current > pm.PeakConcurrency {
-		pm.PeakConcurrency = current
-	}
-}
-
-// GetMetrics returns a copy of current metrics
+// GetMetrics returns a snapshot emulating the old struct using OutputStatsCopy.
 func (pm *PerformanceMetrics) GetMetrics() PerformanceMetrics {
-	pm.mutex.RLock()
-	defer pm.mutex.RUnlock()
-
-	return PerformanceMetrics{
-		StartTime:            pm.StartTime,
-		TotalAttempts:        pm.TotalAttempts,
-		SuccessfulAttempts:   pm.SuccessfulAttempts,
-		FailedAttempts:       pm.FailedAttempts,
-		ConnectionErrors:     pm.ConnectionErrors,
-		AuthenticationErrors: pm.AuthenticationErrors,
-		AverageResponseTime:  pm.AverageResponseTime,
-		PeakConcurrency:      pm.PeakConcurrency,
-		CurrentConcurrency:   pm.CurrentConcurrency,
-	}
+	// No-op: legacy callers use methods like GetAttemptsPerSecond/GetSuccessRate/PrintPerformanceReport.
+	return PerformanceMetrics{}
 }
 
-// GetAttemptsPerSecond calculates attempts per second
 func (pm *PerformanceMetrics) GetAttemptsPerSecond() float64 {
-	pm.mutex.RLock()
-	defer pm.mutex.RUnlock()
-
-	duration := time.Since(pm.StartTime).Seconds()
-	if duration == 0 {
-		return 0
-	}
-
-	return float64(pm.TotalAttempts) / duration
+	s := GetStats()
+	return s.AttemptsPerSecond
 }
 
-// GetSuccessRate calculates the success rate
 func (pm *PerformanceMetrics) GetSuccessRate() float64 {
-	pm.mutex.RLock()
-	defer pm.mutex.RUnlock()
-
-	if pm.TotalAttempts == 0 {
-		return 0
-	}
-
-	return float64(pm.SuccessfulAttempts) / float64(pm.TotalAttempts) * 100
+	s := GetStats()
+	return s.SuccessRate
 }
 
-// PrintPerformanceReport prints a comprehensive performance report
 func (pm *PerformanceMetrics) PrintPerformanceReport() {
-	metrics := pm.GetMetrics()
-
+	s := CalculateFinalStats()
 	fmt.Println("\n=== Performance Report ===")
-	fmt.Printf("Total Runtime: %v\n", time.Since(metrics.StartTime).Round(time.Second))
-	fmt.Printf("Total Attempts: %d\n", metrics.TotalAttempts)
-	fmt.Printf("Successful Attempts: %d\n", metrics.SuccessfulAttempts)
-	fmt.Printf("Failed Attempts: %d\n", metrics.FailedAttempts)
-	fmt.Printf("Connection Errors: %d\n", metrics.ConnectionErrors)
-	fmt.Printf("Authentication Errors: %d\n", metrics.AuthenticationErrors)
-	fmt.Printf("Success Rate: %.2f%%\n", pm.GetSuccessRate())
-	fmt.Printf("Attempts per Second: %.2f\n", pm.GetAttemptsPerSecond())
-	fmt.Printf("Average Response Time: %v\n", metrics.AverageResponseTime)
-	fmt.Printf("Peak Concurrency: %d\n", metrics.PeakConcurrency)
+	fmt.Printf("Total Runtime: %v\n", s.EndTime.Sub(s.StartTime).Round(time.Second))
+	fmt.Printf("Total Attempts: %d\n", s.TotalAttempts)
+	fmt.Printf("Successful Attempts: %d\n", s.SuccessfulAttempts)
+	fmt.Printf("Failed Attempts: %d\n", s.FailedAttempts)
+	fmt.Printf("Connection Errors: %d\n", s.ConnectionErrors)
+	fmt.Printf("Authentication Errors: %d\n", s.AuthenticationErrors)
+	fmt.Printf("Success Rate: %.2f%%\n", s.SuccessRate)
+	fmt.Printf("Attempts per Second: %.2f\n", s.AttemptsPerSecond)
+	fmt.Printf("Average Response Time: %v\n", s.AverageResponseTime)
+	fmt.Printf("Peak Concurrency: %d\n", s.PeakConcurrency)
 	fmt.Println("==========================")
 }
 
-// GetGlobalMetrics returns the global metrics instance
-func GetGlobalMetrics() *PerformanceMetrics {
-	return metrics
-}
+// GetGlobalMetrics returns the legacy-compatible metrics object.
+func GetGlobalMetrics() *PerformanceMetrics { return metrics }
 
-// PerformanceOptimizer provides performance optimization suggestions
-type PerformanceOptimizer struct {
-	metrics *PerformanceMetrics
-}
+// PerformanceOptimizer now reads from OutputStats.
+type PerformanceOptimizer struct{}
 
-func NewPerformanceOptimizer() *PerformanceOptimizer {
-	return &PerformanceOptimizer{
-		metrics: GetGlobalMetrics(),
-	}
-}
+func NewPerformanceOptimizer() *PerformanceOptimizer { return &PerformanceOptimizer{} }
 
-// GetOptimizationSuggestions returns performance optimization suggestions
 func (po *PerformanceOptimizer) GetOptimizationSuggestions() []string {
-	metrics := po.metrics.GetMetrics()
+	s := GetStats()
 	suggestions := []string{}
 
-	// Analyze success rate
-	successRate := po.metrics.GetSuccessRate()
-	if successRate > 50 {
+	if s.SuccessRate > 50 {
 		suggestions = append(suggestions, "High success rate detected - consider reducing retry attempts to improve speed")
 	}
-
-	// Analyze connection errors
-	if metrics.ConnectionErrors > metrics.TotalAttempts/10 {
+	if s.ConnectionErrors > s.TotalAttempts/10 {
 		suggestions = append(suggestions, "High connection error rate - consider increasing timeout or reducing concurrency")
 	}
-
-	// Analyze response times
-	if metrics.AverageResponseTime > 5*time.Second {
+	if s.AverageResponseTime > 5*time.Second {
 		suggestions = append(suggestions, "Slow average response time - consider increasing timeout or reducing load")
 	}
-
-	// Analyze concurrency
-	if metrics.PeakConcurrency < 10 {
+	if s.PeakConcurrency < 10 {
 		suggestions = append(suggestions, "Low concurrency detected - consider increasing thread count")
 	}
-
 	if len(suggestions) == 0 {
 		suggestions = append(suggestions, "Performance appears optimal with current settings")
 	}
-
 	return suggestions
 }

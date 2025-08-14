@@ -16,64 +16,12 @@ var (
 	skipWg        sync.WaitGroup
 )
 
-// ConnectionPool manages reusable connections for better performance
-type ConnectionPool struct {
-	pool    map[string][]interface{}
-	mutex   sync.RWMutex
-	timeout time.Duration
-}
-
-// NewConnectionPool creates a new connection pool
-func NewConnectionPool(timeout time.Duration) *ConnectionPool {
-	return &ConnectionPool{
-		pool:    make(map[string][]interface{}),
-		timeout: timeout,
-	}
-}
-
-// GetConnection retrieves a connection from the pool
-func (cp *ConnectionPool) GetConnection(key string) (interface{}, bool) {
-	cp.mutex.RLock()
-	defer cp.mutex.RUnlock()
-
-	if connections, exists := cp.pool[key]; exists && len(connections) > 0 {
-		conn := connections[len(connections)-1]
-		cp.pool[key] = connections[:len(connections)-1]
-		return conn, true
-	}
-	return nil, false
-}
-
-// PutConnection returns a connection to the pool
-func (cp *ConnectionPool) PutConnection(key string, conn interface{}) {
-	if conn == nil {
-		return
-	}
-
-	cp.mutex.Lock()
-	defer cp.mutex.Unlock()
-
-	if len(cp.pool[key]) < 10 { // Limit pool size per key
-		cp.pool[key] = append(cp.pool[key], conn)
-	}
-}
-
-// ClearPool clears all connections in the pool
-func (cp *ConnectionPool) ClearPool() {
-	cp.mutex.Lock()
-	defer cp.mutex.Unlock()
-	cp.pool = make(map[string][]interface{})
-}
-
-var connectionPool = NewConnectionPool(5 * time.Second)
-
 func ClearMaps() {
 	retryMapMutex.Lock()
 	defer retryMapMutex.Unlock()
 
 	retryMap = make(map[string]int)
 	skipMap = make(map[string]bool)
-	connectionPool.ClearPool()
 }
 
 // calculateBackoff calculates exponential backoff with jitter
