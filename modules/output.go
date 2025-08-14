@@ -346,7 +346,8 @@ func PrintWarningBeta(service string) {
 
 // PrintSocksError prints SOCKS proxy errors
 func PrintSocksError(service string, err string) {
-	pterm.Println(pterm.NewStyle(pterm.FgRed).Sprint(fmt.Sprintf("[!] Error: %s SOCKS5 connection failed - %s", service, err)))
+	// Keep message but ensure it is concise
+	pterm.Println(pterm.NewStyle(pterm.FgRed).Sprint(fmt.Sprintf("[!] %s: SOCKS5 connection failed - %s", service, err)))
 }
 
 // PrintSkipping prints host skipping messages
