@@ -458,6 +458,8 @@ func Execute() {
 	output := flag.String("o", "brutespray-output", "Directory containing successful attempts")
 	summary := flag.Bool("summary", false, "Generate comprehensive summary report with statistics")
 	noStats := flag.Bool("no-stats", false, "Disable statistics tracking for better performance")
+	silent := flag.Bool("silent", false, "Suppress per-attempt console logs (still records successes and summary)")
+	logEvery := flag.Int("log-every", 1, "Print every N attempts when not in silent mode (>=1)")
 	threads := flag.Int("t", 10, "Number of threads per host")
 	hostParallelism := flag.Int("T", 5, "Number of hosts to bruteforce at the same time")
 	socksProxy := flag.String("socks5", "", "Socks5 proxy to use for bruteforce")
@@ -477,6 +479,11 @@ func Execute() {
 
 	NoColorMode = *noColor
 	modules.NoColorMode = *noColor
+	modules.Silent = *silent
+	if *logEvery < 1 {
+		*logEvery = 1
+	}
+	modules.LogEvery = int64(*logEvery)
 	// If -p was provided explicitly and is empty (length zero), instruct
 	// modules to use a single blank password instead of default wordlist.
 	// We detect this by checking the presence of -p in the provided args.
@@ -608,7 +615,15 @@ func Execute() {
 	}
 
 	// Create optimized worker pool with per-host thread allocation
-	progressCh := make(chan int, (*threads)*totalHosts*10) // Buffer based on total threads across all hosts
+	// Buffer based on total threads across all hosts but cap to prevent huge memory spikes
+	totalThreadEstimate := (*threads) * totalHosts * 10
+	if totalThreadEstimate < 1 {
+		totalThreadEstimate = 1
+	}
+	if totalThreadEstimate > 100000 {
+		totalThreadEstimate = 100000
+	}
+	progressCh := make(chan int, totalThreadEstimate)
 	workerPool := NewWorkerPool(*threads, progressCh, *hostParallelism, totalHosts)
 
 	sigs := make(chan os.Signal, 1)
