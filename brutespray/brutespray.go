@@ -33,6 +33,18 @@ type Credential struct {
 	Service  string
 }
 
+// hostListFlag collects multiple -H targets
+type hostListFlag []string
+
+func (h *hostListFlag) String() string { return strings.Join(*h, ",") }
+func (h *hostListFlag) Set(value string) error {
+	if value == "" {
+		return fmt.Errorf("empty host provided to -H")
+	}
+	*h = append(*h, value)
+	return nil
+}
+
 // HostWorkerPool manages workers for a specific host
 type HostWorkerPool struct {
 	host           modules.Host
@@ -576,14 +588,15 @@ func Execute() {
 	noStats := flag.Bool("no-stats", false, "Disable statistics tracking for better performance")
 	silent := flag.Bool("silent", false, "Suppress per-attempt console logs (still records successes and summary)")
 	logEvery := flag.Int("log-every", 1, "Print every N attempts when not in silent mode (>=1)")
-	threads := flag.Int("t", 10, "Number of threads per host")
+	threads := flag.Int("t", 10, "Number of threads per host (also acts as max threads per host)")
 	hostParallelism := flag.Int("T", 5, "Number of hosts to bruteforce at the same time")
 	socksProxy := flag.String("socks5", "", "Socks5 proxy to use for bruteforce")
 	netInterface := flag.String("iface", "", "Specific network interface to use for bruteforce traffic")
 	serviceType := flag.String("s", "all", "Service type: ssh, ftp, smtp, etc; Default all")
 	listServices := flag.Bool("S", false, "List all supported services")
 	file := flag.String("f", "", "File to parse; Supported: Nmap, Nessus, Nexpose, Lists, etc")
-	host := flag.String("H", "", "Target in the format service://host:port, CIDR ranges supported,\n default port will be used if not specified")
+	var hostArgs hostListFlag
+	flag.Var(&hostArgs, "H", "Target in the format service://host:port, CIDR ranges supported; can be specified multiple times")
 	quiet := flag.Bool("q", false, "Suppress the banner")
 	timeout := flag.Duration("w", 5*time.Second, "Set timeout delay of bruteforce attempts")
 	retry := flag.Int("r", 3, "Amount of times to retry after receiving connection failed")
@@ -647,15 +660,19 @@ func Execute() {
 		}
 	}
 
-	if *host == "" && *file == "" {
+	if len(hostArgs) == 0 && *file == "" {
 		flag.Usage()
 		os.Exit(2)
 	}
 
-	hosts, err := modules.ParseFile(*file)
-	if err != nil && *file != "" {
-		fmt.Println("Error parsing file:", err)
-		os.Exit(1)
+	var hosts map[modules.Host]int
+	var err error
+	if *file != "" {
+		hosts, err = modules.ParseFile(*file)
+		if err != nil {
+			fmt.Println("Error parsing file:", err)
+			os.Exit(1)
+		}
 	}
 
 	var hostsList []modules.Host
@@ -663,28 +680,16 @@ func Execute() {
 		hostsList = append(hostsList, h)
 	}
 
-	// Handle multiple -H arguments
-	if *host != "" {
+	// Parse all -H hosts
+	if len(hostArgs) > 0 {
 		var hostObj modules.Host
-		// Parse all host arguments from command line
-		for i, arg := range os.Args[1:] {
-			if arg == "-H" && i+1 < len(os.Args[1:]) {
-				hostArg := os.Args[1:][i+1]
-				host, err := hostObj.Parse(hostArg)
-				if err != nil {
-					fmt.Println("Error parsing host:", err)
-					os.Exit(1)
-				}
-				hostsList = append(hostsList, host...)
-			} else if strings.HasPrefix(arg, "-H=") {
-				hostArg := strings.TrimPrefix(arg, "-H=")
-				host, err := hostObj.Parse(hostArg)
-				if err != nil {
-					fmt.Println("Error parsing host:", err)
-					os.Exit(1)
-				}
-				hostsList = append(hostsList, host...)
+		for _, hostArg := range hostArgs {
+			parsed, err := hostObj.Parse(hostArg)
+			if err != nil {
+				fmt.Println("Error parsing host:", err)
+				os.Exit(1)
 			}
+			hostsList = append(hostsList, parsed...)
 		}
 	}
 
