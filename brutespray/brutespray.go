@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -34,12 +35,14 @@ type Credential struct {
 
 // HostWorkerPool manages workers for a specific host
 type HostWorkerPool struct {
-	host       modules.Host
-	workers    int
-	jobQueue   chan Credential
-	progressCh chan int
-	wg         sync.WaitGroup
-	stopChan   chan struct{}
+	host           modules.Host
+	workers        int
+	targetWorkers  int
+	currentWorkers int32
+	jobQueue       chan Credential
+	progressCh     chan int
+	wg             sync.WaitGroup
+	stopChan       chan struct{}
 	// Performance tracking for dynamic adjustment
 	avgResponseTime time.Duration
 	successRate     float64
@@ -62,17 +65,19 @@ type WorkerPool struct {
 	minThreadsPerHost int
 	maxThreadsPerHost int
 	// Statistics control
-	noStats bool
+	noStats    bool
+	scalerStop chan struct{}
 }
 
 // NewHostWorkerPool creates a new host-specific worker pool
 func NewHostWorkerPool(host modules.Host, workers int, progressCh chan int) *HostWorkerPool {
 	return &HostWorkerPool{
-		host:       host,
-		workers:    workers,
-		jobQueue:   make(chan Credential, workers*10), // Smaller buffer per host
-		progressCh: progressCh,
-		stopChan:   make(chan struct{}),
+		host:          host,
+		workers:       workers,
+		targetWorkers: workers,
+		jobQueue:      make(chan Credential, workers*10), // Smaller buffer per host
+		progressCh:    progressCh,
+		stopChan:      make(chan struct{}),
 	}
 }
 
@@ -90,8 +95,9 @@ func NewWorkerPool(threadsPerHost int, progressCh chan int, hostParallelism int,
 		hostParallelism:   hostParallelism,
 		hostSem:           make(chan struct{}, hostParallelism),
 		dynamicAllocation: true,
-		minThreadsPerHost: threadsPerHost, // No minimum below what user specified
-		maxThreadsPerHost: threadsPerHost, // No maximum above what user specified (disable dynamic scaling)
+		minThreadsPerHost: 1,
+		maxThreadsPerHost: threadsPerHost,
+		scalerStop:        make(chan struct{}),
 	}
 }
 
@@ -99,6 +105,24 @@ func NewWorkerPool(threadsPerHost int, progressCh chan int, hostParallelism int,
 func (hwp *HostWorkerPool) Start(timeout time.Duration, retry int, output string, socksProxy string, netInterface string, domain string, noStats bool) {
 	for i := 0; i < hwp.workers; i++ {
 		hwp.wg.Add(1)
+		atomic.AddInt32(&hwp.currentWorkers, 1)
+		go hwp.worker(timeout, retry, output, socksProxy, netInterface, domain, noStats)
+	}
+}
+
+// scaleTo adjusts the number of workers towards target. It can only add workers; reducing
+// happens cooperatively when workers finish a job and see they are above target.
+func (hwp *HostWorkerPool) scaleTo(newTarget int, timeout time.Duration, retry int, output string, socksProxy string, netInterface string, domain string, noStats bool) {
+	if newTarget < 1 {
+		newTarget = 1
+	}
+	hwp.mutex.Lock()
+	hwp.targetWorkers = newTarget
+	hwp.mutex.Unlock()
+	// Add workers if below target
+	for int(atomic.LoadInt32(&hwp.currentWorkers)) < newTarget {
+		hwp.wg.Add(1)
+		atomic.AddInt32(&hwp.currentWorkers, 1)
 		go hwp.worker(timeout, retry, output, socksProxy, netInterface, domain, noStats)
 	}
 }
@@ -108,6 +132,26 @@ func (wp *WorkerPool) Start(timeout time.Duration, retry int, output string, soc
 	// Store noStats for use in ProcessHost
 	wp.noStats = noStats
 	// Host worker pools are started individually when hosts are processed
+	// Launch a scaler that periodically adjusts per-host worker counts
+	go func() {
+		ticker := time.NewTicker(2 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-wp.scalerStop:
+				return
+			case <-wp.globalStopChan:
+				return
+			case <-ticker.C:
+				wp.hostPoolsMutex.RLock()
+				for _, hp := range wp.hostPools {
+					target := wp.calculateOptimalThreadsForPool(hp)
+					hp.scaleTo(target, timeout, retry, output, socksProxy, netInterface, domain, noStats)
+				}
+				wp.hostPoolsMutex.RUnlock()
+			}
+		}
+	}()
 }
 
 // Stop stops the host-specific worker pool
@@ -131,6 +175,13 @@ func (wp *WorkerPool) Stop() {
 		return
 	default:
 		close(wp.globalStopChan)
+	}
+
+	// Stop scaler
+	select {
+	case <-wp.scalerStop:
+	default:
+		close(wp.scalerStop)
 	}
 
 	// Stop all host pools concurrently for faster shutdown
@@ -166,37 +217,63 @@ func (hwp *HostWorkerPool) worker(timeout time.Duration, retry int, output strin
 	defer hwp.wg.Done()
 
 	for {
+		// If scaling down and queue appears empty, allow this worker to exit
+		if int(atomic.LoadInt32(&hwp.currentWorkers)) > hwp.targetWorkers {
+			select {
+			case <-hwp.stopChan:
+				atomic.AddInt32(&hwp.currentWorkers, -1)
+				return
+			default:
+				// Only exit if no job immediately available
+				select {
+				case <-hwp.stopChan:
+					atomic.AddInt32(&hwp.currentWorkers, -1)
+					return
+				case cred, ok := <-hwp.jobQueue:
+					if !ok {
+						atomic.AddInt32(&hwp.currentWorkers, -1)
+						return
+					}
+					hwp.processCredential(cred, timeout, retry, output, socksProxy, netInterface, domain, noStats)
+					continue
+				default:
+					atomic.AddInt32(&hwp.currentWorkers, -1)
+					return
+				}
+			}
+		}
 		select {
 		case <-hwp.stopChan:
+			atomic.AddInt32(&hwp.currentWorkers, -1)
 			return
 		case cred, ok := <-hwp.jobQueue:
 			if !ok {
+				atomic.AddInt32(&hwp.currentWorkers, -1)
 				return
 			}
-
-			// Track performance for dynamic adjustment
-			startTime := time.Now()
-
-			// Execute the brute force attempt
-			success := brute.RunBrute(cred.Host, cred.User, cred.Password, hwp.progressCh, timeout, retry, output, socksProxy, netInterface, domain)
-
-			// Record statistics (if enabled)
-			duration := time.Since(startTime)
-			if !noStats {
-				// Note: success here is the connection result, not authentication result
-				// The actual authentication result is handled in brute.RunBrute
-				// We don't record attempts here because they're handled in the brute module
-				// Only record connection errors with host information
-				if !success {
-					modules.RecordConnectionError(cred.Host.Host) // Connection error with host
-				}
-			}
-
-			// Update performance metrics
-			hwp.updatePerformanceMetrics(success, duration)
-			hwp.progressCh <- 1
+			hwp.processCredential(cred, timeout, retry, output, socksProxy, netInterface, domain, noStats)
 		}
 	}
+}
+
+func (hwp *HostWorkerPool) processCredential(cred Credential, timeout time.Duration, retry int, output string, socksProxy string, netInterface string, domain string, noStats bool) {
+	// Track performance for dynamic adjustment
+	startTime := time.Now()
+
+	// Execute the brute force attempt
+	success := brute.RunBrute(cred.Host, cred.User, cred.Password, hwp.progressCh, timeout, retry, output, socksProxy, netInterface, domain)
+
+	// Record statistics (if enabled)
+	duration := time.Since(startTime)
+	if !noStats {
+		if !success {
+			modules.RecordConnectionError(cred.Host.Host)
+		}
+	}
+
+	// Update performance metrics
+	hwp.updatePerformanceMetrics(success, duration)
+	hwp.progressCh <- 1
 }
 
 // updatePerformanceMetrics updates the performance metrics for the host
@@ -271,9 +348,48 @@ func (wp *WorkerPool) getOrCreateHostPool(host modules.Host) *HostWorkerPool {
 
 // calculateOptimalThreadsForHost returns the exact threads per host as specified by user
 func (wp *WorkerPool) calculateOptimalThreadsForHost(host modules.Host) int {
-	// Always return the exact threads per host specified by the user
-	// No service-specific adjustments or dynamic scaling
+	// Backward-compatible default used when not using host pool state
 	return wp.threadsPerHost
+}
+
+// calculateOptimalThreadsForPool computes a target worker count based on current
+// per-host pool performance: faster avg response -> more threads; many errors -> fewer.
+func (wp *WorkerPool) calculateOptimalThreadsForPool(hp *HostWorkerPool) int {
+	hp.mutex.RLock()
+	avg := hp.avgResponseTime
+	success := hp.successRate
+	attempts := hp.totalAttempts
+	hp.mutex.RUnlock()
+
+	target := wp.threadsPerHost
+	if attempts < 10 {
+		return target
+	}
+
+	// Scale with simple rules of thumb
+	// Very fast responses (<200ms) -> double threads (up to max)
+	if avg < 200*time.Millisecond {
+		target = wp.threadsPerHost * 2
+	} else if avg > 2*time.Second {
+		// Slow responses -> halve threads (down to min)
+		target = wp.threadsPerHost / 2
+		if target < 1 {
+			target = 1
+		}
+	}
+
+	// If success rate high, reduce retries via speed-up threads modestly
+	if success > 0.25 {
+		target += wp.threadsPerHost / 2
+	}
+
+	if target < wp.minThreadsPerHost {
+		target = wp.minThreadsPerHost
+	}
+	if target > wp.maxThreadsPerHost {
+		target = wp.maxThreadsPerHost
+	}
+	return target
 }
 
 // Helper function for min
@@ -729,8 +845,12 @@ func Execute() {
 			counterMutex.Lock()
 			currentCounter++
 			if NoColorMode {
-				// Update progress every 10 attempts
-				if currentCounter%((*threads)/2) == 0 || currentCounter == (totalCombinations)-nopassServices {
+				// Update progress periodically. Avoid modulo by zero when threads is small.
+				step := (*threads) / 2
+				if step < 1 {
+					step = 1
+				}
+				if currentCounter%step == 0 || currentCounter == (totalCombinations)-nopassServices {
 					fmt.Printf("\n[*] Progress: %d/%d combinations tested\n", currentCounter, (totalCombinations)-nopassServices)
 				}
 			} else {
