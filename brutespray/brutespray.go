@@ -670,9 +670,14 @@ func Execute() {
 	var hosts map[modules.Host]int
 	var err error
 	if *file != "" {
+		// Pre-validate the provided file path and emit a standardized error on stderr
+		if !modules.IsFile(*file) {
+			fmt.Fprintln(os.Stderr, "Invalid -f path: file does not exist or is not accessible:", *file)
+			os.Exit(2)
+		}
 		hosts, err = modules.ParseFile(*file)
 		if err != nil {
-			fmt.Println("Error parsing file:", err)
+			fmt.Fprintln(os.Stderr, "Failed to parse input file:", err)
 			os.Exit(1)
 		}
 	}

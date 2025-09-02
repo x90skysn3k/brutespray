@@ -25,6 +25,30 @@ To Build:
 go build -o brutespray main.go
 ```
 
+## Development
+
+### Running
+
+```bash
+go run .
+```
+
+### Testing
+
+```bash
+# Unit tests
+go test ./... -v
+
+# Integration services (Docker)
+docker compose -f build/docker-compose.test.yml up -d
+# run tests or manual runs against localhost service ports
+docker compose -f build/docker-compose.test.yml down
+```
+
+### CI
+
+GitHub Actions workflow under `.github/workflows/ci.yml` builds and runs tests on pushes and PRs.
+
 # Usage
 
 If using Nmap, scan with `-oA nmap_out`.
