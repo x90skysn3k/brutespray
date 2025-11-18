@@ -9,7 +9,7 @@ import (
 	"github.com/x90skysn3k/brutespray/modules"
 )
 
-func BruteFTP(host string, port int, user, password string, timeout time.Duration, socks5 string, netInterface string) (bool, bool) {
+func BruteFTP(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) (bool, bool) {
 	timer := time.NewTimer(timeout)
 	defer timer.Stop()
 
@@ -18,11 +18,6 @@ func BruteFTP(host string, port int, user, password string, timeout time.Duratio
 		err    error
 	}
 	done := make(chan result)
-
-	cm, err := modules.NewConnectionManager(socks5, timeout, netInterface)
-	if err != nil {
-		return false, false
-	}
 
 	go func() {
 		conn, err := cm.Dial("tcp", fmt.Sprintf("%s:%d", host, port))

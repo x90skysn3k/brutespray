@@ -10,7 +10,7 @@ import (
 	"gosrc.io/xmpp/stanza"
 )
 
-func BruteXMPP(host string, port int, user, password string, timeout time.Duration, socks5 string, netInterface string) (bool, bool) {
+func BruteXMPP(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) (bool, bool) {
 	portstr := strconv.Itoa(port)
 	hoststr := host + ":" + portstr
 	timer := time.NewTimer(timeout)
@@ -21,11 +21,6 @@ func BruteXMPP(host string, port int, user, password string, timeout time.Durati
 		err     error
 	}
 	done := make(chan result)
-
-	cm, err := modules.NewConnectionManager(socks5, timeout, netInterface)
-	if err != nil {
-		return false, false
-	}
 
 	go func() {
 		conn, err := cm.Dial("tcp", hoststr)

@@ -9,16 +9,9 @@ import (
 	"github.com/x90skysn3k/brutespray/modules"
 )
 
-func BruteOracle(host string, port int, user, password string, timeout time.Duration, socks5 string, netInterface string) (bool, bool) {
+func BruteOracle(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) (bool, bool) {
 
 	connectionString := fmt.Sprintf("%s:%s@%s:%d", user, password, host, port)
-
-	cm, err := modules.NewConnectionManager(socks5, timeout, netInterface)
-	if err != nil {
-		_ = err
-		//fmt.Println("Connection Manager Error:", err)
-		return false, false
-	}
 
 	conn, err := cm.Dial("tcp", fmt.Sprintf("%s:%d", host, port))
 	if err != nil {
