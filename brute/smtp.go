@@ -17,6 +17,7 @@ func BruteSMTP(host string, port int, user, password string, timeout time.Durati
 		return false, false
 	}
 	// Do not close here, we pass it to NewClient
+	conn.SetDeadline(time.Now().Add(timeout))
 
 	smtpClient, err := smtp.NewClient(conn, host)
 	if err != nil {

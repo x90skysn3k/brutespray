@@ -230,7 +230,10 @@ func (hwp *HostWorkerPool) worker(timeout time.Duration, retry int, output strin
 
 	for {
 		// If scaling down and queue appears empty, allow this worker to exit
-		if int(atomic.LoadInt32(&hwp.currentWorkers)) > hwp.targetWorkers {
+		hwp.mutex.RLock()
+		target := hwp.targetWorkers
+		hwp.mutex.RUnlock()
+		if int(atomic.LoadInt32(&hwp.currentWorkers)) > target {
 			select {
 			case <-hwp.stopChan:
 				atomic.AddInt32(&hwp.currentWorkers, -1)

@@ -17,7 +17,7 @@ func BruteFTP(host string, port int, user, password string, timeout time.Duratio
 		client *ftp.ServerConn
 		err    error
 	}
-	done := make(chan result)
+	done := make(chan result, 1)
 
 	go func() {
 		conn, err := cm.Dial("tcp", fmt.Sprintf("%s:%d", host, port))

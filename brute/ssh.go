@@ -24,7 +24,7 @@ func BruteSSH(host string, port int, user, password string, timeout time.Duratio
 		client *ssh.Client
 		err    error
 	}
-	done := make(chan result)
+	done := make(chan result, 1)
 
 	var err error
 	var conn net.Conn

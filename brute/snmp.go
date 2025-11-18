@@ -24,7 +24,7 @@ func BruteSNMP(host string, port int, user, password string, timeout time.Durati
 		success bool
 		err     error
 	}
-	done := make(chan result)
+	done := make(chan result, 1)
 
 	// Create a handler just to get the default port if needed, but we have port.
 
