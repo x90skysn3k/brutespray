@@ -50,7 +50,7 @@ func BrutePOP3(host string, port int, user, password string, timeout time.Durati
 			}
 		}()
 
-		authDone := make(chan bool)
+		authDone := make(chan bool, 1)
 		go func() {
 			err := c.Auth(user, password)
 			authDone <- (err == nil)

@@ -29,7 +29,7 @@ func BruteOracle(host string, port int, user, password string, timeout time.Dura
 		err error
 	}
 
-	done := make(chan result)
+	done := make(chan result, 1)
 	go func() {
 		db, err := sql.Open("oracle", connectionString)
 		if err != nil {

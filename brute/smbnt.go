@@ -18,7 +18,7 @@ func BruteSMB(host string, port int, user, password string, timeout time.Duratio
 		conn    net.Conn
 		err     error
 	}
-	done := make(chan result)
+	done := make(chan result, 1)
 
 	go func() {
 		conn, err := cm.Dial("tcp", fmt.Sprintf("%s:%d", host, port))

@@ -20,7 +20,7 @@ func BruteXMPP(host string, port int, user, password string, timeout time.Durati
 		session *xmpp.Client
 		err     error
 	}
-	done := make(chan result)
+	done := make(chan result, 1)
 
 	go func() {
 		conn, err := cm.Dial("tcp", hoststr)
