@@ -114,17 +114,17 @@ func NewWorkerPool(threadsPerHost int, progressCh chan int, hostParallelism int,
 }
 
 // Start starts the host-specific worker pool
-func (hwp *HostWorkerPool) Start(timeout time.Duration, retry int, output string, socksProxy string, netInterface string, domain string, noStats bool) {
+func (hwp *HostWorkerPool) Start(timeout time.Duration, retry int, output string, cm *modules.ConnectionManager, domain string, noStats bool) {
 	for i := 0; i < hwp.workers; i++ {
 		hwp.wg.Add(1)
 		atomic.AddInt32(&hwp.currentWorkers, 1)
-		go hwp.worker(timeout, retry, output, socksProxy, netInterface, domain, noStats)
+		go hwp.worker(timeout, retry, output, cm, domain, noStats)
 	}
 }
 
 // scaleTo adjusts the number of workers towards target. It can only add workers; reducing
 // happens cooperatively when workers finish a job and see they are above target.
-func (hwp *HostWorkerPool) scaleTo(newTarget int, timeout time.Duration, retry int, output string, socksProxy string, netInterface string, domain string, noStats bool) {
+func (hwp *HostWorkerPool) scaleTo(newTarget int, timeout time.Duration, retry int, output string, cm *modules.ConnectionManager, domain string, noStats bool) {
 	if newTarget < 1 {
 		newTarget = 1
 	}
@@ -135,12 +135,12 @@ func (hwp *HostWorkerPool) scaleTo(newTarget int, timeout time.Duration, retry i
 	for int(atomic.LoadInt32(&hwp.currentWorkers)) < newTarget {
 		hwp.wg.Add(1)
 		atomic.AddInt32(&hwp.currentWorkers, 1)
-		go hwp.worker(timeout, retry, output, socksProxy, netInterface, domain, noStats)
+		go hwp.worker(timeout, retry, output, cm, domain, noStats)
 	}
 }
 
 // Start starts all host worker pools
-func (wp *WorkerPool) Start(timeout time.Duration, retry int, output string, socksProxy string, netInterface string, domain string, noStats bool) {
+func (wp *WorkerPool) Start(timeout time.Duration, retry int, output string, cm *modules.ConnectionManager, domain string, noStats bool) {
 	// Store noStats for use in ProcessHost
 	wp.noStats = noStats
 	// Host worker pools are started individually when hosts are processed
@@ -158,7 +158,7 @@ func (wp *WorkerPool) Start(timeout time.Duration, retry int, output string, soc
 				wp.hostPoolsMutex.RLock()
 				for _, hp := range wp.hostPools {
 					target := wp.calculateOptimalThreadsForPool(hp)
-					hp.scaleTo(target, timeout, retry, output, socksProxy, netInterface, domain, noStats)
+					hp.scaleTo(target, timeout, retry, output, cm, domain, noStats)
 				}
 				wp.hostPoolsMutex.RUnlock()
 			}
@@ -225,7 +225,7 @@ func (wp *WorkerPool) Stop() {
 }
 
 // worker is the main worker goroutine for host-specific worker pool
-func (hwp *HostWorkerPool) worker(timeout time.Duration, retry int, output string, socksProxy string, netInterface string, domain string, noStats bool) {
+func (hwp *HostWorkerPool) worker(timeout time.Duration, retry int, output string, cm *modules.ConnectionManager, domain string, noStats bool) {
 	defer hwp.wg.Done()
 
 	for {
@@ -246,7 +246,7 @@ func (hwp *HostWorkerPool) worker(timeout time.Duration, retry int, output strin
 						atomic.AddInt32(&hwp.currentWorkers, -1)
 						return
 					}
-					hwp.processCredential(cred, timeout, retry, output, socksProxy, netInterface, domain, noStats)
+					hwp.processCredential(cred, timeout, retry, output, cm, domain, noStats)
 					continue
 				default:
 					atomic.AddInt32(&hwp.currentWorkers, -1)
@@ -263,17 +263,17 @@ func (hwp *HostWorkerPool) worker(timeout time.Duration, retry int, output strin
 				atomic.AddInt32(&hwp.currentWorkers, -1)
 				return
 			}
-			hwp.processCredential(cred, timeout, retry, output, socksProxy, netInterface, domain, noStats)
+			hwp.processCredential(cred, timeout, retry, output, cm, domain, noStats)
 		}
 	}
 }
 
-func (hwp *HostWorkerPool) processCredential(cred Credential, timeout time.Duration, retry int, output string, socksProxy string, netInterface string, domain string, noStats bool) {
+func (hwp *HostWorkerPool) processCredential(cred Credential, timeout time.Duration, retry int, output string, cm *modules.ConnectionManager, domain string, noStats bool) {
 	// Track performance for dynamic adjustment
 	startTime := time.Now()
 
 	// Execute the brute force attempt
-	success := brute.RunBrute(cred.Host, cred.User, cred.Password, hwp.progressCh, timeout, retry, output, socksProxy, netInterface, domain)
+	success := brute.RunBrute(cred.Host, cred.User, cred.Password, hwp.progressCh, timeout, retry, output, "", "", domain, cm)
 
 	// Record statistics (if enabled)
 	duration := time.Since(startTime)
@@ -407,7 +407,7 @@ func (wp *WorkerPool) calculateOptimalThreadsForPool(hp *HostWorkerPool) int {
 // Helper function for min
 
 // ProcessHost processes a single host with all its credentials using dedicated host worker pool
-func (wp *WorkerPool) ProcessHost(host modules.Host, service string, combo string, user string, password string, version string, timeout time.Duration, retry int, output string, socksProxy string, netInterface string, domain string) {
+func (wp *WorkerPool) ProcessHost(host modules.Host, service string, combo string, user string, password string, version string, timeout time.Duration, retry int, output string, cm *modules.ConnectionManager, domain string) {
 	// Check if we should stop before acquiring semaphore
 	select {
 	case <-wp.globalStopChan:
@@ -434,7 +434,7 @@ func (wp *WorkerPool) ProcessHost(host modules.Host, service string, combo strin
 	hostPool := wp.getOrCreateHostPool(host)
 
 	// Start the host worker pool
-	hostPool.Start(timeout, retry, output, socksProxy, netInterface, domain, wp.noStats)
+	hostPool.Start(timeout, retry, output, cm, domain, wp.noStats)
 
 	// Debug output to show host processing
 	if !NoColorMode {
@@ -810,23 +810,25 @@ func Execute() {
 		}
 	}
 
-	if *netInterface != "" {
-		ifaceName, err := modules.ValidateNetworkInterface(*netInterface)
-		if err != nil {
-			fmt.Println("Error:", err)
-			os.Exit(1)
-		}
-		ipAddr, err := modules.GetIPv4Address(ifaceName)
-		if err != nil {
-			fmt.Println("Error:", err)
-			os.Exit(1)
-		}
-		modules.PrintfColored(pterm.FgLightYellow, "Network Interface: %s\n", *netInterface)
-		modules.PrintfColored(pterm.FgLightYellow, "Local Address: %s\n", ipAddr)
-	}
-
 	if *socksProxy != "" {
 		modules.PrintfColored(pterm.FgLightYellow, "Socks5 Proxy: %s\n", *socksProxy)
+	}
+
+	// Initialize Connection Manager once
+	cm, err := modules.NewConnectionManager(*socksProxy, *timeout, *netInterface)
+	if err != nil {
+		fmt.Printf("Error creating connection manager: %v\n", err)
+		os.Exit(1)
+	}
+
+	if *netInterface != "" {
+		// We can use the CM to validate or just print info. CM has checked it.
+		modules.PrintfColored(pterm.FgLightYellow, "Network Interface: %s\n", cm.Iface)
+		// Get IP from CM logic ideally, but let's trust it worked.
+		ipAddr, err := modules.GetIPv4Address(cm.Iface)
+		if err == nil {
+			modules.PrintfColored(pterm.FgLightYellow, "Local Address: %s\n", ipAddr)
+		}
 	}
 
 	modules.PrintlnColored(pterm.FgLightYellow, "\nStarting bruteforce attack...")
@@ -900,6 +902,9 @@ func Execute() {
 
 		// Clean up and exit immediately
 		brute.ClearMaps()
+		// CM pool cleanup
+		cm.ClearPool()
+
 		modules.PrintlnColored(pterm.FgLightYellow, "[*] Cleanup completed. Exiting...")
 		os.Exit(0)
 	}()
@@ -907,7 +912,7 @@ func Execute() {
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 
 	// Start the worker pool
-	workerPool.Start(*timeout, *retry, *output, *socksProxy, *netInterface, *domain, *noStats)
+	workerPool.Start(*timeout, *retry, *output, cm, *domain, *noStats)
 
 	// Process hosts with proper parallelism
 	var hostWg sync.WaitGroup
@@ -923,7 +928,7 @@ func Execute() {
 					case <-workerPool.globalStopChan:
 						return
 					default:
-						workerPool.ProcessHost(host, svc, *combo, *user, *password, version, *timeout, *retry, *output, *socksProxy, *netInterface, *domain)
+						workerPool.ProcessHost(host, svc, *combo, *user, *password, version, *timeout, *retry, *output, cm, *domain)
 					}
 				}(h, service)
 			}
@@ -985,5 +990,6 @@ func Execute() {
 		fmt.Println("===============================================")
 	}
 
-	defer brute.ClearMaps()
+	brute.ClearMaps()
+	cm.ClearPool()
 }

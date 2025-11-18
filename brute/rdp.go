@@ -17,16 +17,10 @@ import (
 	"github.com/x90skysn3k/grdp/protocol/x224"
 )
 
-func BruteRDP(host string, port int, user, password string, timeout time.Duration, socks5 string, netInterface string, domain string) (bool, bool) {
+func BruteRDP(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager, domain string) (bool, bool) {
 	glog.SetLevel(pdu.STREAM_LOW)
 	logger := log.New(io.Discard, "", 0)
 	glog.SetLogger(logger)
-
-	cm, err := modules.NewConnectionManager(socks5, timeout, netInterface)
-	if err != nil {
-		glog.Errorf("[connection manager error] %v", err)
-		return false, false
-	}
 
 	conn, err := cm.Dial("tcp", fmt.Sprintf("%s:%d", host, port))
 	if err != nil {
