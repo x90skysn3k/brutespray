@@ -832,7 +832,8 @@ func Execute() {
 	}
 
 	modules.PrintlnColored(pterm.FgLightYellow, "\nStarting bruteforce attack...")
-	modules.PrintlnColored(pterm.FgLightYellow, fmt.Sprintf("Threads per Host: %d, Total Threads: %d, Concurrent Hosts: %d, Total Combinations: %d", *threads, workerPool.globalWorkers, *hostParallelism, (totalCombinations)-nopassServices))
+	maxConcurrentThreads := *threads * *hostParallelism
+	modules.PrintlnColored(pterm.FgLightYellow, fmt.Sprintf("Threads per Host: %d, Max Concurrent Threads: %d, Concurrent Hosts: %d, Total Combinations: %d", *threads, maxConcurrentThreads, *hostParallelism, (totalCombinations)-nopassServices))
 	modules.PrintlnColored(pterm.FgLightYellow, fmt.Sprintf("Total Hosts: %d, Maximum %d hosts will be processed concurrently", totalHosts, *hostParallelism))
 
 	if NoColorMode {
