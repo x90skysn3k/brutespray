@@ -113,6 +113,8 @@ func RunBrute(h modules.Host, u string, p string, progressCh chan<- int, timeout
 				}
 			}
 			result, con_result = BruteRDP(h.Host, h.Port, parsedUser, p, timeout, cm, parsedDomain)
+		case "redis":
+			result, con_result = BruteRedis(h.Host, h.Port, u, p, timeout, cm)
 		case "http":
 			result, con_result = BruteHTTP(h.Host, h.Port, u, p, timeout, cm)
 		case "https":
