@@ -9,7 +9,7 @@ import (
 	"github.com/x90skysn3k/brutespray/modules"
 )
 
-func BruteFTP(host string, port int, user, password string, timeout time.Duration, socks5 string, netInterface string) (bool, bool) {
+func BruteFTP(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) (bool, bool) {
 	timer := time.NewTimer(timeout)
 	defer timer.Stop()
 
@@ -17,12 +17,7 @@ func BruteFTP(host string, port int, user, password string, timeout time.Duratio
 		client *ftp.ServerConn
 		err    error
 	}
-	done := make(chan result)
-
-	cm, err := modules.NewConnectionManager(socks5, timeout, netInterface)
-	if err != nil {
-		return false, false
-	}
+	done := make(chan result, 1)
 
 	go func() {
 		conn, err := cm.Dial("tcp", fmt.Sprintf("%s:%d", host, port))
@@ -31,6 +26,12 @@ func BruteFTP(host string, port int, user, password string, timeout time.Duratio
 			return
 		}
 		defer conn.Close()
+
+		// Set deadline to ensure the goroutine terminates if FTP negotiation hangs
+		if err := conn.SetDeadline(time.Now().Add(timeout)); err != nil {
+			done <- result{nil, err}
+			return
+		}
 
 		client, err := ftp.Dial(conn.RemoteAddr().String(), ftp.DialWithDialFunc(func(network, addr string) (net.Conn, error) { return conn, nil }))
 		if err != nil {

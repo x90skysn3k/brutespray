@@ -1,78 +1,15 @@
 package brute
 
 import (
+	"math/rand"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/x90skysn3k/brutespray/modules"
 )
 
-var (
-	retryMap      = make(map[string]int)
-	skipMap       = make(map[string]bool)
-	retryMapMutex = &sync.RWMutex{} // Use RWMutex for better performance
-	skipWg        sync.WaitGroup
-)
-
-// ConnectionPool manages reusable connections for better performance
-type ConnectionPool struct {
-	pool    map[string][]interface{}
-	mutex   sync.RWMutex
-	timeout time.Duration
-}
-
-// NewConnectionPool creates a new connection pool
-func NewConnectionPool(timeout time.Duration) *ConnectionPool {
-	return &ConnectionPool{
-		pool:    make(map[string][]interface{}),
-		timeout: timeout,
-	}
-}
-
-// GetConnection retrieves a connection from the pool
-func (cp *ConnectionPool) GetConnection(key string) (interface{}, bool) {
-	cp.mutex.RLock()
-	defer cp.mutex.RUnlock()
-
-	if connections, exists := cp.pool[key]; exists && len(connections) > 0 {
-		conn := connections[len(connections)-1]
-		cp.pool[key] = connections[:len(connections)-1]
-		return conn, true
-	}
-	return nil, false
-}
-
-// PutConnection returns a connection to the pool
-func (cp *ConnectionPool) PutConnection(key string, conn interface{}) {
-	if conn == nil {
-		return
-	}
-
-	cp.mutex.Lock()
-	defer cp.mutex.Unlock()
-
-	if len(cp.pool[key]) < 10 { // Limit pool size per key
-		cp.pool[key] = append(cp.pool[key], conn)
-	}
-}
-
-// ClearPool clears all connections in the pool
-func (cp *ConnectionPool) ClearPool() {
-	cp.mutex.Lock()
-	defer cp.mutex.Unlock()
-	cp.pool = make(map[string][]interface{})
-}
-
-var connectionPool = NewConnectionPool(5 * time.Second)
-
 func ClearMaps() {
-	retryMapMutex.Lock()
-	defer retryMapMutex.Unlock()
-
-	retryMap = make(map[string]int)
-	skipMap = make(map[string]bool)
-	connectionPool.ClearPool()
+	// Deprecated: Maps are now local to RunBrute
 }
 
 // calculateBackoff calculates exponential backoff with jitter
@@ -90,13 +27,14 @@ func calculateBackoff(retryCount int, baseTimeout time.Duration) time.Duration {
 	}
 
 	// Add jitter (±25%)
-	jitter := backoff / 4
-	backoff = backoff + time.Duration(float64(jitter)*(0.5-0.25))
+	// random in [-0.25, +0.25]
+	factor := 1 + (rand.Float64()*0.5 - 0.25)
+	backoff = time.Duration(float64(backoff) * factor)
 
 	return backoff
 }
 
-func RunBrute(h modules.Host, u string, p string, progressCh chan<- int, timeout time.Duration, maxRetries int, output string, socks5 string, netInterface string, domain string) bool {
+func RunBrute(h modules.Host, u string, p string, progressCh chan<- int, timeout time.Duration, maxRetries int, output string, socks5 string, netInterface string, domain string, cm *modules.ConnectionManager) bool {
 	service := h.Service
 	var result, con_result bool
 
@@ -104,29 +42,10 @@ func RunBrute(h modules.Host, u string, p string, progressCh chan<- int, timeout
 	startTime := time.Now()
 	metrics := modules.GetGlobalMetrics()
 
-	// Scope retries to the specific credential attempt (host, service, user, pass)
-	key := h.Host + ":" + h.Service + ":" + u + ":" + p
+	retries := 0
 
 	for {
-		retryMapMutex.RLock()
-		retries, ok := retryMap[key]
-		if !ok {
-			retries = 0
-		}
-		retryMapMutex.RUnlock()
-
 		if retries >= maxRetries {
-			retryMapMutex.Lock()
-			if !skipMap[key] {
-				skipMap[key] = true
-				skipWg.Add(1)
-				go func(host, service string, retries, maxRetries int) {
-					defer skipWg.Done()
-					modules.PrintSkipping(host, service, retries, maxRetries)
-				}(h.Host, service, retries, maxRetries)
-			}
-			retryMapMutex.Unlock()
-
 			// Record failed attempt
 			metrics.RecordAttempt(false, time.Since(startTime))
 			return false
@@ -137,13 +56,13 @@ func RunBrute(h modules.Host, u string, p string, progressCh chan<- int, timeout
 
 		switch service {
 		case "ssh":
-			result, con_result = BruteSSH(h.Host, h.Port, u, p, timeout, socks5, netInterface)
+			result, con_result = BruteSSH(h.Host, h.Port, u, p, timeout, cm)
 		case "ftp":
-			result, con_result = BruteFTP(h.Host, h.Port, u, p, timeout, socks5, netInterface)
+			result, con_result = BruteFTP(h.Host, h.Port, u, p, timeout, cm)
 		case "mssql":
-			result, con_result = BruteMSSQL(h.Host, h.Port, u, p, timeout, socks5, netInterface)
+			result, con_result = BruteMSSQL(h.Host, h.Port, u, p, timeout, cm)
 		case "telnet":
-			result, con_result = BruteTelnet(h.Host, h.Port, u, p, timeout, socks5, netInterface)
+			result, con_result = BruteTelnet(h.Host, h.Port, u, p, timeout, cm)
 		case "smbnt":
 			parsedUser := u
 			parsedDomain := domain
@@ -154,35 +73,35 @@ func RunBrute(h modules.Host, u string, p string, progressCh chan<- int, timeout
 					parsedUser = parts[1]
 				}
 			}
-			result, con_result = BruteSMB(h.Host, h.Port, parsedUser, p, timeout, socks5, netInterface, parsedDomain)
+			result, con_result = BruteSMB(h.Host, h.Port, parsedUser, p, timeout, cm, parsedDomain)
 		case "postgres":
-			result, con_result = BrutePostgres(h.Host, h.Port, u, p, timeout, socks5, netInterface)
+			result, con_result = BrutePostgres(h.Host, h.Port, u, p, timeout, cm)
 		case "smtp":
-			result, con_result = BruteSMTP(h.Host, h.Port, u, p, timeout, socks5, netInterface)
+			result, con_result = BruteSMTP(h.Host, h.Port, u, p, timeout, cm)
 		case "imap":
-			result, con_result = BruteIMAP(h.Host, h.Port, u, p, timeout, socks5, netInterface)
+			result, con_result = BruteIMAP(h.Host, h.Port, u, p, timeout, cm)
 		case "pop3":
-			result, con_result = BrutePOP3(h.Host, h.Port, u, p, timeout, socks5, netInterface)
+			result, con_result = BrutePOP3(h.Host, h.Port, u, p, timeout, cm)
 		case "snmp":
-			result, con_result = BruteSNMP(h.Host, h.Port, u, p, timeout, socks5, netInterface)
+			result, con_result = BruteSNMP(h.Host, h.Port, u, p, timeout, cm)
 		case "mysql":
-			result, con_result = BruteMYSQL(h.Host, h.Port, u, p, timeout, socks5, netInterface)
+			result, con_result = BruteMYSQL(h.Host, h.Port, u, p, timeout, cm)
 		case "vmauthd":
-			result, con_result = BruteVMAuthd(h.Host, h.Port, u, p, timeout, socks5, netInterface)
+			result, con_result = BruteVMAuthd(h.Host, h.Port, u, p, timeout, cm)
 		case "asterisk":
-			result, con_result = BruteAsterisk(h.Host, h.Port, u, p, timeout, socks5, netInterface)
+			result, con_result = BruteAsterisk(h.Host, h.Port, u, p, timeout, cm)
 		case "vnc":
-			result, con_result = BruteVNC(h.Host, h.Port, u, p, timeout, socks5, netInterface)
+			result, con_result = BruteVNC(h.Host, h.Port, u, p, timeout, cm)
 		case "mongodb":
-			result, con_result = BruteMongoDB(h.Host, h.Port, u, p, timeout, socks5, netInterface)
+			result, con_result = BruteMongoDB(h.Host, h.Port, u, p, timeout, cm)
 		case "nntp":
-			result, con_result = BruteNNTP(h.Host, h.Port, u, p, timeout, socks5, netInterface)
+			result, con_result = BruteNNTP(h.Host, h.Port, u, p, timeout, cm)
 		case "oracle":
-			result, con_result = BruteOracle(h.Host, h.Port, u, p, timeout, socks5, netInterface)
+			result, con_result = BruteOracle(h.Host, h.Port, u, p, timeout, cm)
 		case "teamspeak":
-			result, con_result = BruteTeamSpeak(h.Host, h.Port, u, p, timeout, socks5, netInterface)
+			result, con_result = BruteTeamSpeak(h.Host, h.Port, u, p, timeout, cm)
 		case "xmpp":
-			result, con_result = BruteXMPP(h.Host, h.Port, u, p, timeout, socks5, netInterface)
+			result, con_result = BruteXMPP(h.Host, h.Port, u, p, timeout, cm)
 		case "rdp":
 			parsedUser := u
 			parsedDomain := domain
@@ -193,21 +112,18 @@ func RunBrute(h modules.Host, u string, p string, progressCh chan<- int, timeout
 					parsedUser = parts[1]
 				}
 			}
-			result, con_result = BruteRDP(h.Host, h.Port, parsedUser, p, timeout, socks5, netInterface, parsedDomain)
+			result, con_result = BruteRDP(h.Host, h.Port, parsedUser, p, timeout, cm, parsedDomain)
 		case "http":
-			result, con_result = BruteHTTP(h.Host, h.Port, u, p, timeout, socks5, netInterface)
+			result, con_result = BruteHTTP(h.Host, h.Port, u, p, timeout, cm)
 		case "https":
-			result, con_result = BruteHTTP(h.Host, h.Port, u, p, timeout, socks5, netInterface)
+			result, con_result = BruteHTTP(h.Host, h.Port, u, p, timeout, cm)
 		default:
 			metrics.RecordAttempt(false, time.Since(startTime))
 			return false
 		}
 
 		if con_result {
-			// Connection succeeded: reset consecutive failure counter for this host/service.
-			retryMapMutex.Lock()
-			retryMap[key] = 0
-			retryMapMutex.Unlock()
+			// Connection succeeded
 
 			// Record successful attempt
 			metrics.RecordAttempt(result, time.Since(startTime))
@@ -227,12 +143,9 @@ func RunBrute(h modules.Host, u string, p string, progressCh chan<- int, timeout
 			break
 		} else {
 			// Connection failed: increment the consecutive failure counter
-			retryMapMutex.Lock()
-			nextRetries := retryMap[key] + 1
-			retryMap[key] = nextRetries
-			retryMapMutex.Unlock()
+			retries++
 
-			willRetry := nextRetries < maxRetries
+			willRetry := retries < maxRetries
 
 			// Record connection error
 			metrics.RecordError(true)
@@ -250,5 +163,5 @@ func RunBrute(h modules.Host, u string, p string, progressCh chan<- int, timeout
 }
 
 func WaitForSkipsToComplete() {
-	skipWg.Wait()
+	// Deprecated: Scaling logic handles cleanup
 }

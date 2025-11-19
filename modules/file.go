@@ -65,8 +65,7 @@ func ParseFile(filename string) (map[Host]int, error) {
 	}
 
 	if in_format == "" {
-		fmt.Println("File is not correct format!")
-		os.Exit(0)
+		return nil, fmt.Errorf("file is not a supported format")
 	}
 
 	switch in_format {
