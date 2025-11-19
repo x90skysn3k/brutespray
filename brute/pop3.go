@@ -33,11 +33,6 @@ func BrutePOP3(host string, port int, user, password string, timeout time.Durati
 		// Note: This still bypasses proxy for the actual POP3 connection
 		// fixing this requires library support or upstream changes.
 
-		if opt.TLSEnabled {
-			// We can pre-check TLS connectivity?
-			// For now, just let the library do its thing.
-		}
-
 		p := pop3.New(opt)
 		c, err := p.NewConn()
 		if err != nil {
