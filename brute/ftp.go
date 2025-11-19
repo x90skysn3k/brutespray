@@ -28,7 +28,10 @@ func BruteFTP(host string, port int, user, password string, timeout time.Duratio
 		defer conn.Close()
 
 		// Set deadline to ensure the goroutine terminates if FTP negotiation hangs
-		conn.SetDeadline(time.Now().Add(timeout))
+		if err := conn.SetDeadline(time.Now().Add(timeout)); err != nil {
+			done <- result{nil, err}
+			return
+		}
 
 		client, err := ftp.Dial(conn.RemoteAddr().String(), ftp.DialWithDialFunc(func(network, addr string) (net.Conn, error) { return conn, nil }))
 		if err != nil {

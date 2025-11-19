@@ -15,14 +15,19 @@ func BruteIMAP(host string, port int, user, password string, timeout time.Durati
 		return false, false
 	}
 	// Client takes ownership of conn? No, we usually need to close it or client.Logout()
-	conn.SetDeadline(time.Now().Add(timeout))
+	if err := conn.SetDeadline(time.Now().Add(timeout)); err != nil {
+		conn.Close()
+		return false, false
+	}
 
 	c, err := client.New(conn)
 	if err != nil {
 		conn.Close()
 		return false, true
 	}
-	defer c.Logout()
+	defer func() {
+		_ = c.Logout()
+	}()
 
 	err = c.Login(user, password)
 	if err != nil {
