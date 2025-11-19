@@ -20,22 +20,27 @@ func BruteHTTP(host string, port int, user, password string, timeout time.Durati
 		url = fmt.Sprintf("http://%s:%d", host, port)
 	}
 
-	// Create HTTP client with custom transport for proxy/interface support
-	transport := &http.Transport{
-		Dial:                  cm.DialFunc,
-		TLSHandshakeTimeout:   timeout,
-		ResponseHeaderTimeout: timeout,
-		ExpectContinueTimeout: 1 * time.Second,
-		TLSClientConfig:       &tls.Config{InsecureSkipVerify: modules.InsecureTLS},
-	}
+	// Use shared HTTP client if available for connection pooling
+	var client *http.Client
+	if cm.SharedHTTPClient != nil {
+		client = cm.SharedHTTPClient
+	} else {
+		// Fallback for legacy/testing without initialized CM
+		transport := &http.Transport{
+			Dial:                  cm.DialFunc,
+			TLSHandshakeTimeout:   timeout,
+			ResponseHeaderTimeout: timeout,
+			ExpectContinueTimeout: 1 * time.Second,
+			TLSClientConfig:       &tls.Config{InsecureSkipVerify: modules.InsecureTLS},
+		}
 
-	client := &http.Client{
-		Transport: transport,
-		Timeout:   timeout,
-		// Don't follow redirects automatically
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
+		client = &http.Client{
+			Transport: transport,
+			Timeout:   timeout,
+			CheckRedirect: func(req *http.Request, via []*http.Request) error {
+				return http.ErrUseLastResponse
+			},
+		}
 	}
 
 	// Create HTTP request
