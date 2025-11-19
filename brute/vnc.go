@@ -8,18 +8,13 @@ import (
 	"github.com/x90skysn3k/brutespray/modules"
 )
 
-func BruteVNC(host string, port int, user string, password string, timeout time.Duration, socks5 string, netInterface string) (bool, bool) {
+func BruteVNC(host string, port int, user string, password string, timeout time.Duration, cm *modules.ConnectionManager) (bool, bool) {
 	config := &vnc.ClientConfig{
 		Auth: []vnc.ClientAuth{
 			&vnc.PasswordAuth{
 				Password: password,
 			},
 		},
-	}
-
-	cm, err := modules.NewConnectionManager(socks5, timeout, netInterface)
-	if err != nil {
-		return false, false
 	}
 
 	addr := fmt.Sprintf("%s:%d", host, port)

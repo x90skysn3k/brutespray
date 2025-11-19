@@ -10,7 +10,7 @@ import (
 	"github.com/x90skysn3k/brutespray/modules"
 )
 
-func BruteSNMP(host string, port int, user, password string, timeout time.Duration, socks5 string, netInterface string) (bool, bool) {
+func BruteSNMP(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) (bool, bool) {
 	timer := time.NewTimer(timeout)
 	defer timer.Stop()
 
@@ -24,52 +24,57 @@ func BruteSNMP(host string, port int, user, password string, timeout time.Durati
 		success bool
 		err     error
 	}
-	done := make(chan result)
+	done := make(chan result, len(communityStrings))
 
-	cm, err := modules.NewConnectionManager(socks5, timeout, netInterface)
-	if err != nil {
-		return false, false
-	}
-
-	portInt64 := int64(gosnmp.NewHandler().Port())
+	// Create a handler just to get the default port if needed, but we have port.
 
 	for _, communityString := range communityStrings {
 		go func(communityString string) {
-			udpConn, err := cm.DialUDP("udp", fmt.Sprintf("%s:%d", host, port))
+
+			gs := &gosnmp.GoSNMP{
+				Target:    host,
+				Port:      uint16(port),
+				Community: communityString,
+				Version:   gosnmp.Version2c, // Usually v1 or v2c for brute forcing community strings
+				Timeout:   timeout,
+			}
+
+			// Pre-dial to check connectivity/proxy (UDP proxy not supported usually but cm handles it)
+			conn, err := cm.DialUDP("udp", fmt.Sprintf("%s:%d", host, port))
 			if err != nil {
 				done <- result{false, err}
 				return
 			}
-			defer udpConn.Close()
 
-			gosnmp.Default.Target = host
-			gosnmp.Default.Port = uint16(portInt64)
-			gosnmp.Default.Community = communityString
-			gosnmp.Default.Version = gosnmp.Version3
-			gosnmp.Default.Timeout = timeout
-			err = gosnmp.Default.Connect()
+			conn.Close() // Close our check connection
+
+			err = gs.Connect()
 			if err != nil {
 				done <- result{false, err}
 				return
 			}
-			defer gosnmp.Default.Conn.Close()
+			defer gs.Conn.Close()
 
-			done <- result{true, nil}
+			// Try a get to verify community string
+			_, err = gs.Get([]string{".1.3.6.1.2.1.1.1.0"}) // sysDescr
+			if err == nil {
+				done <- result{true, nil}
+			} else {
+				done <- result{false, err}
+			}
 		}(communityString)
 	}
 
-	select {
-	case <-timer.C:
-		return false, false
-	case result := <-done:
-		if result.err != nil {
-			//fmt.Println("Error:", result.err)
-			return false, true
-		}
-		if result.success {
-			return true, true
+	for i := 0; i < len(communityStrings); i++ {
+		select {
+		case <-timer.C:
+			return false, false
+		case result := <-done:
+			if result.success {
+				return true, true
+			}
 		}
 	}
 
-	return false, false
+	return false, true
 }

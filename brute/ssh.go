@@ -9,7 +9,7 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-func BruteSSH(host string, port int, user, password string, timeout time.Duration, socks5 string, netInterface string) (bool, bool) {
+func BruteSSH(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) (bool, bool) {
 	config := &ssh.ClientConfig{
 		User: user,
 		Auth: []ssh.AuthMethod{
@@ -24,21 +24,16 @@ func BruteSSH(host string, port int, user, password string, timeout time.Duratio
 		client *ssh.Client
 		err    error
 	}
-	done := make(chan result)
+	done := make(chan result, 1)
 
 	var err error
 	var conn net.Conn
 
-	cm, err := modules.NewConnectionManager(socks5, timeout, netInterface)
-	if err != nil {
-		return false, false
-	}
-
 	conn, err = cm.Dial("tcp", fmt.Sprintf("%s:%d", host, port))
 	if err != nil {
-		//modules.PrintSocksError(service, fmt.Sprintf("%v", err))
 		return false, false
 	}
+	defer conn.Close()
 
 	go func() {
 		clientConn, clientChannels, clientRequests, err := ssh.NewClientConn(conn, fmt.Sprintf("%s:%d", host, port), config)

@@ -10,11 +10,20 @@ import (
 	"sync"
 	"time"
 
+	"sync/atomic"
+
 	"github.com/pterm/pterm"
 )
 
 // NoColorMode controls whether colored output is disabled
 var NoColorMode bool
+
+// Silent controls whether to suppress per-attempt logs (successes still printed)
+var Silent bool
+
+// LogEvery controls attempt logging frequency; 1 = log every attempt
+var LogEvery int64 = 1
+var attemptCounter int64
 
 // SuccessResult represents a successful credential attempt
 type SuccessResult struct {
@@ -121,8 +130,7 @@ func WriteToFile(service string, content string, port int, output string) error 
 	}
 
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		err := os.Mkdir(dir, 0755)
-		if err != nil {
+		if err := os.MkdirAll(dir, 0755); err != nil {
 			return err
 		}
 	}
@@ -276,6 +284,7 @@ func CalculateFinalStats() OutputStatsCopy {
 
 // PrintResult prints individual results (legacy format for compatibility)
 func PrintResult(service string, host string, port int, user string, pass string, result bool, con_result bool, progressCh chan<- int, retrying bool, output string, delayTime time.Duration) {
+	// Always write successes to file, but gate console noise via Silent/LogEvery
 	var msg string
 	var color pterm.Color
 
@@ -314,8 +323,20 @@ func PrintResult(service string, host string, port int, user string, pass string
 			color = pterm.FgRed
 		}
 	}
-
-	pterm.Println(pterm.NewStyle(color).Sprint(msg))
+	// Determine if we should print this attempt
+	shouldPrint := true
+	if Silent && !(result && con_result) {
+		shouldPrint = false
+	}
+	if !Silent && !(result && con_result) && LogEvery > 1 {
+		n := atomic.AddInt64(&attemptCounter, 1)
+		if n%LogEvery != 0 {
+			shouldPrint = false
+		}
+	}
+	if shouldPrint {
+		pterm.Println(pterm.NewStyle(color).Sprint(msg))
+	}
 }
 
 // PrintWarningBeta prints beta service warnings
@@ -325,7 +346,8 @@ func PrintWarningBeta(service string) {
 
 // PrintSocksError prints SOCKS proxy errors
 func PrintSocksError(service string, err string) {
-	pterm.Println(pterm.NewStyle(pterm.FgRed).Sprint(fmt.Sprintf("[!] Error: %s SOCKS5 connection failed - %s", service, err)))
+	// Keep message but ensure it is concise
+	pterm.Println(pterm.NewStyle(pterm.FgRed).Sprint(fmt.Sprintf("[!] %s: SOCKS5 connection failed - %s", service, err)))
 }
 
 // PrintSkipping prints host skipping messages

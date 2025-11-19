@@ -1,6 +1,7 @@
 package brute
 
 import (
+	"crypto/tls"
 	"encoding/base64"
 	"fmt"
 	"io"
@@ -10,13 +11,7 @@ import (
 	"github.com/x90skysn3k/brutespray/modules"
 )
 
-func BruteHTTP(host string, port int, user, password string, timeout time.Duration, socks5 string, netInterface string) (bool, bool) {
-	// Create connection manager for proxy/interface support
-	cm, err := modules.NewConnectionManager(socks5, timeout, netInterface)
-	if err != nil {
-		return false, false
-	}
-
+func BruteHTTP(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) (bool, bool) {
 	// Build the URL - handle both HTTP and HTTPS
 	var url string
 	if port == 443 {
@@ -25,20 +20,27 @@ func BruteHTTP(host string, port int, user, password string, timeout time.Durati
 		url = fmt.Sprintf("http://%s:%d", host, port)
 	}
 
-	// Create HTTP client with custom transport for proxy/interface support
-	transport := &http.Transport{
-		Dial: cm.DialFunc,
-		// Disable TLS verification for testing purposes
-		TLSHandshakeTimeout: timeout,
-	}
+	// Use shared HTTP client if available for connection pooling
+	var client *http.Client
+	if cm.SharedHTTPClient != nil {
+		client = cm.SharedHTTPClient
+	} else {
+		// Fallback for legacy/testing without initialized CM
+		transport := &http.Transport{
+			Dial:                  cm.DialFunc,
+			TLSHandshakeTimeout:   timeout,
+			ResponseHeaderTimeout: timeout,
+			ExpectContinueTimeout: 1 * time.Second,
+			TLSClientConfig:       &tls.Config{InsecureSkipVerify: modules.InsecureTLS},
+		}
 
-	client := &http.Client{
-		Transport: transport,
-		Timeout:   timeout,
-		// Don't follow redirects automatically
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
+		client = &http.Client{
+			Transport: transport,
+			Timeout:   timeout,
+			CheckRedirect: func(req *http.Request, via []*http.Request) error {
+				return http.ErrUseLastResponse
+			},
+		}
 	}
 
 	// Create HTTP request
@@ -79,22 +81,20 @@ func BruteHTTP(host string, port int, user, password string, timeout time.Durati
 		return false, true
 	case 403:
 		// Forbidden - might be valid credentials but access denied
-		// This could indicate valid creds but insufficient permissions
-		// We'll treat this as auth failure but connection success
 		return false, true
 	case 404, 405:
-		// Not found or method not allowed - connection worked but endpoint might not support basic auth
+		// Not found or method not allowed
 		return false, true
 	case 500, 502, 503, 504:
-		// Server errors - connection worked but server issues
+		// Server errors
 		return false, true
 	default:
-		// Other status codes - treat as connection success but auth failure
+		// Other status codes
 		return false, true
 	}
 }
 
 // BruteHTTPS is an alias for BruteHTTP since the function handles both protocols
-func BruteHTTPS(host string, port int, user, password string, timeout time.Duration, socks5 string, netInterface string) (bool, bool) {
-	return BruteHTTP(host, port, user, password, timeout, socks5, netInterface)
+func BruteHTTPS(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) (bool, bool) {
+	return BruteHTTP(host, port, user, password, timeout, cm)
 }

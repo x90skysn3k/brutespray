@@ -208,7 +208,22 @@ func ParseXML(filename string) (map[Host]int, error) {
 	}
 
 	for _, host := range report.Hosts {
-		ip := host.Addresses[0].Addr
+		// Pick IPv4 address if available, else first address
+		var ip string
+		if len(host.Addresses) > 0 {
+			for _, a := range host.Addresses {
+				if strings.EqualFold(a.AddrType, "ipv4") {
+					ip = a.Addr
+					break
+				}
+			}
+			if ip == "" {
+				ip = host.Addresses[0].Addr
+			}
+		}
+		if ip == "" {
+			continue
+		}
 		for _, port := range host.Ports {
 			if port.PortState.State == "open" {
 				name := port.Service.Name
@@ -322,10 +337,19 @@ func ParseList(filename string) (map[Host]int, error) {
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		line := scanner.Text()
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
 		parts := strings.Split(line, ":")
+		if len(parts) < 3 {
+			return nil, fmt.Errorf("invalid list line: %q (expected service:ip:port)", line)
+		}
 		service := MapService(parts[0])
 		ip := parts[1]
-		port, _ := strconv.Atoi(parts[2])
+		port, err := strconv.Atoi(parts[2])
+		if err != nil {
+			return nil, fmt.Errorf("invalid port in line %q: %v", line, err)
+		}
 		h := Host{Service: service, Host: ip, Port: port}
 		hosts[h] = 1
 
@@ -428,20 +452,25 @@ func generateHostList(ipnet *net.IPNet) []net.IP {
 	startIP := ipnet.IP.Mask(ipnet.Mask)
 	startIP[len(startIP)-1]++
 	for ip := startIP; ipnet.Contains(ip); inc(ip) {
-		if !ip.IsLoopback() && !ip.IsLinkLocalUnicast() && !ip.IsLinkLocalMulticast() && !isBroadcast(ip, ipnet.Mask) {
+		if !ip.IsLoopback() && !ip.IsLinkLocalUnicast() && !ip.IsLinkLocalMulticast() && !isBroadcast(ip, ipnet) {
 			ips = append(ips, append([]byte(nil), ip...))
 		}
 	}
 	return ips
 }
 
-func isBroadcast(ip net.IP, mask net.IPMask) bool {
-	for i := 0; i < len(ip); i++ {
-		if ip[i] != mask[i]|^ip[i] {
-			return false
-		}
+func isBroadcast(ip net.IP, ipnet *net.IPNet) bool {
+	if ip == nil || ipnet == nil {
+		return false
 	}
-	return true
+	network := ipnet.IP.Mask(ipnet.Mask)
+	// Compute broadcast: network OR NOT(mask)
+	broadcast := make(net.IP, len(network))
+	copy(broadcast, network)
+	for i := 0; i < len(ipnet.Mask) && i < len(broadcast); i++ {
+		broadcast[i] |= ^ipnet.Mask[i]
+	}
+	return ip.Equal(broadcast)
 }
 
 func inc(ip net.IP) {

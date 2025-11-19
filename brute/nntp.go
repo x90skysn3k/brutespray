@@ -8,20 +8,15 @@ import (
 	"github.com/x90skysn3k/brutespray/modules"
 )
 
-func BruteNNTP(host string, port int, user, password string, timeout time.Duration, socks5 string, netInterface string) (bool, bool) {
+func BruteNNTP(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) (bool, bool) {
 	timer := time.NewTimer(timeout)
 	defer timer.Stop()
-
-	cm, err := modules.NewConnectionManager(socks5, timeout, netInterface)
-	if err != nil {
-		return false, false
-	}
 
 	type result struct {
 		client *textproto.Conn
 		err    error
 	}
-	done := make(chan result)
+	done := make(chan result, 1)
 	go func() {
 		conn, err := cm.Dial("tcp", fmt.Sprintf("%s:%d", host, port))
 		if err != nil {
