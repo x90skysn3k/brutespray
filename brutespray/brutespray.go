@@ -22,7 +22,7 @@ var masterServiceList = []string{"ssh", "ftp", "smtp", "mssql", "telnet", "smbnt
 
 var BetaServiceList = []string{"asterisk", "nntp", "oracle", "xmpp", "rdp"}
 
-var version = "v2.4.1"
+var version = "v2.4.2"
 var NoColorMode bool
 
 // Credential represents a single credential attempt
