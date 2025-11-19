@@ -1,8 +1,10 @@
 package modules
 
 import (
+	"crypto/tls"
 	"fmt"
 	"net"
+	"net/http"
 	"net/url"
 	"strings"
 	"sync"
@@ -15,13 +17,15 @@ import (
 var InsecureTLS bool
 
 type ConnectionManager struct {
-	Socks5    string
-	Timeout   time.Duration
-	Iface     string
-	Dialer    proxy.Dialer
-	DialFunc  func(network, address string) (net.Conn, error)
-	ConnPool  map[string]chan net.Conn
-	PoolMutex sync.RWMutex
+	Socks5           string
+	Timeout          time.Duration
+	Iface            string
+	LocalIP          net.IP
+	Dialer           proxy.Dialer
+	DialFunc         func(network, address string) (net.Conn, error)
+	ConnPool         map[string]chan net.Conn
+	PoolMutex        sync.RWMutex
+	SharedHTTPClient *http.Client
 }
 
 func NewConnectionManager(socks5 string, timeout time.Duration, iface ...string) (*ConnectionManager, error) {
@@ -47,6 +51,7 @@ func NewConnectionManager(socks5 string, timeout time.Duration, iface ...string)
 	if err != nil {
 		return nil, err
 	}
+	cm.LocalIP = ipAddr
 	localAddr := &net.TCPAddr{IP: ipAddr}
 
 	if socks5 != "" {
@@ -89,6 +94,26 @@ func NewConnectionManager(socks5 string, timeout time.Duration, iface ...string)
 			KeepAlive: 30 * time.Second,
 		}
 		cm.DialFunc = dialer.Dial
+	}
+
+	// Initialize Shared HTTP Client
+	transport := &http.Transport{
+		Dial:                  cm.DialFunc,
+		TLSHandshakeTimeout:   timeout,
+		ResponseHeaderTimeout: timeout,
+		ExpectContinueTimeout: 1 * time.Second,
+		TLSClientConfig:       &tls.Config{InsecureSkipVerify: InsecureTLS},
+		MaxIdleConns:          1000,
+		MaxIdleConnsPerHost:   100,
+		IdleConnTimeout:       90 * time.Second,
+	}
+
+	cm.SharedHTTPClient = &http.Client{
+		Transport: transport,
+		Timeout:   timeout,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
 	}
 
 	return cm, nil
@@ -158,11 +183,7 @@ func (cm *ConnectionManager) DialUDP(network, address string) (*net.UDPConn, err
 		return nil, fmt.Errorf("failed to resolve UDP address %s: %v", address, err)
 	}
 
-	ipAddr, err := GetIPv4Address(cm.Iface)
-	if err != nil {
-		return nil, err
-	}
-	laddr := &net.UDPAddr{IP: ipAddr}
+	laddr := &net.UDPAddr{IP: cm.LocalIP}
 
 	udpConn, err := net.DialUDP("udp", laddr, raddr)
 	if err != nil {

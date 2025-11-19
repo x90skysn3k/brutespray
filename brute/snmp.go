@@ -24,7 +24,7 @@ func BruteSNMP(host string, port int, user, password string, timeout time.Durati
 		success bool
 		err     error
 	}
-	done := make(chan result, 1)
+	done := make(chan result, len(communityStrings))
 
 	// Create a handler just to get the default port if needed, but we have port.
 
@@ -65,17 +65,16 @@ func BruteSNMP(host string, port int, user, password string, timeout time.Durati
 		}(communityString)
 	}
 
-	select {
-	case <-timer.C:
-		return false, false
-	case result := <-done:
-		if result.err != nil {
-			return false, true
-		}
-		if result.success {
-			return true, true
+	for i := 0; i < len(communityStrings); i++ {
+		select {
+		case <-timer.C:
+			return false, false
+		case result := <-done:
+			if result.success {
+				return true, true
+			}
 		}
 	}
 
-	return false, false
+	return false, true
 }

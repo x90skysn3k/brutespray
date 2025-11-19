@@ -33,6 +33,7 @@ func BruteSSH(host string, port int, user, password string, timeout time.Duratio
 	if err != nil {
 		return false, false
 	}
+	defer conn.Close()
 
 	go func() {
 		clientConn, clientChannels, clientRequests, err := ssh.NewClientConn(conn, fmt.Sprintf("%s:%d", host, port), config)
