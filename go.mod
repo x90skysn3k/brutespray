@@ -20,7 +20,7 @@ require (
 	github.com/x90skysn3k/grdp v0.0.0-20251230171209-7b4784d22f6d
 	go.mongodb.org/mongo-driver v1.17.4
 	golang.org/x/crypto v0.46.0
-	golang.org/x/net v0.47.0
+	golang.org/x/net v0.48.0
 	gosrc.io/xmpp v0.5.1
 )
 
