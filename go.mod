@@ -5,6 +5,7 @@ go 1.24.0
 require (
 	github.com/denisenkom/go-mssqldb v0.12.3
 	github.com/emersion/go-imap v1.2.1
+	github.com/go-redis/redis/v8 v8.11.5
 	github.com/go-sql-driver/mysql v1.9.3
 	github.com/gosnmp/gosnmp v1.42.1
 	github.com/hirochachacha/go-smb2 v1.1.0
@@ -16,7 +17,7 @@ require (
 	github.com/pterm/pterm v0.12.82
 	github.com/sijms/go-ora/v2 v2.9.0
 	github.com/wenerme/astgo v0.0.0-20230926205800-1b5bc38663fa
-	github.com/x90skysn3k/grdp v0.0.0-20240614212340-82874dbd1eae
+	github.com/x90skysn3k/grdp v0.0.0-20251230171209-7b4784d22f6d
 	go.mongodb.org/mongo-driver v1.17.4
 	golang.org/x/crypto v0.45.0
 	golang.org/x/net v0.47.0
@@ -35,7 +36,6 @@ require (
 	github.com/emersion/go-sasl v0.0.0-20200509203442-7bfe0ed36a21 // indirect
 	github.com/emersion/go-textwrapper v0.0.0-20200911093747-65d896831594 // indirect
 	github.com/geoffgarside/ber v1.1.0 // indirect
-	github.com/go-redis/redis/v8 v8.11.5 // indirect
 	github.com/golang-sql/civil v0.0.0-20190719163853-cb61b32ac6fe // indirect
 	github.com/golang-sql/sqlexp v0.1.0 // indirect
 	github.com/golang/protobuf v1.5.0 // indirect
