@@ -1,272 +1,999 @@
-# Brutespray
-
-![Version](https://img.shields.io/badge/Version-2.4.1-red)[![goreleaser](https://github.com/x90skysn3k/brutespray/actions/workflows/release.yml/badge.svg)](https://github.com/x90skysn3k/brutespray/actions/workflows/release.yml)[![Go Report Card](https://goreportcard.com/badge/github.com/x90skysn3k/brutespray)](https://goreportcard.com/report/github.com/x90skysn3k/brutespray)
-
-Created by: Shane Young/@t1d3nio && Jacob Robles/@shellfail 
-
-Inspired by: Leon Johnson/@sho-luv
-
-# Description
-Brutespray has been re-written in Golang, eliminating the requirement for additional tools. This enhanced version is more extensive and operates at a significantly faster pace than its Python counterpart. As of now, Brutespray accepts input from Nmap's GNMAP/XML output, newline-separated JSON files, Nexpose's XML Export feature, Nessus exports in .nessus format, and various lists. Its intended purpose is for educational and ethical hacking research only; do not use it for illegal activities.
-
-<img src="https://i.imgur.com/6fQI6Qs.png" width="500">
-
-# Install
-
-```
-go install github.com/x90skysn3k/brutespray@latest
-```
-
-[Release Binaries](https://github.com/x90skysn3k/brutespray/releases)
-
-To Build:
-
-```
-go build -o brutespray main.go
-```
-
-# Usage
-
-If using Nmap, scan with `-oA nmap_out`.
-If using Nexpose, export the template `XML Export`. 
-
-If using Nessus, export your `.nessus` file.
-
-Command: ```brutespray -h```
-
-Command: ```brutespray -f nmap.gnmap -u userlist -p passlist```
-
-Command: ```brutespray -f nmap.xml -u userlist -p passlist```
-
-Command: ```brutespray -H ssh://127.0.0.1:22 -u userlist -p passlist```
-
-Command: ```brutespray -H ssh://127.0.0.1 -C root:root```
-
-# Command Line Options
-
-| Flag | Description | Example |
-|------|-------------|---------|
-| `-u` | Username or user list to bruteforce. For SMBNT and RDP, use domain\\username format (e.g., CORP\\jdoe) | `-u admin` or `-u userlist.txt` |
-| `-p` | Password or password file to use for bruteforce | `-p password` or `-p passlist.txt` |
-| `-C` | Specify a combo wordlist delimited by ':', example: user1:password | `-C root:root` |
-| `-o` | Directory containing successful attempts (default: brutespray-output) | `-o results` |
-| `-t` | Number of threads per host (default: 10) | `-t 20` |
-| `-T` | Number of hosts to bruteforce at the same time (default: 5) | `-T 10` |
-| `-socks5` | SOCKS5 proxy to use for bruteforce | `-socks5 socks5://user:pass@host:port` |
-| `-iface` | Specific network interface to use for bruteforce traffic | `-iface tun0` |
-| `-s` | Service type: ssh, ftp, smtp, etc; Default all | `-s ssh,ftp` |
-| `-S` | List all supported services | `-S` |
-| `-f` | File to parse; Supported: Nmap, Nessus, Nexpose, Lists, etc | `-f nmap.gnmap` |
-| `-H` | Target in the format service://host:port, CIDR ranges supported, default port will be used if not specified | `-H ssh://192.168.1.1:22` |
-| `-q` | Suppress the banner | `-q` |
-| `-w` | Set timeout delay of bruteforce attempts (default: 5s) | `-w 10s` |
-| `-r` | Amount of times to retry after receiving connection failed (default: 3) | `-r 5` |
-| `-P` | Print found hosts parsed from provided host and file arguments | `-P` |
-| `-d` | Domain to use for RDP authentication (optional) | `-d CORP` |
-| `-nc` | Disable colored output | `-nc` |
-| `-summary` | Generate comprehensive summary report with statistics | `-summary` |
-| `-no-stats` | Disable statistics tracking for better performance | `-no-stats` |
-
-# Examples
-
-<img src="brutespray.gif" width="512">
-
-#### Using Custom Wordlists:
-
-```brutespray -f nmap.gnmap -u /usr/share/wordlist/user.txt -p /usr/share/wordlist/pass.txt -t 5 ```
-
-#### Brute-Forcing Specific Services:
-
-```brutespray -f nmap.gnmap -u admin -p password -s ftp,ssh,telnet -t 5 ```
-
-#### Specific Credentials:
-   
-```brutespray -f nmap.gnmap -u admin -p password -t 5 ```
-
-#### Use Nmap XML Output
-
-```brutespray -f nmap.xml -u admin -p password -t 5 ```
-
-#### Use JSON Output
-
-```brutespray -f out.json -u admin -p password -t 5 ```
-
-#### Bruteforce a CIDR range
-
-```brutespray -H ssh://10.1.1.0/24:22 -t 1000```
-
-#### Enhanced Output and Statistics
-
-Brutespray now includes comprehensive output and statistics tracking:
-
-**Summary Report:**
-```bash
-brutespray -f nmap.gnmap -u admin -p password -summary
-```
-
-This generates:
-- `brutespray-summary.json` - Machine-readable JSON report
-- `brutespray-summary.csv` - CSV format for analysis
-- `brutespray-summary.txt` - Human-readable summary
-- Console output with key statistics
-
-**Disable Statistics (for performance):**
-```bash
-brutespray -f nmap.gnmap -u admin -p password -no-stats
-```
-
-**Output Statistics Include:**
-- Session duration and timing
-- Total attempts and success rates
-- Connection vs authentication errors
-- Performance metrics (attempts/second, response times)
-- Service and host breakdown
-- Successful credentials list
-- Peak concurrency levels
-
-#### SOCKS5 Proxy Support
-
-Brutespray supports SOCKS5 proxies for all services. You can use different formats:
-
-**Basic SOCKS5 proxy:**
-```brutespray -H ssh://10.1.1.0/24:22 -socks5 127.0.0.1:1080```
-
-**SOCKS5 with authentication:**
-```brutespray -H ssh://10.1.1.0/24:22 -socks5 socks5://user:pass@127.0.0.1:1080```
-
-**SOCKS5 with hostname resolution (socks5h):**
-```brutespray -H ssh://10.1.1.0/24:22 -socks5 socks5h://user:pass@proxy.example.com:1080```
-
-**Full URL format:**
-```brutespray -H ssh://10.1.1.0/24:22 -socks5 socks5://user:pass@proxy.example.com:1080```
-
-#### Network Interface Support
-
-Specify a specific network interface for all connections:
-
-```brutespray -H ssh://10.1.1.0/24:22 -iface tun0```
-
-#### Print Found Services
-
-```brutespray -f nessus.nessus -P -q```
-
-<img src="https://i.imgur.com/97ENS23.png" width="500">
-
-#### Advanced Threading and Performance
-
-**High-performance bruteforce with custom threading:**
-```brutespray -f nmap.gnmap -u admin -p password -t 50 -T 10```
-
-**Conservative approach with lower resource usage:**
-```brutespray -f nmap.gnmap -u admin -p password -t 5 -T 2```
-
-#### RDP with Domain Authentication
-
-```brutespray -H rdp://192.168.1.100:3389 -u admin -p password -d CORP```
-
-#### Timeout and Retry Configuration
-
-**Custom timeout and retry settings:**
-```brutespray -f nmap.gnmap -u admin -p password -w 10s -r 5```
-
-#### Disable Color Output
-
-```brutespray -f nmap.gnmap -u admin -p password -nc```
-
-# Supported Services
-
-* ssh
-* ftp
-* telnet
-* mssql
-* postgresql
-* imap
-* pop3
-* smbnt
-* smtp
-* snmp
-* mysql
-* vmauthd
-* vnc
-* mongodb
-* nntp  
-* asterisk
-* teamspeak
-* oracle
-* xmpp
-* rdp
-* http (basic auth) - *manual targeting only*
-* https (basic auth) - *manual targeting only*
-
-# Services in Beta
-* asterisk
-* nntp
-* oracle
-* xmpp
-* rdp
-
-Feel free to open an issue if these work, or if you have any issues
-
-# SOCKS5 Proxy Features
-
-Brutespray includes comprehensive SOCKS5 proxy support with the following features:
-
-- **Authentication Support**: Username/password authentication for SOCKS5 proxies
-- **Hostname Resolution**: Support for both local (socks5://) and remote (socks5h://) hostname resolution
-- **Interface Binding**: All proxy connections bind to the specified network interface
-- **Connection Pooling**: Optimized connection management for better performance
-- **Error Handling**: Comprehensive error handling and reporting for proxy connections
-- **All Services**: SOCKS5 proxy support works across all supported services
-
-# Network Interface Features
-
-- **Interface Selection**: Specify any network interface for all connections
-- **Automatic Detection**: Falls back to default interface if specified interface is unavailable
-- **IPv4 Address Binding**: All connections bind to the IPv4 address of the specified interface
-- **Proxy Integration**: Network interface binding works seamlessly with SOCKS5 proxies
-
-# Data Specs
-```json
-{"host":"127.0.0.1","port":"3306","service":"mysql"}
-{"host":"127.0.0.10","port":"3306","service":"mysql"}
-```
-If using Nexpose, export the template `XML Export`. 
-
-If using Nessus, export your `.nessus` file.
-
-List example
-```
-ssh:127.0.0.1:22
-ftp:127.0.0.1:21
-...
-```
-Combo wordlist example
-```
-user:pass
-user1:pass1
-user2:pass2
-user3:pass
-user4:pass1
-...
-```
-
-# Performance Features
-
-- **Per-Host Threading**: Each host gets its own thread pool for optimal performance
-- **Host Parallelism**: Control how many hosts are processed simultaneously
-- **Connection Pooling**: Reuses connections for better performance
-- **Dynamic Performance Tracking**: Monitors response times and success rates
-- **Graceful Shutdown**: Proper cleanup and resource management
-- **Progress Tracking**: Real-time progress bars and status updates
-
-# Planned Features
-
-* ~~Add domain option for RDP, SMB~~
-* ~~Ability to set proxy~~
-* ~~Ability to select interface~~
-* More modules
-* ~~Better connection handling~~
-
-# Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=x90skysn3k/brutespray&type=Date)](https://star-history.com/#x90skysn3k/brutespray&Date)
+package brutespray
+
+import (
+	"flag"
+	"fmt"
+	"os"
+	"os/signal"
+	"strconv"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"syscall"
+	"time"
+
+	"github.com/pterm/pterm"
+	"github.com/x90skysn3k/brutespray/banner"
+	"github.com/x90skysn3k/brutespray/brute"
+	"github.com/x90skysn3k/brutespray/modules"
+)
+
+var masterServiceList = []string{"ssh", "ftp", "smtp", "mssql", "telnet", "smbnt", "postgres", "imap", "pop3", "snmp", "mysql", "vmauthd", "asterisk", "vnc", "mongodb", "nntp", "oracle", "teamspeak", "xmpp", "rdp", "http", "https"}
+
+var BetaServiceList = []string{"asterisk", "nntp", "oracle", "xmpp", "rdp"}
+
+var version = "v2.4.1"
+var NoColorMode bool
+
+// Credential represents a single credential attempt
+type Credential struct {
+	Host     modules.Host
+	User     string
+	Password string
+	Service  string
+}
+
+// hostListFlag collects multiple -H targets
+type hostListFlag []string
+
+func (h *hostListFlag) String() string { return strings.Join(*h, ",") }
+func (h *hostListFlag) Set(value string) error {
+	if value == "" {
+		return fmt.Errorf("empty host provided to -H")
+	}
+	*h = append(*h, value)
+	return nil
+}
+
+// HostWorkerPool manages workers for a specific host
+type HostWorkerPool struct {
+	host           modules.Host
+	workers        int
+	targetWorkers  int
+	currentWorkers int32
+	jobQueue       chan Credential
+	progressCh     chan int
+	wg             sync.WaitGroup
+	stopChan       chan struct{}
+	// Performance tracking for dynamic adjustment
+	avgResponseTime time.Duration
+	successRate     float64
+	totalAttempts   int64
+	mutex           sync.RWMutex
+}
+
+// WorkerPool manages the worker goroutines for brute force attempts with per-host allocation
+type WorkerPool struct {
+	globalWorkers   int
+	threadsPerHost  int
+	hostPools       map[string]*HostWorkerPool
+	hostPoolsMutex  sync.RWMutex
+	progressCh      chan int
+	globalStopChan  chan struct{}
+	hostParallelism int
+	hostSem         chan struct{}
+	// Dynamic thread allocation
+	dynamicAllocation bool
+	minThreadsPerHost int
+	maxThreadsPerHost int
+	// Statistics control
+	noStats    bool
+	scalerStop chan struct{}
+}
+
+// NewHostWorkerPool creates a new host-specific worker pool
+func NewHostWorkerPool(host modules.Host, workers int, progressCh chan int) *HostWorkerPool {
+	return &HostWorkerPool{
+		host:          host,
+		workers:       workers,
+		targetWorkers: workers,
+		jobQueue:      make(chan Credential, workers*10), // Smaller buffer per host
+		progressCh:    progressCh,
+		stopChan:      make(chan struct{}),
+	}
+}
+
+// NewWorkerPool creates a new worker pool with per-host thread allocation
+func NewWorkerPool(threadsPerHost int, progressCh chan int, hostParallelism int, hostCount int) *WorkerPool {
+	// Calculate total workers across all hosts (no capping)
+	totalWorkers := threadsPerHost * hostCount
+
+	return &WorkerPool{
+		globalWorkers:     totalWorkers,
+		threadsPerHost:    threadsPerHost,
+		hostPools:         make(map[string]*HostWorkerPool),
+		progressCh:        progressCh,
+		globalStopChan:    make(chan struct{}),
+		hostParallelism:   hostParallelism,
+		hostSem:           make(chan struct{}, hostParallelism),
+		dynamicAllocation: true,
+		minThreadsPerHost: 1,
+		maxThreadsPerHost: threadsPerHost,
+		scalerStop:        make(chan struct{}),
+	}
+}
+
+// Start starts the host-specific worker pool
+func (hwp *HostWorkerPool) Start(timeout time.Duration, retry int, output string, cm *modules.ConnectionManager, domain string, noStats bool) {
+	for i := 0; i < hwp.workers; i++ {
+		hwp.wg.Add(1)
+		atomic.AddInt32(&hwp.currentWorkers, 1)
+		go hwp.worker(timeout, retry, output, cm, domain, noStats)
+	}
+}
+
+// scaleTo adjusts the number of workers towards target. It can only add workers; reducing
+// happens cooperatively when workers finish a job and see they are above target.
+func (hwp *HostWorkerPool) scaleTo(newTarget int, timeout time.Duration, retry int, output string, cm *modules.ConnectionManager, domain string, noStats bool) {
+	if newTarget < 1 {
+		newTarget = 1
+	}
+	hwp.mutex.Lock()
+	hwp.targetWorkers = newTarget
+	hwp.mutex.Unlock()
+	// Add workers if below target
+	for int(atomic.LoadInt32(&hwp.currentWorkers)) < newTarget {
+		hwp.wg.Add(1)
+		atomic.AddInt32(&hwp.currentWorkers, 1)
+		go hwp.worker(timeout, retry, output, cm, domain, noStats)
+	}
+}
+
+// Start starts all host worker pools
+func (wp *WorkerPool) Start(timeout time.Duration, retry int, output string, cm *modules.ConnectionManager, domain string, noStats bool) {
+	// Store noStats for use in ProcessHost
+	wp.noStats = noStats
+	// Host worker pools are started individually when hosts are processed
+	// Launch a scaler that periodically adjusts per-host worker counts
+	go func() {
+		ticker := time.NewTicker(2 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-wp.scalerStop:
+				return
+			case <-wp.globalStopChan:
+				return
+			case <-ticker.C:
+				wp.hostPoolsMutex.RLock()
+				for _, hp := range wp.hostPools {
+					target := wp.calculateOptimalThreadsForPool(hp)
+					hp.scaleTo(target, timeout, retry, output, cm, domain, noStats)
+				}
+				wp.hostPoolsMutex.RUnlock()
+			}
+		}
+	}()
+}
+
+// Stop stops the host-specific worker pool
+func (hwp *HostWorkerPool) Stop() {
+	select {
+	case <-hwp.stopChan:
+		// Already stopped
+		return
+	default:
+		close(hwp.stopChan)
+	}
+	hwp.wg.Wait()
+}
+
+// Stop stops all host worker pools immediately
+func (wp *WorkerPool) Stop() {
+	// Close global stop channel first to signal all operations to stop
+	select {
+	case <-wp.globalStopChan:
+		// Already stopped
+		return
+	default:
+		close(wp.globalStopChan)
+	}
+
+	// Stop scaler
+	select {
+	case <-wp.scalerStop:
+	default:
+		close(wp.scalerStop)
+	}
+
+	// Stop all host pools concurrently for faster shutdown
+	wp.hostPoolsMutex.RLock()
+	var stopWg sync.WaitGroup
+	for _, hostPool := range wp.hostPools {
+		stopWg.Add(1)
+		go func(hp *HostWorkerPool) {
+			defer stopWg.Done()
+			hp.Stop()
+		}(hostPool)
+	}
+	wp.hostPoolsMutex.RUnlock()
+
+	// Wait for all host pools to stop, but with a timeout to prevent hanging
+	done := make(chan struct{})
+	go func() {
+		stopWg.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		// All stopped cleanly
+	case <-time.After(2 * time.Second):
+		// Force exit after timeout
+		fmt.Println("[!] Force stopping after timeout")
+	}
+}
+
+// worker is the main worker goroutine for host-specific worker pool
+func (hwp *HostWorkerPool) worker(timeout time.Duration, retry int, output string, cm *modules.ConnectionManager, domain string, noStats bool) {
+	defer hwp.wg.Done()
+
+	for {
+		// If scaling down and queue appears empty, allow this worker to exit
+		hwp.mutex.RLock()
+		target := hwp.targetWorkers
+		hwp.mutex.RUnlock()
+		if int(atomic.LoadInt32(&hwp.currentWorkers)) > target {
+			select {
+			case <-hwp.stopChan:
+				atomic.AddInt32(&hwp.currentWorkers, -1)
+				return
+			default:
+				// Only exit if no job immediately available
+				select {
+				case <-hwp.stopChan:
+					atomic.AddInt32(&hwp.currentWorkers, -1)
+					return
+				case cred, ok := <-hwp.jobQueue:
+					if !ok {
+						atomic.AddInt32(&hwp.currentWorkers, -1)
+						return
+					}
+					hwp.processCredential(cred, timeout, retry, output, cm, domain, noStats)
+					continue
+				default:
+					atomic.AddInt32(&hwp.currentWorkers, -1)
+					return
+				}
+			}
+		}
+		select {
+		case <-hwp.stopChan:
+			atomic.AddInt32(&hwp.currentWorkers, -1)
+			return
+		case cred, ok := <-hwp.jobQueue:
+			if !ok {
+				atomic.AddInt32(&hwp.currentWorkers, -1)
+				return
+			}
+			hwp.processCredential(cred, timeout, retry, output, cm, domain, noStats)
+		}
+	}
+}
+
+func (hwp *HostWorkerPool) processCredential(cred Credential, timeout time.Duration, retry int, output string, cm *modules.ConnectionManager, domain string, noStats bool) {
+	// Track performance for dynamic adjustment
+	startTime := time.Now()
+
+	// Execute the brute force attempt
+	success := brute.RunBrute(cred.Host, cred.User, cred.Password, hwp.progressCh, timeout, retry, output, "", "", domain, cm)
+
+	// Record statistics (if enabled)
+	duration := time.Since(startTime)
+	if !noStats {
+		if !success {
+			modules.RecordConnectionError(cred.Host.Host)
+		}
+	}
+
+	// Update performance metrics
+	hwp.updatePerformanceMetrics(success, duration)
+	hwp.progressCh <- 1
+}
+
+// updatePerformanceMetrics updates the performance metrics for the host
+func (hwp *HostWorkerPool) updatePerformanceMetrics(success bool, responseTime time.Duration) {
+	hwp.mutex.Lock()
+	defer hwp.mutex.Unlock()
+
+	hwp.totalAttempts++
+
+	// Update average response time using exponential moving average
+	if hwp.totalAttempts == 1 {
+		hwp.avgResponseTime = responseTime
+	} else {
+		alpha := 0.1
+		hwp.avgResponseTime = time.Duration(float64(hwp.avgResponseTime)*(1-alpha) + float64(responseTime)*alpha)
+	}
+
+	// Update success rate
+	if success {
+		hwp.successRate = (hwp.successRate*float64(hwp.totalAttempts-1) + 1.0) / float64(hwp.totalAttempts)
+	} else {
+		hwp.successRate = hwp.successRate * float64(hwp.totalAttempts-1) / float64(hwp.totalAttempts)
+	}
+}
+
+// AddJob adds a credential to the appropriate host's job queue
+func (wp *WorkerPool) AddJob(cred Credential) {
+	hostKey := fmt.Sprintf("%s:%d", cred.Host.Host, cred.Host.Port)
+
+	wp.hostPoolsMutex.RLock()
+	hostPool, exists := wp.hostPools[hostKey]
+	wp.hostPoolsMutex.RUnlock()
+
+	if !exists {
+		// This shouldn't happen if ProcessHost is called first, but handle gracefully
+		return
+	}
+
+	select {
+	case hostPool.jobQueue <- cred:
+	case <-hostPool.stopChan:
+	case <-wp.globalStopChan:
+	}
+}
+
+// getOrCreateHostPool gets or creates a host-specific worker pool
+func (wp *WorkerPool) getOrCreateHostPool(host modules.Host) *HostWorkerPool {
+	hostKey := fmt.Sprintf("%s:%d", host.Host, host.Port)
+
+	wp.hostPoolsMutex.RLock()
+	hostPool, exists := wp.hostPools[hostKey]
+	wp.hostPoolsMutex.RUnlock()
+
+	if !exists {
+		wp.hostPoolsMutex.Lock()
+		// Double-check after acquiring write lock
+		if hostPool, exists = wp.hostPools[hostKey]; !exists {
+			// Determine threads for this host (could be dynamic based on performance)
+			threadsForHost := wp.threadsPerHost
+			if wp.dynamicAllocation {
+				threadsForHost = wp.calculateOptimalThreadsForHost(host)
+			}
+
+			hostPool = NewHostWorkerPool(host, threadsForHost, wp.progressCh)
+			wp.hostPools[hostKey] = hostPool
+		}
+		wp.hostPoolsMutex.Unlock()
+	}
+
+	return hostPool
+}
+
+// calculateOptimalThreadsForHost returns the exact threads per host as specified by user
+func (wp *WorkerPool) calculateOptimalThreadsForHost(host modules.Host) int {
+	// Backward-compatible default used when not using host pool state
+	return wp.threadsPerHost
+}
+
+// calculateOptimalThreadsForPool computes a target worker count based on current
+// per-host pool performance: faster avg response -> more threads; many errors -> fewer.
+func (wp *WorkerPool) calculateOptimalThreadsForPool(hp *HostWorkerPool) int {
+	hp.mutex.RLock()
+	avg := hp.avgResponseTime
+	success := hp.successRate
+	attempts := hp.totalAttempts
+	hp.mutex.RUnlock()
+
+	target := wp.threadsPerHost
+	if attempts < 10 {
+		return target
+	}
+
+	// Scale with simple rules of thumb
+	// Very fast responses (<200ms) -> double threads (up to max)
+	if avg < 200*time.Millisecond {
+		target = wp.threadsPerHost * 2
+	} else if avg > 2*time.Second {
+		// Slow responses -> halve threads (down to min)
+		target = wp.threadsPerHost / 2
+		if target < 1 {
+			target = 1
+		}
+	}
+
+	// If success rate high, reduce retries via speed-up threads modestly
+	if success > 0.25 {
+		target += wp.threadsPerHost / 2
+	}
+
+	if target < wp.minThreadsPerHost {
+		target = wp.minThreadsPerHost
+	}
+	if target > wp.maxThreadsPerHost {
+		target = wp.maxThreadsPerHost
+	}
+	return target
+}
+
+// Helper function for min
+
+// ProcessHost processes a single host with all its credentials using dedicated host worker pool
+func (wp *WorkerPool) ProcessHost(host modules.Host, service string, combo string, user string, password string, version string, timeout time.Duration, retry int, output string, cm *modules.ConnectionManager, domain string) {
+	// Check if we should stop before acquiring semaphore
+	select {
+	case <-wp.globalStopChan:
+		return
+	default:
+	}
+
+	// Acquire host semaphore to limit concurrent hosts
+	select {
+	case wp.hostSem <- struct{}{}:
+	case <-wp.globalStopChan:
+		return
+	}
+	defer func() { <-wp.hostSem }()
+
+	// Check again after acquiring semaphore
+	select {
+	case <-wp.globalStopChan:
+		return
+	default:
+	}
+
+	// Get or create host-specific worker pool
+	hostPool := wp.getOrCreateHostPool(host)
+
+	// Start the host worker pool
+	hostPool.Start(timeout, retry, output, cm, domain, wp.noStats)
+
+	// Debug output to show host processing
+	if !NoColorMode {
+		modules.PrintfColored(pterm.FgLightGreen, "[*] Processing host: %s:%d (%s) with %d threads\n", host.Host, host.Port, host.Service, hostPool.workers)
+	} else {
+		fmt.Printf("[*] Processing host: %s:%d (%s) with %d threads\n", host.Host, host.Port, host.Service, hostPool.workers)
+	}
+
+	// Generate and queue all credentials for this host
+	if combo != "" {
+		users, passwords := modules.GetUsersAndPasswordsCombo(&host, combo, version)
+		for i := range users {
+			// Check if we should stop before processing each credential
+			select {
+			case <-wp.globalStopChan:
+				return
+			case <-hostPool.stopChan:
+				return
+			default:
+			}
+
+			cred := Credential{
+				Host:     host,
+				User:     users[i],
+				Password: passwords[i],
+				Service:  service,
+			}
+			select {
+			case hostPool.jobQueue <- cred:
+			case <-hostPool.stopChan:
+				return
+			case <-wp.globalStopChan:
+				return
+			}
+		}
+	} else {
+		if service == "vnc" || service == "snmp" {
+			_, passwords := modules.GetUsersAndPasswords(&host, user, password, version)
+			for _, p := range passwords {
+				// Check if we should stop before processing each credential
+				select {
+				case <-wp.globalStopChan:
+					return
+				case <-hostPool.stopChan:
+					return
+				default:
+				}
+
+				cred := Credential{
+					Host:     host,
+					User:     "",
+					Password: p,
+					Service:  service,
+				}
+				select {
+				case hostPool.jobQueue <- cred:
+				case <-hostPool.stopChan:
+					return
+				case <-wp.globalStopChan:
+					return
+				}
+			}
+		} else {
+			users, passwords := modules.GetUsersAndPasswords(&host, user, password, version)
+			for _, u := range users {
+				for _, p := range passwords {
+					// Check if we should stop before processing each credential
+					select {
+					case <-wp.globalStopChan:
+						return
+					case <-hostPool.stopChan:
+						return
+					default:
+					}
+
+					cred := Credential{
+						Host:     host,
+						User:     u,
+						Password: p,
+						Service:  service,
+					}
+					select {
+					case hostPool.jobQueue <- cred:
+					case <-hostPool.stopChan:
+						return
+					case <-wp.globalStopChan:
+						return
+					}
+				}
+			}
+		}
+	}
+
+	// Close the job queue to signal no more jobs will be added
+	select {
+	case <-wp.globalStopChan:
+		// If we're stopping, don't close the queue normally, let Stop() handle it
+		hostPool.Stop()
+		return
+	case <-hostPool.stopChan:
+		// Host pool already stopped
+		return
+	default:
+		close(hostPool.jobQueue)
+	}
+
+	// Wait for all jobs to complete or be interrupted
+	done := make(chan struct{})
+	go func() {
+		hostPool.wg.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		// All jobs completed normally
+	case <-wp.globalStopChan:
+		// Interrupted, stop the host pool
+		hostPool.Stop()
+		return
+	case <-hostPool.stopChan:
+		// Host pool stopped
+		return
+	}
+
+	// Now stop the host pool (this will close stopChan but jobQueue is already closed)
+	hostPool.Stop()
+
+	// Debug output to show host completion with performance metrics
+	hostPool.mutex.RLock()
+	avgResponseTime := hostPool.avgResponseTime
+	successRate := hostPool.successRate
+	totalAttempts := hostPool.totalAttempts
+	hostPool.mutex.RUnlock()
+
+	if !NoColorMode {
+		modules.PrintfColored(pterm.FgLightGreen, "[*] Completed host: %s:%d (%s) - %d attempts, %.1f%% success, avg %.2fs\n",
+			host.Host, host.Port, host.Service, totalAttempts, successRate*100, avgResponseTime.Seconds())
+	} else {
+		fmt.Printf("[*] Completed host: %s:%d (%s) - %d attempts, %.1f%% success, avg %.2fs\n",
+			host.Host, host.Port, host.Service, totalAttempts, successRate*100, avgResponseTime.Seconds())
+	}
+}
+
+func Execute() {
+	user := flag.String("u", "", "Username or user list to bruteforce For SMBNT and RDP, use domain\\username format (e.g., CORP\\jdoe)")
+	password := flag.String("p", "", "Password or password file to use for bruteforce")
+	combo := flag.String("C", "", "Specify a combo wordlist deiminated by ':', example: user1:password")
+	output := flag.String("o", "brutespray-output", "Directory containing successful attempts")
+	summary := flag.Bool("summary", false, "Generate comprehensive summary report with statistics")
+	noStats := flag.Bool("no-stats", false, "Disable statistics tracking for better performance")
+	silent := flag.Bool("silent", false, "Suppress per-attempt console logs (still records successes and summary)")
+	logEvery := flag.Int("log-every", 1, "Print every N attempts when not in silent mode (>=1)")
+	threads := flag.Int("t", 10, "Number of threads per host (also acts as max threads per host)")
+	hostParallelism := flag.Int("T", 5, "Number of hosts to bruteforce at the same time")
+	socksProxy := flag.String("socks5", "", "Socks5 proxy to use for bruteforce (supports socks5://user:pass@host:port or host:port)")
+	netInterface := flag.String("iface", "", "Specific network interface to use for bruteforce traffic (defaults to active interface)")
+	serviceType := flag.String("s", "all", "Service type: ssh, ftp, smtp, etc; Default all")
+	listServices := flag.Bool("S", false, "List all supported services")
+	file := flag.String("f", "", "File to parse; Supported: Nmap, Nessus, Nexpose, Lists, etc")
+	var hostArgs hostListFlag
+	flag.Var(&hostArgs, "H", "Target in the format service://host:port, CIDR ranges supported; can be specified multiple times")
+	quiet := flag.Bool("q", false, "Suppress the banner")
+	timeout := flag.Duration("w", 5*time.Second, "Set timeout delay of bruteforce attempts")
+	insecureTLS := flag.Bool("insecure", false, "Disable TLS certificate verification for HTTPS bruteforce")
+	retry := flag.Int("r", 3, "Amount of times to retry after receiving connection failed")
+	printhosts := flag.Bool("P", false, "Print found hosts parsed from provided host and file arguments")
+	domain := flag.String("d", "", "Domain to use for RDP authentication (optional)")
+	noColor := flag.Bool("nc", false, "Disable colored output")
+
+	flag.Parse()
+
+	NoColorMode = *noColor
+	modules.NoColorMode = *noColor
+	modules.InsecureTLS = *insecureTLS
+	modules.Silent = *silent
+	if *logEvery < 1 {
+		*logEvery = 1
+	}
+	modules.LogEvery = int64(*logEvery)
+	// If -p was provided explicitly and is empty (length zero), instruct
+	// modules to use a single blank password instead of default wordlist.
+	// We detect this by checking the presence of -p in the provided args.
+	{
+		providedEmptyPass := false
+		for _, arg := range os.Args[1:] {
+			if arg == "-p" || strings.HasPrefix(arg, "-p=") || arg == "--p" || strings.HasPrefix(arg, "--p=") {
+				providedEmptyPass = true
+				break
+			}
+		}
+		if providedEmptyPass && *password == "" {
+			modules.UseEmptyPassword = true
+		}
+	}
+	banner.Banner(version, *quiet, NoColorMode)
+
+	getSupportedServices := func(serviceType string) []string {
+		if serviceType != "all" {
+			supportedServices := strings.Split(serviceType, ",")
+			for i := range supportedServices {
+				supportedServices[i] = strings.TrimSpace(supportedServices[i])
+			}
+			return supportedServices
+		}
+		return masterServiceList
+	}
+
+	if *listServices {
+		if NoColorMode {
+			fmt.Println("Supported services:", strings.Join(getSupportedServices(*serviceType), ", "))
+		} else {
+			pterm.DefaultSection.Println("Supported services:", strings.Join(getSupportedServices(*serviceType), ", "))
+		}
+		os.Exit(0)
+	} else {
+		if flag.NFlag() == 0 {
+			flag.Usage()
+			if NoColorMode {
+				fmt.Println("Supported services:", strings.Join(getSupportedServices(*serviceType), ", "))
+			} else {
+				pterm.DefaultSection.Println("Supported services:", strings.Join(getSupportedServices(*serviceType), ", "))
+			}
+			os.Exit(2)
+		}
+	}
+
+	if len(hostArgs) == 0 && *file == "" {
+		flag.Usage()
+		os.Exit(2)
+	}
+
+	var hosts map[modules.Host]int
+	var err error
+	if *file != "" {
+		// Pre-validate the provided file path and emit a standardized error on stderr
+		if !modules.IsFile(*file) {
+			fmt.Fprintln(os.Stderr, "Invalid -f path: file does not exist or is not accessible:", *file)
+			os.Exit(2)
+		}
+		hosts, err = modules.ParseFile(*file)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "Failed to parse input file:", err)
+			os.Exit(1)
+		}
+	}
+
+	var hostsList []modules.Host
+	for h := range hosts {
+		hostsList = append(hostsList, h)
+	}
+
+	// Parse all -H hosts
+	if len(hostArgs) > 0 {
+		var hostObj modules.Host
+		for _, hostArg := range hostArgs {
+			parsed, err := hostObj.Parse(hostArg)
+			if err != nil {
+				fmt.Println("Error parsing host:", err)
+				os.Exit(1)
+			}
+			hostsList = append(hostsList, parsed...)
+		}
+	}
+
+	supportedServices := getSupportedServices(*serviceType)
+
+	totalCombinations := 0
+	nopassServices := 0
+	for _, service := range supportedServices {
+		for _, h := range hostsList {
+			if h.Service == service {
+				for _, beta := range BetaServiceList {
+					if beta == h.Service {
+						modules.PrintWarningBeta(h.Service)
+					}
+				}
+				if *combo != "" {
+					users, passwords := modules.GetUsersAndPasswordsCombo(&h, *combo, version)
+					totalCombinations += modules.CalcCombinationsCombo(users, passwords)
+				} else {
+					if service == "vnc" || service == "snmp" {
+						_, passwords := modules.GetUsersAndPasswords(&h, *user, *password, version)
+						totalCombinations += modules.CalcCombinationsPass(passwords)
+					} else {
+						users, passwords := modules.GetUsersAndPasswords(&h, *user, *password, version)
+						totalCombinations += modules.CalcCombinations(users, passwords)
+					}
+				}
+			}
+		}
+	}
+
+	// Validate threads per host (no upper limit)
+	if *threads < 1 {
+		*threads = 1
+	}
+
+	// Optimize host parallelism
+	totalHosts := len(hostsList)
+	if *hostParallelism > totalHosts {
+		*hostParallelism = totalHosts
+	}
+	if *hostParallelism < 1 {
+		*hostParallelism = 1
+	}
+
+	// Create optimized worker pool with per-host thread allocation
+	// Buffer based on total threads across all hosts but cap to prevent huge memory spikes
+	totalThreadEstimate := (*threads) * totalHosts * 10
+	if totalThreadEstimate < 1 {
+		totalThreadEstimate = 1
+	}
+	if totalThreadEstimate > 100000 {
+		totalThreadEstimate = 100000
+	}
+	progressCh := make(chan int, totalThreadEstimate)
+	workerPool := NewWorkerPool(*threads, progressCh, *hostParallelism, totalHosts)
+
+	sigs := make(chan os.Signal, 1)
+
+	if *printhosts {
+		modules.PrintlnColored(pterm.FgLightGreen, "Found Services:")
+		data := pterm.TableData{}
+
+		header := []string{"IP", "Service and Port"}
+		data = append(data, header)
+
+		hostToServices := make(map[string][]string)
+
+		for _, h := range hostsList {
+			portstr := strconv.Itoa(h.Port)
+			service := h.Service + " on port " + portstr
+			if _, ok := hostToServices[h.Host]; !ok {
+				hostToServices[h.Host] = []string{service}
+			} else {
+				hostToServices[h.Host] = append(hostToServices[h.Host], service)
+			}
+		}
+
+		for ip, services := range hostToServices {
+			row := []string{ip, strings.Join(services, "\n")}
+			data = append(data, row)
+		}
+
+		if NoColorMode {
+			// Print table data in plain text format
+			fmt.Println("Found Services:")
+			for i, row := range data {
+				if i == 0 {
+					fmt.Println("IP\tService and Port")
+					fmt.Println("--\t----------------")
+				} else {
+					fmt.Printf("%s\t%s\n", row[0], row[1])
+				}
+			}
+		} else {
+			err := pterm.DefaultTable.WithRowSeparator("-").WithHeaderRowSeparator("-").WithData(data).Render()
+			if err != nil {
+				_ = err
+			}
+		}
+		if NoColorMode {
+			fmt.Println("Waiting...")
+			time.Sleep(3 * time.Second)
+		} else {
+			spinner, _ := pterm.DefaultSpinner.Start("Waiting...")
+			time.Sleep(3 * time.Second)
+			err := spinner.Stop()
+			if err != nil {
+				_ = err
+			}
+		}
+	}
+
+	if *socksProxy != "" {
+		modules.PrintfColored(pterm.FgLightYellow, "Socks5 Proxy: %s\n", *socksProxy)
+	}
+
+	// Initialize Connection Manager once
+	cm, err := modules.NewConnectionManager(*socksProxy, *timeout, *netInterface)
+	if err != nil {
+		fmt.Printf("Error creating connection manager: %v\n", err)
+		os.Exit(1)
+	}
+
+	if *netInterface != "" {
+		// We can use the CM to validate or just print info. CM has checked it.
+		modules.PrintfColored(pterm.FgLightYellow, "Network Interface: %s\n", cm.Iface)
+		// Get IP from CM logic ideally, but let's trust it worked.
+		ipAddr, err := modules.GetIPv4Address(cm.Iface)
+		if err == nil {
+			modules.PrintfColored(pterm.FgLightYellow, "Local Address: %s\n", ipAddr)
+		}
+	}
+
+	modules.PrintlnColored(pterm.FgLightYellow, "\nStarting bruteforce attack...")
+	maxConcurrentThreads := *threads * *hostParallelism
+	modules.PrintlnColored(pterm.FgLightYellow, fmt.Sprintf("Threads per Host: %d, Max Concurrent Threads: %d, Concurrent Hosts: %d, Total Combinations: %d", *threads, maxConcurrentThreads, *hostParallelism, (totalCombinations)-nopassServices))
+	modules.PrintlnColored(pterm.FgLightYellow, fmt.Sprintf("Total Hosts: %d, Maximum %d hosts will be processed concurrently", totalHosts, *hostParallelism))
+
+	if NoColorMode {
+		fmt.Println("\n[*] Testing credentials...")
+	} else {
+		spinner, _ := pterm.DefaultSpinner.Start("[*] Testing credentials...")
+		time.Sleep(1 * time.Second)
+		err = spinner.Stop()
+		if err != nil {
+			_ = err
+		}
+	}
+
+	var bar *pterm.ProgressbarPrinter
+	if !NoColorMode {
+		bar, _ = pterm.DefaultProgressbar.WithTotal((totalCombinations) - nopassServices).WithTitle("Progress").Start()
+	}
+
+	currentCounter := 0
+	counterMutex := sync.Mutex{}
+
+	go func() {
+		for range progressCh {
+			counterMutex.Lock()
+			currentCounter++
+			if NoColorMode {
+				// Update progress periodically. Avoid modulo by zero when threads is small.
+				step := (*threads) / 2
+				if step < 1 {
+					step = 1
+				}
+				if currentCounter%step == 0 || currentCounter == (totalCombinations)-nopassServices {
+					fmt.Printf("\n[*] Progress: %d/%d combinations tested\n", currentCounter, (totalCombinations)-nopassServices)
+				}
+			} else {
+				bar.Increment()
+			}
+			counterMutex.Unlock()
+		}
+	}()
+
+	go func() {
+		<-sigs
+		modules.PrintlnColored(pterm.FgLightYellow, "\n[!] Interrupting: Cleaning up and shutting down...")
+
+		// Immediately stop all worker pools
+		workerPool.Stop()
+
+		// Stop progress bar if running
+		if !NoColorMode && bar != nil {
+			_, _ = bar.Stop()
+		}
+
+		// Print final status
+		counterMutex.Lock()
+		modules.PrintlnColored(pterm.FgLightYellow, fmt.Sprintf("[*] Final Status: %d/%d combinations tested", currentCounter, (totalCombinations)-nopassServices))
+		counterMutex.Unlock()
+
+		// Set total hosts and services for statistics (if not already set)
+		modules.SetTotalHostsAndServices(totalHosts, len(supportedServices))
+
+		// Print comprehensive summary report if requested (even on interrupt)
+		if *summary {
+			modules.PrintlnColored(pterm.FgLightYellow, "[*] Generating summary report...")
+			modules.PrintComprehensiveSummary(*output)
+		}
+
+		// Clean up and exit immediately
+		brute.ClearMaps()
+		// CM pool cleanup
+		cm.ClearPool()
+
+		modules.PrintlnColored(pterm.FgLightYellow, "[*] Cleanup completed. Exiting...")
+		os.Exit(0)
+	}()
+
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+
+	// Start the worker pool
+	workerPool.Start(*timeout, *retry, *output, cm, *domain, *noStats)
+
+	// Process hosts with proper parallelism
+	var hostWg sync.WaitGroup
+	for _, service := range supportedServices {
+		for _, h := range hostsList {
+			if h.Service == service {
+				hostWg.Add(1)
+				// Process each host in its own goroutine with host parallelism control
+				go func(host modules.Host, svc string) {
+					defer hostWg.Done()
+					// Check if we should stop before processing
+					select {
+					case <-workerPool.globalStopChan:
+						return
+					default:
+						workerPool.ProcessHost(host, svc, *combo, *user, *password, version, *timeout, *retry, *output, cm, *domain)
+					}
+				}(h, service)
+			}
+		}
+	}
+
+	// Wait for all hosts to complete or be interrupted
+	done := make(chan struct{})
+	go func() {
+		hostWg.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		// All hosts completed normally
+	case <-workerPool.globalStopChan:
+		// Interrupted by signal, hosts will stop themselves
+		fmt.Println("[*] Waiting for hosts to finish current operations...")
+		// Give a brief moment for graceful shutdown, then force exit will happen in signal handler
+	}
+
+	// Close progress channel to stop progress goroutine cleanly
+	close(progressCh)
+
+	// Stop the worker pool after all work is done
+	workerPool.Stop()
+
+	if !NoColorMode {
+		_, _ = bar.Stop()
+	}
+
+	// Set total hosts and services for statistics
+	modules.SetTotalHostsAndServices(totalHosts, len(supportedServices))
+
+	// Print comprehensive summary report if requested
+	if *summary {
+		modules.PrintComprehensiveSummary(*output)
+	}
+
+	// Print performance report (legacy)
+	metrics := modules.GetGlobalMetrics()
+	metrics.PrintPerformanceReport()
+
+	// Print optimization suggestions
+	optimizer := modules.NewPerformanceOptimizer()
+	suggestions := optimizer.GetOptimizationSuggestions()
+	if !NoColorMode {
+		modules.PrintlnColored(pterm.FgLightYellow, "\n=== Performance Optimization Suggestions ===")
+		for _, suggestion := range suggestions {
+			modules.PrintlnColored(pterm.FgLightCyan, "• "+suggestion)
+		}
+		modules.PrintlnColored(pterm.FgLightYellow, "===============================================")
+	} else {
+		fmt.Println("\n=== Performance Optimization Suggestions ===")
+		for _, suggestion := range suggestions {
+			fmt.Println("• " + suggestion)
+		}
+		fmt.Println("===============================================")
+	}
+
+	brute.ClearMaps()
+	cm.ClearPool()
+}
