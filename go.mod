@@ -18,7 +18,7 @@ require (
 	github.com/sijms/go-ora/v2 v2.9.0
 	github.com/wenerme/astgo v0.0.0-20230926205800-1b5bc38663fa
 	github.com/x90skysn3k/grdp v0.0.0-20251231024554-b2385c71efa5
-	go.mongodb.org/mongo-driver v1.17.4
+	go.mongodb.org/mongo-driver v1.17.8
 	golang.org/x/crypto v0.46.0
 	golang.org/x/net v0.48.0
 	gosrc.io/xmpp v0.5.1
