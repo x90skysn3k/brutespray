@@ -1,6 +1,6 @@
 module github.com/x90skysn3k/brutespray
 
-go 1.24.0
+go 1.26
 
 require (
 	github.com/denisenkom/go-mssqldb v0.12.3
