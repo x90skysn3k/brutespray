@@ -47,7 +47,19 @@ func BruteSSH(host string, port int, user, password string, timeout time.Duratio
 
 	select {
 	case <-timer.C:
-		return false, false
+		// Timeout fired, but the auth goroutine may have just succeeded.
+		// Prefer any available result over reporting timeout (avoids missing
+		// valid credentials under high concurrency when both channels are ready).
+		select {
+		case result := <-done:
+			if result.err != nil {
+				return false, true
+			}
+			result.client.Close()
+			return true, true
+		default:
+			return false, false
+		}
 	case result := <-done:
 		if result.err != nil {
 			return false, true

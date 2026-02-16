@@ -42,17 +42,21 @@ func BrutePostgres(host string, port int, user, password string, timeout time.Du
 
 	select {
 	case <-timer.C:
-		return false, false
+		select {
+		case result := <-done:
+			if result.err != nil {
+				return false, true
+			}
+			return true, true
+		default:
+			return false, false
+		}
 	case result := <-done:
 		if result.client != nil {
 			_ = result.client
 		}
 		if result.err != nil {
-			if result.err.Error() == "pq: password authentication failed for user" {
-				return false, true
-			} else {
-				return false, true
-			}
+			return false, true
 		}
 		return true, true
 	}

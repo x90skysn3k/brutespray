@@ -1,25 +1,26 @@
 module github.com/x90skysn3k/brutespray
 
-go 1.24.0
+go 1.26
 
 require (
 	github.com/denisenkom/go-mssqldb v0.12.3
 	github.com/emersion/go-imap v1.2.1
+	github.com/go-redis/redis/v8 v8.11.5
 	github.com/go-sql-driver/mysql v1.9.3
-	github.com/gosnmp/gosnmp v1.42.1
+	github.com/gosnmp/gosnmp v1.43.2
 	github.com/hirochachacha/go-smb2 v1.1.0
 	github.com/jlaffaye/ftp v0.2.0
 	github.com/knadh/go-pop3 v1.0.0
-	github.com/lib/pq v1.10.9
+	github.com/lib/pq v1.11.1
 	github.com/mitchellh/go-vnc v0.0.0-20150629162542-723ed9867aed
 	github.com/multiplay/go-ts3 v1.2.0
 	github.com/pterm/pterm v0.12.82
 	github.com/sijms/go-ora/v2 v2.9.0
 	github.com/wenerme/astgo v0.0.0-20230926205800-1b5bc38663fa
-	github.com/x90skysn3k/grdp v0.0.0-20240614212340-82874dbd1eae
-	go.mongodb.org/mongo-driver v1.17.4
-	golang.org/x/crypto v0.43.0
-	golang.org/x/net v0.45.0
+	github.com/x90skysn3k/grdp v0.0.0-20251231024554-b2385c71efa5
+	go.mongodb.org/mongo-driver v1.17.8
+	golang.org/x/crypto v0.48.0
+	golang.org/x/net v0.50.0
 	gosrc.io/xmpp v0.5.1
 )
 
@@ -28,7 +29,9 @@ require (
 	atomicgo.dev/keyboard v0.2.9 // indirect
 	atomicgo.dev/schedule v0.1.0 // indirect
 	filippo.io/edwards25519 v1.1.0 // indirect
+	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/containerd/console v1.0.5 // indirect
+	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/emersion/go-message v0.15.0 // indirect
 	github.com/emersion/go-sasl v0.0.0-20200509203442-7bfe0ed36a21 // indirect
 	github.com/emersion/go-textwrapper v0.0.0-20200911093747-65d896831594 // indirect
@@ -59,10 +62,10 @@ require (
 	go.uber.org/atomic v1.6.0 // indirect
 	go.uber.org/multierr v1.5.0 // indirect
 	go.uber.org/zap v1.16.0 // indirect
-	golang.org/x/sync v0.17.0 // indirect
-	golang.org/x/sys v0.37.0 // indirect
-	golang.org/x/term v0.36.0 // indirect
-	golang.org/x/text v0.30.0 // indirect
+	golang.org/x/sync v0.19.0 // indirect
+	golang.org/x/sys v0.41.0 // indirect
+	golang.org/x/term v0.40.0 // indirect
+	golang.org/x/text v0.34.0 // indirect
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
 	google.golang.org/protobuf v1.28.1 // indirect
 	nhooyr.io/websocket v1.6.5 // indirect

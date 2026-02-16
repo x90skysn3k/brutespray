@@ -46,8 +46,9 @@ func RunBrute(h modules.Host, u string, p string, progressCh chan<- int, timeout
 
 	for {
 		if retries >= maxRetries {
-			// Record failed attempt
+			// Record failed attempt (connection never succeeded)
 			metrics.RecordAttempt(false, time.Since(startTime))
+			modules.RecordAttempt(false)
 			return false
 		}
 
@@ -113,22 +114,23 @@ func RunBrute(h modules.Host, u string, p string, progressCh chan<- int, timeout
 				}
 			}
 			result, con_result = BruteRDP(h.Host, h.Port, parsedUser, p, timeout, cm, parsedDomain)
+		case "redis":
+			result, con_result = BruteRedis(h.Host, h.Port, u, p, timeout, cm)
 		case "http":
 			result, con_result = BruteHTTP(h.Host, h.Port, u, p, timeout, cm)
 		case "https":
 			result, con_result = BruteHTTP(h.Host, h.Port, u, p, timeout, cm)
 		default:
 			metrics.RecordAttempt(false, time.Since(startTime))
+			modules.RecordAttempt(false)
 			return false
 		}
 
 		if con_result {
-			// Connection succeeded
-
-			// Record successful attempt
+			// Connection succeeded — record attempt exactly once (metrics updates response time only)
 			metrics.RecordAttempt(result, time.Since(startTime))
+			modules.RecordAttempt(result)
 
-			// Record in new statistics system
 			if result {
 				// Authentication succeeded
 				modules.RecordSuccess(service, h.Host, h.Port, u, p, time.Since(startTime))
@@ -136,9 +138,6 @@ func RunBrute(h modules.Host, u string, p string, progressCh chan<- int, timeout
 				// Authentication failed
 				modules.RecordError(false) // Authentication error
 			}
-
-			// Record the attempt (success or failure)
-			modules.RecordAttempt(result)
 
 			break
 		} else {
