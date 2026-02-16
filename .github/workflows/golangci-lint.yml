@@ -9,11 +9,10 @@ jobs:
 
       - uses: actions/setup-go@v6
         with:
-          go-version: "1.26"
+          go-version: "stable"
+          cache-dependency-path: go.sum
 
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v6
-        with:
-          version: latest
+        run: go run github.com/golangci/golangci-lint/cmd/golangci-lint@latest run ./...
 
 
