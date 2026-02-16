@@ -68,7 +68,14 @@ func BruteSNMP(host string, port int, user, password string, timeout time.Durati
 	for i := 0; i < len(communityStrings); i++ {
 		select {
 		case <-timer.C:
-			return false, false
+			select {
+			case result := <-done:
+				if result.success {
+					return true, true
+				}
+			default:
+				return false, false
+			}
 		case result := <-done:
 			if result.success {
 				return true, true

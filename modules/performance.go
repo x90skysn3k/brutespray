@@ -11,12 +11,11 @@ type PerformanceMetrics struct{}
 
 var metrics = &PerformanceMetrics{}
 
-// RecordAttempt proxies to the new stats system.
+// RecordAttempt updates only the average response time for the legacy metrics.
+// Callers must call modules.RecordAttempt(success) exactly once per attempt to avoid double-counting.
 func (pm *PerformanceMetrics) RecordAttempt(success bool, responseTime time.Duration) {
-	RecordAttempt(success)
-	// Approximate moving average for compatibility
 	globalStats.mutex.Lock()
-	if globalStats.TotalAttempts == 1 {
+	if globalStats.TotalAttempts == 0 {
 		globalStats.AverageResponseTime = responseTime
 	} else {
 		alpha := 0.1

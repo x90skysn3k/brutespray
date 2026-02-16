@@ -42,11 +42,18 @@ func BruteOracle(host string, port int, user, password string, timeout time.Dura
 
 	select {
 	case <-timer.C:
-		return false, false
+		select {
+		case res := <-done:
+			if res.err != nil {
+				return false, true
+			}
+			defer res.db.Close()
+			return true, true
+		default:
+			return false, false
+		}
 	case res := <-done:
 		if res.err != nil {
-			_ = res.err
-			//fmt.Println("Database Ping Error:", res.err)
 			return false, true
 		}
 		defer res.db.Close()

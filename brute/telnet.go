@@ -81,7 +81,12 @@ func BruteTelnet(host string, port int, user, password string, timeout time.Dura
 
 	select {
 	case <-timer.C:
-		return false, false
+		select {
+		case r := <-done:
+			return r.success, r.conOk
+		default:
+			return false, false
+		}
 	case r := <-done:
 		return r.success, r.conOk
 	}

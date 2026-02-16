@@ -50,10 +50,23 @@ func BruteXMPP(host string, port int, user, password string, timeout time.Durati
 
 	select {
 	case <-timer.C:
-		return false, false
+		select {
+		case res := <-done:
+			if res.err != nil {
+				return false, true
+			}
+			presence := stanza.NewPresence(stanza.Attrs{})
+			if err := res.session.Send(presence); err != nil {
+				_ = res.session.Disconnect()
+				return false, true
+			}
+			_ = res.session.Disconnect()
+			return true, true
+		default:
+			return false, false
+		}
 	case res := <-done:
 		if res.err != nil {
-			_ = res.err
 			return false, true
 		}
 
