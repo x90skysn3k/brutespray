@@ -44,13 +44,21 @@ func BruteFTP(host string, port int, user, password string, timeout time.Duratio
 
 	select {
 	case <-timer.C:
-		return false, false
+		select {
+		case result := <-done:
+			if result.client != nil {
+				_ = result.client.Quit()
+			}
+			if result.err != nil {
+				return false, true
+			}
+			return true, true
+		default:
+			return false, false
+		}
 	case result := <-done:
 		if result.client != nil {
-			err := result.client.Quit()
-			if err != nil {
-				_ = err
-			}
+			_ = result.client.Quit()
 		}
 		if result.err != nil {
 			return false, true

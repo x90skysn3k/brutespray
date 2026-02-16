@@ -58,6 +58,13 @@ func BrutePOP3(host string, port int, user, password string, timeout time.Durati
 			}
 
 		case <-time.After(timeout):
+			select {
+			case authSuccess := <-authDone:
+				if authSuccess {
+					return true, true
+				}
+			default:
+			}
 		}
 	}
 
