@@ -30,14 +30,20 @@ type ConnectionManager struct {
 
 func NewConnectionManager(socks5 string, timeout time.Duration, iface ...string) (*ConnectionManager, error) {
 	var ifaceName string
+	var localAddr *net.TCPAddr
 	if len(iface) > 0 && iface[0] != "" {
 		ifaceName = iface[0]
-	} else {
-		defaultIface, err := getDefaultInterface()
+		ipAddr, err := GetIPv4Address(ifaceName)
 		if err != nil {
-			return nil, fmt.Errorf("failed to determine default interface: %v", err)
+			return nil, err
 		}
-		ifaceName = defaultIface
+		localAddr = &net.TCPAddr{IP: ipAddr}
+	} else {
+		// Do not bind to any interface: let the kernel choose the source address
+		// based on the route to each destination. This fixes VPN/dual-homed setups
+		// where the "default" route (e.g. via eth0) is wrong for targets on tun0.
+		ifaceName = ""
+		// localAddr stays nil - no binding
 	}
 
 	cm := &ConnectionManager{
@@ -46,16 +52,15 @@ func NewConnectionManager(socks5 string, timeout time.Duration, iface ...string)
 		Iface:    ifaceName,
 		ConnPool: make(map[string]chan net.Conn),
 	}
-
-	ipAddr, err := GetIPv4Address(ifaceName)
-	if err != nil {
-		return nil, err
+	if localAddr != nil {
+		cm.LocalIP = localAddr.IP
 	}
-	cm.LocalIP = ipAddr
-	localAddr := &net.TCPAddr{IP: ipAddr}
 
 	if socks5 != "" {
-		forward := &net.Dialer{Timeout: timeout, LocalAddr: localAddr}
+		forward := &net.Dialer{Timeout: timeout}
+		if localAddr != nil {
+			forward.LocalAddr = localAddr
+		}
 
 		var dialer proxy.Dialer
 		var err error
@@ -90,8 +95,10 @@ func NewConnectionManager(socks5 string, timeout time.Duration, iface ...string)
 	} else {
 		dialer := &net.Dialer{
 			Timeout:   timeout,
-			LocalAddr: localAddr,
 			KeepAlive: 30 * time.Second,
+		}
+		if localAddr != nil {
+			dialer.LocalAddr = localAddr
 		}
 		cm.DialFunc = dialer.Dial
 	}
@@ -183,7 +190,10 @@ func (cm *ConnectionManager) DialUDP(network, address string) (*net.UDPConn, err
 		return nil, fmt.Errorf("failed to resolve UDP address %s: %v", address, err)
 	}
 
-	laddr := &net.UDPAddr{IP: cm.LocalIP}
+	var laddr *net.UDPAddr
+	if cm.LocalIP != nil {
+		laddr = &net.UDPAddr{IP: cm.LocalIP}
+	}
 
 	udpConn, err := net.DialUDP("udp", laddr, raddr)
 	if err != nil {

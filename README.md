@@ -53,7 +53,7 @@ Command: ```brutespray -H ssh://127.0.0.1 -C root:root```
 | `-t` | Number of threads per host (default: 10) | `-t 20` |
 | `-T` | Number of hosts to bruteforce at the same time (default: 5) | `-T 10` |
 | `-socks5` | SOCKS5 proxy to use for bruteforce | `-socks5 socks5://user:pass@host:port` |
-| `-iface` | Specific network interface to use for bruteforce traffic | `-iface tun0` |
+| `-iface` | Bind to this interface's IP for all connections; if omitted, the kernel chooses the source per destination (correct for VPN/dual-homed) | `-iface tun0` |
 | `-s` | Service type: ssh, ftp, smtp, etc; Default all | `-s ssh,ftp` |
 | `-S` | List all supported services | `-S` |
 | `-f` | File to parse; Supported: Nmap, Nessus, Nexpose, Lists, etc | `-f nmap.gnmap` |
@@ -221,9 +221,8 @@ Brutespray includes comprehensive SOCKS5 proxy support with the following featur
 
 # Network Interface Features
 
-- **Interface Selection**: Specify any network interface for all connections
-- **Automatic Detection**: Falls back to default interface if specified interface is unavailable
-- **IPv4 Address Binding**: All connections bind to the IPv4 address of the specified interface
+- **Interface Selection**: Use `-iface <name>` to bind all connections to that interface's IPv4 address
+- **No binding when omitted**: If `-iface` is not set, no local address is bound; the kernel picks the source based on the route to each target (so VPN/tun0 and dual-homed setups work without specifying an interface)
 - **Proxy Integration**: Network interface binding works seamlessly with SOCKS5 proxies
 
 # Data Specs
