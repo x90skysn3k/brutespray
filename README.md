@@ -53,7 +53,7 @@ Command: ```brutespray -H ssh://127.0.0.1 -C root:root```
 | `-t` | Number of threads per host (default: 10) | `-t 20` |
 | `-T` | Number of hosts to bruteforce at the same time (default: 5) | `-T 10` |
 | `-socks5` | SOCKS5 proxy to use for bruteforce | `-socks5 socks5://user:pass@host:port` |
-| `-iface` | Bind to this interface's IP for all connections; if omitted, the kernel chooses the source per destination (correct for VPN/dual-homed) | `-iface tun0` |
+| `-iface` | Bind to this interface's IP for all connections; if omitted, the kernel chooses the source per destination | `-iface tun0` |
 | `-s` | Service type: ssh, ftp, smtp, etc; Default all | `-s ssh,ftp` |
 | `-S` | List all supported services | `-S` |
 | `-f` | File to parse; Supported: Nmap, Nessus, Nexpose, Lists, etc | `-f nmap.gnmap` |
