@@ -11,7 +11,7 @@ require (
 	github.com/hirochachacha/go-smb2 v1.1.0
 	github.com/jlaffaye/ftp v0.2.0
 	github.com/knadh/go-pop3 v1.0.0
-	github.com/lib/pq v1.11.1
+	github.com/lib/pq v1.11.2
 	github.com/mitchellh/go-vnc v0.0.0-20150629162542-723ed9867aed
 	github.com/multiplay/go-ts3 v1.2.0
 	github.com/pterm/pterm v0.12.82
