@@ -22,7 +22,7 @@ var masterServiceList = []string{"ssh", "ftp", "smtp", "mssql", "telnet", "smbnt
 
 var BetaServiceList = []string{"asterisk", "nntp", "oracle", "xmpp", "rdp"}
 
-var version = "v2.4.2"
+var version = "v2.5.0"
 var NoColorMode bool
 
 // Credential represents a single credential attempt
@@ -55,6 +55,11 @@ type HostWorkerPool struct {
 	progressCh     chan int
 	wg             sync.WaitGroup
 	stopChan       chan struct{}
+	// Stop-on-success: close stopChan when first credential succeeds
+	stopOnSuccess bool
+	foundSuccess  int32 // atomic flag
+	// Per-host rate limiting (nil = unlimited)
+	rateTicker *time.Ticker
 	// Performance tracking for dynamic adjustment
 	avgResponseTime time.Duration
 	successRate     float64
@@ -79,18 +84,28 @@ type WorkerPool struct {
 	// Statistics control
 	noStats    bool
 	scalerStop chan struct{}
+	// Stop-on-success: skip remaining credentials for a host after first success
+	stopOnSuccess bool
+	// Per-host rate limiting (attempts per second; 0 = unlimited)
+	rateLimit float64
 }
 
 // NewHostWorkerPool creates a new host-specific worker pool
-func NewHostWorkerPool(host modules.Host, workers int, progressCh chan int) *HostWorkerPool {
-	return &HostWorkerPool{
+func NewHostWorkerPool(host modules.Host, workers int, progressCh chan int, stopOnSuccess bool, rateLimit float64) *HostWorkerPool {
+	hwp := &HostWorkerPool{
 		host:          host,
 		workers:       workers,
 		targetWorkers: workers,
 		jobQueue:      make(chan Credential, workers*10), // Smaller buffer per host
 		progressCh:    progressCh,
 		stopChan:      make(chan struct{}),
+		stopOnSuccess: stopOnSuccess,
 	}
+	if rateLimit > 0 {
+		interval := time.Duration(float64(time.Second) / rateLimit)
+		hwp.rateTicker = time.NewTicker(interval)
+	}
+	return hwp
 }
 
 // NewWorkerPool creates a new worker pool with per-host thread allocation
@@ -108,7 +123,7 @@ func NewWorkerPool(threadsPerHost int, progressCh chan int, hostParallelism int,
 		hostSem:           make(chan struct{}, hostParallelism),
 		dynamicAllocation: true,
 		minThreadsPerHost: 1,
-		maxThreadsPerHost: threadsPerHost,
+		maxThreadsPerHost: threadsPerHost * 2,
 		scalerStop:        make(chan struct{}),
 	}
 }
@@ -176,6 +191,9 @@ func (hwp *HostWorkerPool) Stop() {
 		close(hwp.stopChan)
 	}
 	hwp.wg.Wait()
+	if hwp.rateTicker != nil {
+		hwp.rateTicker.Stop()
+	}
 }
 
 // Stop stops all host worker pools immediately
@@ -272,22 +290,42 @@ func (hwp *HostWorkerPool) worker(timeout time.Duration, retry int, output strin
 }
 
 func (hwp *HostWorkerPool) processCredential(cred Credential, timeout time.Duration, retry int, output string, cm *modules.ConnectionManager, domain string, noStats bool) {
+	// Rate limiting: wait for ticker before proceeding
+	if hwp.rateTicker != nil {
+		select {
+		case <-hwp.rateTicker.C:
+		case <-hwp.stopChan:
+			return
+		}
+	}
+
 	// Track performance for dynamic adjustment
 	startTime := time.Now()
 
 	// Execute the brute force attempt
-	success := brute.RunBrute(cred.Host, cred.User, cred.Password, hwp.progressCh, timeout, retry, output, "", "", domain, cm)
+	result := brute.RunBrute(cred.Host, cred.User, cred.Password, hwp.progressCh, timeout, retry, output, "", "", domain, cm)
 
-	// Record statistics (if enabled)
+	// Record statistics (if enabled) — only count connection errors, not auth failures
 	duration := time.Since(startTime)
 	if !noStats {
-		if !success {
+		if !result.ConnectionSuccess {
 			modules.RecordConnectionError(cred.Host.Host)
 		}
 	}
 
+	// Stop-on-success: signal host pool to stop processing remaining credentials
+	if result.AuthSuccess && hwp.stopOnSuccess {
+		if atomic.CompareAndSwapInt32(&hwp.foundSuccess, 0, 1) {
+			select {
+			case <-hwp.stopChan:
+			default:
+				close(hwp.stopChan)
+			}
+		}
+	}
+
 	// Update performance metrics
-	hwp.updatePerformanceMetrics(success, duration)
+	hwp.updatePerformanceMetrics(result.AuthSuccess, duration)
 	hwp.progressCh <- 1
 }
 
@@ -352,7 +390,7 @@ func (wp *WorkerPool) getOrCreateHostPool(host modules.Host) *HostWorkerPool {
 				threadsForHost = wp.calculateOptimalThreadsForHost(host)
 			}
 
-			hostPool = NewHostWorkerPool(host, threadsForHost, wp.progressCh)
+			hostPool = NewHostWorkerPool(host, threadsForHost, wp.progressCh, wp.stopOnSuccess, wp.rateLimit)
 			wp.hostPools[hostKey] = hostPool
 		}
 		wp.hostPoolsMutex.Unlock()
@@ -607,6 +645,8 @@ func Execute() {
 	printhosts := flag.Bool("P", false, "Print found hosts parsed from provided host and file arguments")
 	domain := flag.String("d", "", "Domain to use for RDP authentication (optional)")
 	noColor := flag.Bool("nc", false, "Disable colored output")
+	stopOnSuccess := flag.Bool("stop-on-success", false, "Stop testing a host after finding valid credentials")
+	rateLimit := flag.Float64("rate", 0, "Per-host rate limit in attempts/second (0 = unlimited)")
 
 	flag.Parse()
 
@@ -756,8 +796,12 @@ func Execute() {
 	}
 	progressCh := make(chan int, totalThreadEstimate)
 	workerPool := NewWorkerPool(*threads, progressCh, *hostParallelism, totalHosts)
+	workerPool.stopOnSuccess = *stopOnSuccess
+	workerPool.rateLimit = *rateLimit
 
+	// Register signal handler BEFORE launching the goroutine that reads from it (3.8 fix)
 	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 
 	if *printhosts {
 		modules.PrintlnColored(pterm.FgLightGreen, "Found Services:")
@@ -878,65 +922,59 @@ func Execute() {
 		}
 	}()
 
+	// Use sync.Once to prevent the signal handler and main flow from racing
+	// on cleanup (3.7 fix).
+	var cleanupOnce sync.Once
+	doCleanup := func() {
+		cleanupOnce.Do(func() {
+			workerPool.Stop()
+
+			if !NoColorMode && bar != nil {
+				_, _ = bar.Stop()
+			}
+
+			counterMutex.Lock()
+			modules.PrintlnColored(pterm.FgLightYellow, fmt.Sprintf("[*] Final Status: %d/%d combinations tested", currentCounter, (totalCombinations)-nopassServices))
+			counterMutex.Unlock()
+
+			modules.SetTotalHostsAndServices(totalHosts, len(supportedServices))
+
+			if *summary {
+				modules.PrintlnColored(pterm.FgLightYellow, "[*] Generating summary report...")
+				modules.PrintComprehensiveSummary(*output)
+			}
+
+			brute.ClearMaps()
+			cm.ClearPool()
+		})
+	}
+
 	go func() {
 		<-sigs
 		modules.PrintlnColored(pterm.FgLightYellow, "\n[!] Interrupting: Cleaning up and shutting down...")
-
-		// Immediately stop all worker pools
-		workerPool.Stop()
-
-		// Stop progress bar if running
-		if !NoColorMode && bar != nil {
-			_, _ = bar.Stop()
-		}
-
-		// Print final status
-		counterMutex.Lock()
-		modules.PrintlnColored(pterm.FgLightYellow, fmt.Sprintf("[*] Final Status: %d/%d combinations tested", currentCounter, (totalCombinations)-nopassServices))
-		counterMutex.Unlock()
-
-		// Set total hosts and services for statistics (if not already set)
-		modules.SetTotalHostsAndServices(totalHosts, len(supportedServices))
-
-		// Print comprehensive summary report if requested (even on interrupt)
-		if *summary {
-			modules.PrintlnColored(pterm.FgLightYellow, "[*] Generating summary report...")
-			modules.PrintComprehensiveSummary(*output)
-		}
-
-		// Clean up and exit immediately
-		brute.ClearMaps()
-		// CM pool cleanup
-		cm.ClearPool()
-
+		doCleanup()
 		modules.PrintlnColored(pterm.FgLightYellow, "[*] Cleanup completed. Exiting...")
 		os.Exit(0)
 	}()
 
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-
 	// Start the worker pool
 	workerPool.Start(*timeout, *retry, *output, cm, *domain, *noStats)
 
-	// Process hosts with proper parallelism
+	// Process hosts with proper parallelism.
+	// Interleave dispatch across services so that a large SSH list doesn't
+	// starve FTP/HTTP targets waiting behind the host semaphore (2.5 fix).
 	var hostWg sync.WaitGroup
-	for _, service := range supportedServices {
-		for _, h := range hostsList {
-			if h.Service == service {
-				hostWg.Add(1)
-				// Process each host in its own goroutine with host parallelism control
-				go func(host modules.Host, svc string) {
-					defer hostWg.Done()
-					// Check if we should stop before processing
-					select {
-					case <-workerPool.globalStopChan:
-						return
-					default:
-						workerPool.ProcessHost(host, svc, *combo, *user, *password, version, *timeout, *retry, *output, cm, *domain)
-					}
-				}(h, service)
+	for _, h := range hostsList {
+		hostWg.Add(1)
+		go func(host modules.Host) {
+			defer hostWg.Done()
+			select {
+			case <-workerPool.globalStopChan:
+				return
+			default:
+				workerPool.ProcessHost(host, host.Service, *combo, *user, *password, version, *timeout, *retry, *output, cm, *domain)
 			}
-		}
+		}(h)
 	}
 
 	// Wait for all hosts to complete or be interrupted
@@ -958,20 +996,8 @@ func Execute() {
 	// Close progress channel to stop progress goroutine cleanly
 	close(progressCh)
 
-	// Stop the worker pool after all work is done
-	workerPool.Stop()
-
-	if !NoColorMode {
-		_, _ = bar.Stop()
-	}
-
-	// Set total hosts and services for statistics
-	modules.SetTotalHostsAndServices(totalHosts, len(supportedServices))
-
-	// Print comprehensive summary report if requested
-	if *summary {
-		modules.PrintComprehensiveSummary(*output)
-	}
+	// Run cleanup via Once (safe even if signal handler already did it)
+	doCleanup()
 
 	// Print performance report (legacy)
 	metrics := modules.GetGlobalMetrics()
@@ -994,6 +1020,4 @@ func Execute() {
 		fmt.Println("===============================================")
 	}
 
-	brute.ClearMaps()
-	cm.ClearPool()
 }

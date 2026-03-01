@@ -70,6 +70,21 @@ func BruteRDP(host string, port int, user, password string, timeout time.Duratio
 		success <- true
 	})
 
-	result := <-success
-	return result, true
+	// Wait for a result with a timeout to prevent blocking forever (3.2 fix)
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+
+	select {
+	case result := <-success:
+		return result, true
+	case <-timer.C:
+		// Force the connection closed so the blocked goroutine exits
+		_ = conn.SetDeadline(time.Now())
+		select {
+		case result := <-success:
+			return result, true
+		default:
+			return false, false
+		}
+	}
 }

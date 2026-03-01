@@ -19,13 +19,16 @@ func BruteFTP(host string, port int, user, password string, timeout time.Duratio
 	}
 	done := make(chan result, 1)
 
+	// Keep a reference to conn so we can force-close it on timeout
+	var conn net.Conn
+
 	go func() {
-		conn, err := cm.Dial("tcp", fmt.Sprintf("%s:%d", host, port))
+		var err error
+		conn, err = cm.Dial("tcp", fmt.Sprintf("%s:%d", host, port))
 		if err != nil {
 			done <- result{nil, err}
 			return
 		}
-		defer conn.Close()
 
 		// Set deadline to ensure the goroutine terminates if FTP negotiation hangs
 		if err := conn.SetDeadline(time.Now().Add(timeout)); err != nil {
@@ -44,8 +47,15 @@ func BruteFTP(host string, port int, user, password string, timeout time.Duratio
 
 	select {
 	case <-timer.C:
+		// Force the blocked goroutine to exit by killing the connection
+		if conn != nil {
+			_ = conn.SetDeadline(time.Now())
+		}
 		select {
 		case result := <-done:
+			if conn != nil {
+				conn.Close()
+			}
 			if result.client != nil {
 				_ = result.client.Quit()
 			}
@@ -54,9 +64,15 @@ func BruteFTP(host string, port int, user, password string, timeout time.Duratio
 			}
 			return true, true
 		default:
+			if conn != nil {
+				conn.Close()
+			}
 			return false, false
 		}
 	case result := <-done:
+		if conn != nil {
+			conn.Close()
+		}
 		if result.client != nil {
 			_ = result.client.Quit()
 		}

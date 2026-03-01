@@ -33,7 +33,6 @@ func BruteSSH(host string, port int, user, password string, timeout time.Duratio
 	if err != nil {
 		return false, false
 	}
-	defer conn.Close()
 
 	go func() {
 		clientConn, clientChannels, clientRequests, err := ssh.NewClientConn(conn, fmt.Sprintf("%s:%d", host, port), config)
@@ -47,20 +46,24 @@ func BruteSSH(host string, port int, user, password string, timeout time.Duratio
 
 	select {
 	case <-timer.C:
-		// Timeout fired, but the auth goroutine may have just succeeded.
-		// Prefer any available result over reporting timeout (avoids missing
-		// valid credentials under high concurrency when both channels are ready).
+		// Timeout fired — force the blocked goroutine to exit by killing the
+		// connection deadline so the SSH handshake fails immediately.
+		_ = conn.SetDeadline(time.Now())
+		// Prefer any available result over reporting timeout
 		select {
 		case result := <-done:
+			conn.Close()
 			if result.err != nil {
 				return false, true
 			}
 			result.client.Close()
 			return true, true
 		default:
+			conn.Close()
 			return false, false
 		}
 	case result := <-done:
+		conn.Close()
 		if result.err != nil {
 			return false, true
 		}

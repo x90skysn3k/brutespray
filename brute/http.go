@@ -71,11 +71,17 @@ func BruteHTTP(host string, port int, user, password string, timeout time.Durati
 		}
 	}()
 
-	// Check response status
+	// Check response status.
+	// Redirects (3xx) are NOT treated as auth success because many servers
+	// redirect unauthenticated requests to a login page (3.6 fix).
 	switch resp.StatusCode {
-	case 200, 201, 202, 204, 301, 302, 303, 307, 308:
+	case 200, 201, 202, 204:
 		// Success - authentication worked
 		return true, true
+	case 301, 302, 303, 307, 308:
+		// Redirect — ambiguous; most likely the server is redirecting to a
+		// login page rather than confirming valid credentials.
+		return false, true
 	case 401:
 		// Unauthorized - connection worked but auth failed
 		return false, true

@@ -1,7 +1,7 @@
 package brute
 
 import (
-	"fmt"
+	"net"
 	"strconv"
 	"time"
 
@@ -22,8 +22,12 @@ func BruteXMPP(host string, port int, user, password string, timeout time.Durati
 	}
 	done := make(chan result, 1)
 
+	// Keep a reference to conn so we can force-close it on timeout
+	var conn net.Conn
+
 	go func() {
-		conn, err := cm.Dial("tcp", hoststr)
+		var err error
+		conn, err = cm.Dial("tcp", hoststr)
 		if err != nil {
 			done <- result{nil, err}
 			return
@@ -50,6 +54,10 @@ func BruteXMPP(host string, port int, user, password string, timeout time.Durati
 
 	select {
 	case <-timer.C:
+		// Force the blocked goroutine to exit
+		if conn != nil {
+			_ = conn.SetDeadline(time.Now())
+		}
 		select {
 		case res := <-done:
 			if res.err != nil {
@@ -76,10 +84,7 @@ func BruteXMPP(host string, port int, user, password string, timeout time.Durati
 			return false, true
 		}
 
-		err := res.session.Disconnect()
-		if err != nil {
-			fmt.Println(err)
-		}
+		_ = res.session.Disconnect()
 		return true, true
 	}
 }

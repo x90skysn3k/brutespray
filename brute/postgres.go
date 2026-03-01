@@ -3,6 +3,7 @@ package brute
 import (
 	"database/sql"
 	"fmt"
+	"net"
 	"time"
 
 	_ "github.com/lib/pq"
@@ -19,8 +20,12 @@ func BrutePostgres(host string, port int, user, password string, timeout time.Du
 	}
 	done := make(chan result, 1)
 
+	// Keep a reference to conn so we can force-close it on timeout
+	var conn net.Conn
+
 	go func() {
-		conn, err := cm.Dial("tcp", fmt.Sprintf("%s:%d", host, port))
+		var err error
+		conn, err = cm.Dial("tcp", fmt.Sprintf("%s:%d", host, port))
 		if err != nil {
 			done <- result{nil, err}
 			return
@@ -42,6 +47,10 @@ func BrutePostgres(host string, port int, user, password string, timeout time.Du
 
 	select {
 	case <-timer.C:
+		// Force the blocked goroutine to exit
+		if conn != nil {
+			_ = conn.SetDeadline(time.Now())
+		}
 		select {
 		case result := <-done:
 			if result.err != nil {
