@@ -403,6 +403,10 @@ func PrintComprehensiveSummary(outputDir string) {
 
 	// Write human-readable summary
 	writeHumanReadableSummary(&stats, outputDir)
+
+	// Write tool integration files (only if there are successful results)
+	writeMSFResourceScript(&stats, outputDir)
+	writeNetExecCommands(&stats, outputDir)
 }
 
 // printSummaryToConsole prints the summary to console
@@ -625,4 +629,111 @@ func writeHumanReadableSummary(stats *OutputStatsCopy, outputDir string) {
 	fmt.Fprintf(file, "%s\n", strings.Repeat("=", 60))
 
 	fmt.Printf("Human-readable summary written to: %s\n", filename)
+}
+
+// writeMSFResourceScript generates a Metasploit resource script (.rc) from found credentials.
+func writeMSFResourceScript(stats *OutputStatsCopy, outputDir string) {
+	if len(stats.SuccessfulResults) == 0 {
+		return
+	}
+
+	filename := filepath.Join(outputDir, "brutespray-msf.rc")
+	file, err := os.Create(filename)
+	if err != nil {
+		fmt.Printf("Error creating MSF resource script: %v\n", err)
+		return
+	}
+	defer file.Close()
+
+	// Map service names to MSF auxiliary modules
+	msfModules := map[string]string{
+		"ssh":       "auxiliary/scanner/ssh/ssh_login",
+		"ftp":       "auxiliary/scanner/ftp/ftp_login",
+		"telnet":    "auxiliary/scanner/telnet/telnet_login",
+		"mysql":     "auxiliary/scanner/mysql/mysql_login",
+		"postgres":  "auxiliary/scanner/postgres/postgres_login",
+		"mssql":     "auxiliary/scanner/mssql/mssql_login",
+		"smb":       "auxiliary/scanner/smb/smb_login",
+		"smbnt":     "auxiliary/scanner/smb/smb_login",
+		"smtp":      "auxiliary/scanner/smtp/smtp_enum",
+		"vnc":       "auxiliary/scanner/vnc/vnc_login",
+		"rdp":       "auxiliary/scanner/rdp/rdp_scanner",
+		"redis":     "auxiliary/scanner/redis/redis_login",
+		"mongodb":   "auxiliary/scanner/mongodb/mongodb_login",
+		"pop3":      "auxiliary/scanner/pop3/pop3_login",
+		"imap":      "auxiliary/scanner/imap/imap_login",
+		"http":      "auxiliary/scanner/http/http_login",
+		"https":     "auxiliary/scanner/http/http_login",
+	}
+
+	fmt.Fprintf(file, "# Brutespray Metasploit Resource Script\n")
+	fmt.Fprintf(file, "# Generated: %s\n", time.Now().Format("2006-01-02 15:04:05"))
+	fmt.Fprintf(file, "# Found credentials: %d\n\n", len(stats.SuccessfulResults))
+
+	for _, result := range stats.SuccessfulResults {
+		module, ok := msfModules[result.Service]
+		if !ok {
+			fmt.Fprintf(file, "# No MSF module mapping for service: %s (%s:%d)\n", result.Service, result.Host, result.Port)
+			continue
+		}
+		fmt.Fprintf(file, "use %s\n", module)
+		fmt.Fprintf(file, "set RHOSTS %s\n", result.Host)
+		fmt.Fprintf(file, "set RPORT %d\n", result.Port)
+		if result.User != "" {
+			fmt.Fprintf(file, "set USERNAME %s\n", result.User)
+		}
+		fmt.Fprintf(file, "set PASSWORD %s\n", result.Password)
+		if result.Service == "https" {
+			fmt.Fprintf(file, "set SSL true\n")
+		}
+		fmt.Fprintf(file, "run\n\n")
+	}
+
+	fmt.Printf("Metasploit resource script written to: %s\n", filename)
+}
+
+// writeNetExecCommands generates NetExec (formerly CrackMapExec) commands from found credentials.
+func writeNetExecCommands(stats *OutputStatsCopy, outputDir string) {
+	if len(stats.SuccessfulResults) == 0 {
+		return
+	}
+
+	filename := filepath.Join(outputDir, "brutespray-nxc.sh")
+	file, err := os.Create(filename)
+	if err != nil {
+		fmt.Printf("Error creating NetExec commands file: %v\n", err)
+		return
+	}
+	defer file.Close()
+
+	// Map service names to nxc protocol names
+	nxcProtocols := map[string]string{
+		"ssh":    "ssh",
+		"smbnt":  "smb",
+		"rdp":    "rdp",
+		"mssql":  "mssql",
+		"ftp":    "ftp",
+		"winrm":  "winrm",
+		"ldap":   "ldap",
+	}
+
+	fmt.Fprintf(file, "#!/bin/bash\n")
+	fmt.Fprintf(file, "# Brutespray NetExec Commands\n")
+	fmt.Fprintf(file, "# Generated: %s\n", time.Now().Format("2006-01-02 15:04:05"))
+	fmt.Fprintf(file, "# Found credentials: %d\n\n", len(stats.SuccessfulResults))
+
+	for _, result := range stats.SuccessfulResults {
+		proto, ok := nxcProtocols[result.Service]
+		if !ok {
+			fmt.Fprintf(file, "# No nxc protocol for service: %s (%s:%d user:%s)\n", result.Service, result.Host, result.Port, result.User)
+			continue
+		}
+		if result.User != "" {
+			fmt.Fprintf(file, "nxc %s %s -u '%s' -p '%s' --port %d\n", proto, result.Host, result.User, result.Password, result.Port)
+		} else {
+			fmt.Fprintf(file, "nxc %s %s -p '%s' --port %d\n", proto, result.Host, result.Password, result.Port)
+		}
+	}
+
+	fmt.Printf("NetExec commands written to: %s\n", filename)
 }
