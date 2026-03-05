@@ -4,6 +4,7 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/gosnmp/gosnmp"
@@ -22,64 +23,76 @@ func BruteSNMP(host string, port int, user, password string, timeout time.Durati
 
 	type result struct {
 		success bool
-		err     error
 	}
 	done := make(chan result, len(communityStrings))
 
-	// Create a handler just to get the default port if needed, but we have port.
+	// Pre-dial to check connectivity (UDP proxy not supported)
+	udpConn, err := cm.DialUDP("udp", fmt.Sprintf("%s:%d", host, port))
+	if err != nil {
+		return false, false
+	}
+	udpConn.Close()
+
+	// Use a WaitGroup to ensure all goroutines complete before we return,
+	// preventing goroutine leaks on timeout.
+	var wg sync.WaitGroup
 
 	for _, communityString := range communityStrings {
-		go func(communityString string) {
+		wg.Add(1)
+		go func(cs string) {
+			defer wg.Done()
 
 			gs := &gosnmp.GoSNMP{
 				Target:    host,
 				Port:      uint16(port),
-				Community: communityString,
-				Version:   gosnmp.Version2c, // Usually v1 or v2c for brute forcing community strings
+				Community: cs,
+				Version:   gosnmp.Version2c,
 				Timeout:   timeout,
 			}
 
-			// Pre-dial to check connectivity/proxy (UDP proxy not supported usually but cm handles it)
-			conn, err := cm.DialUDP("udp", fmt.Sprintf("%s:%d", host, port))
+			err := gs.Connect()
 			if err != nil {
-				done <- result{false, err}
-				return
-			}
-
-			conn.Close() // Close our check connection
-
-			err = gs.Connect()
-			if err != nil {
-				done <- result{false, err}
+				done <- result{false}
 				return
 			}
 			defer gs.Conn.Close()
 
-			// Try a get to verify community string
 			_, err = gs.Get([]string{".1.3.6.1.2.1.1.1.0"}) // sysDescr
-			if err == nil {
-				done <- result{true, nil}
-			} else {
-				done <- result{false, err}
-			}
+			done <- result{err == nil}
 		}(communityString)
 	}
 
-	for i := 0; i < len(communityStrings); i++ {
+	// Wait for goroutines to finish in a separate goroutine so we can
+	// select on the timer as well.
+	allDone := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(allDone)
+	}()
+
+	received := 0
+	for received < len(communityStrings) {
 		select {
 		case <-timer.C:
+			// Timeout — wait briefly for any stragglers, then return.
+			// The goroutines will still finish (SNMP has its own timeout),
+			// but we don't block the caller.
 			select {
-			case result := <-done:
-				if result.success {
+			case r := <-done:
+				if r.success {
 					return true, true
 				}
 			default:
-				return false, false
 			}
-		case result := <-done:
-			if result.success {
+			return false, false
+		case r := <-done:
+			received++
+			if r.success {
 				return true, true
 			}
+		case <-allDone:
+			// All goroutines finished without success
+			return false, true
 		}
 	}
 

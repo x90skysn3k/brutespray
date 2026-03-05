@@ -21,6 +21,10 @@ func BruteTeamSpeak(host string, port int, user, password string, timeout time.D
 	}
 	conn.Close()
 
+	if cm.Socks5 != "" {
+		modules.PrintProxyWarning("teamspeak")
+	}
+
 	c, err := ts3.NewClient(hoststr, ts3.Timeout(timeout))
 	if err != nil {
 		return false, false

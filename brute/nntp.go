@@ -60,20 +60,24 @@ func BruteNNTP(host string, port int, user, password string, timeout time.Durati
 	select {
 	case <-timer.C:
 		select {
-		case result := <-done:
-			if result.err != nil {
+		case r := <-done:
+			if r.client != nil {
+				r.client.Close()
+			}
+			if r.err != nil {
 				return false, true
 			}
-			result.client.Close()
 			return true, true
 		default:
 			return false, false
 		}
-	case result := <-done:
-		if result.err != nil {
+	case r := <-done:
+		if r.client != nil {
+			defer r.client.Close()
+		}
+		if r.err != nil {
 			return false, true
 		}
-		result.client.Close()
 		return true, true
 	}
 }

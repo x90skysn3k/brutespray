@@ -122,12 +122,7 @@ func getConResultString(con_result bool, retrying bool, delayTime time.Duration)
 
 // WriteToFile writes success results to individual service files (legacy format)
 func WriteToFile(service string, content string, port int, output string) error {
-	var dir string
-	if output != "brutespray-output" {
-		dir = output
-	} else {
-		dir = output
-	}
+	dir := output
 
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
 		if err := os.MkdirAll(dir, 0755); err != nil {
@@ -335,24 +330,52 @@ func PrintResult(service string, host string, port int, user string, pass string
 		}
 	}
 	if shouldPrint {
-		pterm.Println(pterm.NewStyle(color).Sprint(msg))
+		if NoColorMode {
+			fmt.Println(msg)
+		} else {
+			pterm.Println(pterm.NewStyle(color).Sprint(msg))
+		}
 	}
 }
 
 // PrintWarningBeta prints beta service warnings
 func PrintWarningBeta(service string) {
-	pterm.Println(pterm.NewStyle(pterm.BgYellow).Sprint(fmt.Sprintf("[!] Warning: %s module is in Beta - results may be inaccurate", service)))
+	msg := fmt.Sprintf("[!] Warning: %s module is in Beta - results may be inaccurate", service)
+	if NoColorMode {
+		fmt.Println(msg)
+	} else {
+		pterm.Println(pterm.NewStyle(pterm.BgYellow).Sprint(msg))
+	}
+}
+
+// PrintProxyWarning prints a warning when SOCKS5 proxy is not supported by a module's underlying library.
+func PrintProxyWarning(service string) {
+	msg := fmt.Sprintf("[!] Warning: SOCKS5 proxy not supported for %s — connection will be direct", service)
+	if NoColorMode {
+		fmt.Println(msg)
+	} else {
+		pterm.Println(pterm.NewStyle(pterm.BgYellow).Sprint(msg))
+	}
 }
 
 // PrintSocksError prints SOCKS proxy errors
 func PrintSocksError(service string, err string) {
-	// Keep message but ensure it is concise
-	pterm.Println(pterm.NewStyle(pterm.FgRed).Sprint(fmt.Sprintf("[!] %s: SOCKS5 connection failed - %s", service, err)))
+	msg := fmt.Sprintf("[!] %s: SOCKS5 connection failed - %s", service, err)
+	if NoColorMode {
+		fmt.Println(msg)
+	} else {
+		pterm.Println(pterm.NewStyle(pterm.FgRed).Sprint(msg))
+	}
 }
 
 // PrintSkipping prints host skipping messages
 func PrintSkipping(host string, service string, retries int, maxRetries int) {
-	pterm.Println(pterm.NewStyle(pterm.FgRed).Sprint(fmt.Sprintf("[!] Warning: Skipping %s on %s - max retries (%d/%d) reached", service, host, retries, maxRetries)))
+	msg := fmt.Sprintf("[!] Warning: Skipping %s on %s - max retries (%d/%d) reached", service, host, retries, maxRetries)
+	if NoColorMode {
+		fmt.Println(msg)
+	} else {
+		pterm.Println(pterm.NewStyle(pterm.FgRed).Sprint(msg))
+	}
 }
 
 // PrintComprehensiveSummary prints a comprehensive summary report

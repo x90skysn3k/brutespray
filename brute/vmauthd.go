@@ -3,6 +3,7 @@ package brute
 import (
 	"crypto/tls"
 	"fmt"
+	"net"
 	"strings"
 	"time"
 
@@ -10,71 +11,97 @@ import (
 )
 
 func BruteVMAuthd(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) (bool, bool) {
-	address := fmt.Sprintf("%s:%d", host, port)
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
 
-	conn, err := cm.Dial("tcp", address)
+	type result struct {
+		authSuccess bool
+		connSuccess bool
+	}
+	done := make(chan result, 1)
+
+	conn, err := cm.Dial("tcp", fmt.Sprintf("%s:%d", host, port))
 	if err != nil {
 		return false, false
 	}
-	defer conn.Close()
 
-	err = conn.SetReadDeadline(time.Now().Add(timeout))
-	if err != nil {
-		return false, false
-	}
+	go func() {
+		defer conn.Close()
 
-	buf := make([]byte, 1024)
-	n, err := conn.Read(buf)
-	if err != nil {
-		return false, false
-	}
-	response := string(buf[:n])
-	if strings.Contains(response, "SSL Required") {
-		tlsConn := tls.Client(conn, &tls.Config{InsecureSkipVerify: true})
-		defer tlsConn.Close()
-		conn = tlsConn
-	} else {
-		err = conn.SetReadDeadline(time.Now().Add(timeout))
+		stepDeadline := func() {
+			_ = conn.SetReadDeadline(time.Now().Add(timeout))
+		}
+
+		stepDeadline()
+		buf := make([]byte, 1024)
+		n, err := conn.Read(buf)
 		if err != nil {
+			done <- result{false, false}
+			return
+		}
+		response := string(buf[:n])
+
+		var activeConn net.Conn = conn
+		if strings.Contains(response, "SSL Required") {
+			tlsConn := tls.Client(conn, &tls.Config{InsecureSkipVerify: true})
+			activeConn = tlsConn
+		}
+
+		stepDeadline()
+		cmd := fmt.Sprintf("USER %s\r\n", user)
+		_, err = activeConn.Write([]byte(cmd))
+		if err != nil {
+			done <- result{false, true}
+			return
+		}
+
+		stepDeadline()
+		buf = make([]byte, 1024)
+		n, err = activeConn.Read(buf)
+		if err != nil {
+			done <- result{false, true}
+			return
+		}
+		response = string(buf[:n])
+		if !strings.HasPrefix(response, "331 ") {
+			done <- result{false, true}
+			return
+		}
+
+		stepDeadline()
+		cmd = fmt.Sprintf("PASS %s\r\n", password)
+		_, err = activeConn.Write([]byte(cmd))
+		if err != nil {
+			done <- result{false, true}
+			return
+		}
+
+		stepDeadline()
+		buf = make([]byte, 1024)
+		n, err = activeConn.Read(buf)
+		if err != nil {
+			done <- result{false, true}
+			return
+		}
+		response = string(buf[:n])
+
+		if strings.HasPrefix(response, "230 ") {
+			done <- result{true, true}
+		} else {
+			done <- result{false, true}
+		}
+	}()
+
+	select {
+	case <-timer.C:
+		_ = conn.SetDeadline(time.Now())
+		select {
+		case r := <-done:
+			return r.authSuccess, r.connSuccess
+		default:
 			return false, false
 		}
-	}
-
-	cmd := fmt.Sprintf("USER %s\r\n", user)
-	_, err = conn.Write([]byte(cmd))
-	if err != nil {
-		return false, true
-	}
-
-	buf = make([]byte, 1024)
-	n, err = conn.Read(buf)
-	if err != nil {
-		return false, true
-	}
-	response = string(buf[:n])
-	if !strings.HasPrefix(response, "331 ") {
-		return false, true
-	}
-
-	cmd = fmt.Sprintf("PASS %s\r\n", password)
-	_, err = conn.Write([]byte(cmd))
-	if err != nil {
-		return false, true
-	}
-
-	buf = make([]byte, 1024)
-	n, err = conn.Read(buf)
-	if err != nil {
-		return false, true
-	}
-	response = string(buf[:n])
-
-	if strings.HasPrefix(response, "230 ") {
-		return true, true
-	} else if strings.HasPrefix(response, "530 ") {
-		return false, true
-	} else {
-		// log.Printf("Unexpected response: %s", response)
-		return false, true
+	case r := <-done:
+		return r.authSuccess, r.connSuccess
 	}
 }
