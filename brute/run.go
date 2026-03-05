@@ -93,9 +93,6 @@ func (cb *CircuitBreaker) Reset(hostKey string) {
 	cb.mu.Unlock()
 }
 
-func ClearMaps() {
-	// Deprecated: Maps are now local to RunBrute
-}
 
 // baseRetryDelay is used for backoff calculations, decoupled from the
 // connection timeout so that retry delays stay short.
@@ -216,9 +213,9 @@ func RunBrute(h modules.Host, u string, p string, progressCh chan<- int, timeout
 		case "redis":
 			result, con_result = BruteRedis(h.Host, h.Port, u, p, timeout, cm)
 		case "http":
-			result, con_result = BruteHTTP(h.Host, h.Port, u, p, timeout, cm)
+			result, con_result = BruteHTTP(h.Host, h.Port, u, p, timeout, cm, false)
 		case "https":
-			result, con_result = BruteHTTP(h.Host, h.Port, u, p, timeout, cm)
+			result, con_result = BruteHTTP(h.Host, h.Port, u, p, timeout, cm, true)
 		default:
 			metrics.RecordAttempt(false, time.Since(startTime))
 			modules.RecordAttempt(false)
@@ -271,6 +268,3 @@ func RunBrute(h modules.Host, u string, p string, progressCh chan<- int, timeout
 	return BruteResult{AuthSuccess: result, ConnectionSuccess: con_result}
 }
 
-func WaitForSkipsToComplete() {
-	// Deprecated: Scaling logic handles cleanup
-}

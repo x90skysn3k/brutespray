@@ -44,41 +44,31 @@ func BruteSMB(host string, port int, user, password string, timeout time.Duratio
 		done <- result{session, conn, err}
 	}()
 
+	handleResult := func(r result) (bool, bool) {
+		if r.err != nil {
+			if r.conn != nil {
+				r.conn.Close()
+			}
+			return false, true
+		}
+		_, err := r.session.ListSharenames()
+		_ = r.session.Logoff()
+		r.conn.Close()
+		if err != nil {
+			return false, true
+		}
+		return true, true
+	}
+
 	select {
 	case <-timer.C:
 		select {
-		case result := <-done:
-			if result.err != nil {
-				if result.conn != nil {
-					result.conn.Close()
-				}
-				return false, true
-			}
-			_, err := result.session.ListSharenames()
-			if err != nil {
-				result.conn.Close()
-				return false, true
-			}
-			result.conn.Close()
-			return true, true
+		case r := <-done:
+			return handleResult(r)
 		default:
 			return false, false
 		}
-	case result := <-done:
-		if result.err != nil {
-			if result.conn != nil {
-				result.conn.Close()
-			}
-			return false, true
-		}
-
-		_, err := result.session.ListSharenames()
-		if err != nil {
-			result.conn.Close()
-			return false, true
-		}
-
-		result.conn.Close()
-		return true, true
+	case r := <-done:
+		return handleResult(r)
 	}
 }

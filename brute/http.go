@@ -11,14 +11,12 @@ import (
 	"github.com/x90skysn3k/brutespray/modules"
 )
 
-func BruteHTTP(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) (bool, bool) {
-	// Build the URL - handle both HTTP and HTTPS
-	var url string
-	if port == 443 {
-		url = fmt.Sprintf("https://%s:%d", host, port)
-	} else {
-		url = fmt.Sprintf("http://%s:%d", host, port)
+func BruteHTTP(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager, useHTTPS bool) (bool, bool) {
+	scheme := "http"
+	if useHTTPS {
+		scheme = "https"
 	}
+	url := fmt.Sprintf("%s://%s:%d", scheme, host, port)
 
 	// Use shared HTTP client if available for connection pooling
 	var client *http.Client
@@ -60,47 +58,29 @@ func BruteHTTP(host string, port int, user, password string, timeout time.Durati
 	// Make the request
 	resp, err := client.Do(req)
 	if err != nil {
-		// Connection failed
 		return false, false
 	}
 	defer func() {
-		// Ensure response body is read and closed to allow connection reuse
 		if resp.Body != nil {
 			_, _ = io.Copy(io.Discard, resp.Body)
 			resp.Body.Close()
 		}
 	}()
 
-	// Check response status.
-	// Redirects (3xx) are NOT treated as auth success because many servers
-	// redirect unauthenticated requests to a login page (3.6 fix).
 	switch resp.StatusCode {
 	case 200, 201, 202, 204:
-		// Success - authentication worked
 		return true, true
 	case 301, 302, 303, 307, 308:
-		// Redirect — ambiguous; most likely the server is redirecting to a
-		// login page rather than confirming valid credentials.
 		return false, true
 	case 401:
-		// Unauthorized - connection worked but auth failed
 		return false, true
 	case 403:
-		// Forbidden - might be valid credentials but access denied
 		return false, true
 	case 404, 405:
-		// Not found or method not allowed
 		return false, true
 	case 500, 502, 503, 504:
-		// Server errors
 		return false, true
 	default:
-		// Other status codes
 		return false, true
 	}
-}
-
-// BruteHTTPS is an alias for BruteHTTP since the function handles both protocols
-func BruteHTTPS(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) (bool, bool) {
-	return BruteHTTP(host, port, user, password, timeout, cm)
 }

@@ -9,7 +9,6 @@ import (
 )
 
 // tryPOP3Auth attempts POP3 authentication with the given options.
-// Extracted from BrutePOP3 to avoid defer-in-loop issues (3.3 fix).
 func tryPOP3Auth(opt pop3.Opt, user, password string, timeout time.Duration) (authSuccess bool, attempted bool) {
 	p := pop3.New(opt)
 	c, err := p.NewConn()
@@ -32,7 +31,6 @@ func tryPOP3Auth(opt pop3.Opt, user, password string, timeout time.Duration) (au
 		case authSuccess := <-authDone:
 			result = authSuccess
 		default:
-			// Timeout with no response — clean up and report failure
 			_ = c.Quit()
 			return false, true
 		}
@@ -51,6 +49,10 @@ func BrutePOP3(host string, port int, user, password string, timeout time.Durati
 		return false, false
 	}
 	conn.Close()
+
+	if cm.Socks5 != "" {
+		modules.PrintProxyWarning("pop3")
+	}
 
 	options := []pop3.Opt{
 		{Host: host, Port: port, DialTimeout: timeout},

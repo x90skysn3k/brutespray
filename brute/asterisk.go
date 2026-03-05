@@ -9,17 +9,22 @@ import (
 	"github.com/x90skysn3k/brutespray/modules"
 )
 
-// this is very alpha and I have no idea if it even works
+// BruteAsterisk is an alpha module — results may be inaccurate.
+// NOTE: The ami library makes its own TCP connection; SOCKS5 proxy and
+// interface binding do not apply. The CM dial serves as a reachability check.
 func BruteAsterisk(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) (bool, bool) {
 	target := fmt.Sprintf("%s:%d", host, port)
 
-	service := "asterisk"
+	// Reachability check via CM (proxy/interface aware)
 	conn, err := cm.Dial("tcp", target)
 	if err != nil {
-		modules.PrintSocksError(service, fmt.Sprintf("%v", err))
 		return false, false
 	}
-	defer conn.Close()
+	conn.Close()
+
+	if cm.Socks5 != "" {
+		modules.PrintProxyWarning("asterisk")
+	}
 
 	boot := make(chan *ami.Message, 1)
 
@@ -31,12 +36,13 @@ func BruteAsterisk(host string, port int, user, password string, timeout time.Du
 	if err != nil {
 		return false, true
 	}
-	defer amiConn.Close()
+
 	<-boot
 
-	if strings.Contains(amiConn.Close().Error(), "Message: Authentication accepted") {
+	closeErr := amiConn.Close()
+	if closeErr != nil && strings.Contains(closeErr.Error(), "Authentication accepted") {
 		return true, true
-	} else {
-		return false, true
 	}
+
+	return false, true
 }

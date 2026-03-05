@@ -22,7 +22,7 @@ var masterServiceList = []string{"ssh", "ftp", "smtp", "mssql", "telnet", "smbnt
 
 var BetaServiceList = []string{"asterisk", "nntp", "oracle", "xmpp", "rdp"}
 
-var version = "v2.5.0"
+var version = "v2.5.1"
 var NoColorMode bool
 
 // Credential represents a single credential attempt
@@ -660,16 +660,14 @@ func Execute() {
 	modules.LogEvery = int64(*logEvery)
 	// If -p was provided explicitly and is empty (length zero), instruct
 	// modules to use a single blank password instead of default wordlist.
-	// We detect this by checking the presence of -p in the provided args.
 	{
-		providedEmptyPass := false
-		for _, arg := range os.Args[1:] {
-			if arg == "-p" || strings.HasPrefix(arg, "-p=") || arg == "--p" || strings.HasPrefix(arg, "--p=") {
-				providedEmptyPass = true
-				break
+		providedPassword := false
+		flag.Visit(func(f *flag.Flag) {
+			if f.Name == "p" {
+				providedPassword = true
 			}
-		}
-		if providedEmptyPass && *password == "" {
+		})
+		if providedPassword && *password == "" {
 			modules.UseEmptyPassword = true
 		}
 	}
@@ -944,7 +942,6 @@ func Execute() {
 				modules.PrintComprehensiveSummary(*output)
 			}
 
-			brute.ClearMaps()
 			cm.ClearPool()
 		})
 	}
