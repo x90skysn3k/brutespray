@@ -1,6 +1,6 @@
 # Brutespray
 
-![Version](https://img.shields.io/badge/Version-2.4.2-red)[![goreleaser](https://github.com/x90skysn3k/brutespray/actions/workflows/release.yml/badge.svg)](https://github.com/x90skysn3k/brutespray/actions/workflows/release.yml)[![Go Report Card](https://goreportcard.com/badge/github.com/x90skysn3k/brutespray)](https://goreportcard.com/report/github.com/x90skysn3k/brutespray)
+![Version](https://img.shields.io/badge/Version-2.6.0-red)[![goreleaser](https://github.com/x90skysn3k/brutespray/actions/workflows/release.yml/badge.svg)](https://github.com/x90skysn3k/brutespray/actions/workflows/release.yml)[![Go Report Card](https://goreportcard.com/badge/github.com/x90skysn3k/brutespray)](https://goreportcard.com/report/github.com/x90skysn3k/brutespray)
 
 Created by: Shane Young/@t1d3nio && Jacob Robles/@shellfail 
 
@@ -66,6 +66,15 @@ Command: ```brutespray -H ssh://127.0.0.1 -C root:root```
 | `-nc` | Disable colored output | `-nc` |
 | `-summary` | Generate comprehensive summary report with statistics | `-summary` |
 | `-no-stats` | Disable statistics tracking for better performance | `-no-stats` |
+| `-stop-on-success` | Stop testing a host after finding valid credentials | `-stop-on-success` |
+| `-silent` | Suppress per-attempt console logs (still records successes and summary) | `-silent` |
+| `-log-every` | Print every N attempts when not in silent mode (default: 1) | `-log-every 100` |
+| `-rate` | Per-host rate limit in attempts/second (0 = unlimited) | `-rate 10` |
+| `-spray` | Spray mode: try each password across all users before next password (avoids lockouts) | `-spray` |
+| `-spray-delay` | Delay between password rounds in spray mode (default: 30m) | `-spray-delay 15m` |
+| `-resume` | Resume from a checkpoint file (saved automatically on interrupt) | `-resume brutespray-checkpoint.json` |
+| `-checkpoint` | Checkpoint file path for resume capability (default: brutespray-checkpoint.json) | `-checkpoint myrun.json` |
+| `-config` | YAML config file (CLI flags override config values) | `-config engagement.yaml` |
 
 # Examples
 
@@ -108,6 +117,8 @@ This generates:
 - `brutespray-summary.json` - Machine-readable JSON report
 - `brutespray-summary.csv` - CSV format for analysis
 - `brutespray-summary.txt` - Human-readable summary
+- `brutespray-msf.rc` - Metasploit resource script for found credentials
+- `brutespray-nxc.sh` - NetExec (CrackMapExec) commands for found credentials
 - Console output with key statistics
 
 **Disable Statistics (for performance):**
@@ -173,6 +184,50 @@ Specify a specific network interface for all connections:
 
 ```brutespray -f nmap.gnmap -u admin -p password -nc```
 
+#### Credential Spray Mode
+
+Spray mode tries each password across all users before moving to the next password, with a configurable delay between rounds. This avoids account lockout policies that trigger on consecutive failed attempts per user.
+
+```brutespray -f nmap.gnmap -u userlist.txt -p passlist.txt -spray -spray-delay 15m```
+
+#### Resume Interrupted Scans
+
+Brutespray automatically saves a checkpoint file during execution. If interrupted (Ctrl+C), resume from where you left off:
+
+```brutespray -f nmap.gnmap -u admin -p passlist.txt -resume brutespray-checkpoint.json```
+
+#### Config File
+
+Use a YAML config file for per-engagement settings. CLI flags always override config values:
+
+```brutespray -config engagement.yaml -t 20```
+
+Example `engagement.yaml`:
+```yaml
+threads: 20
+host_parallelism: 10
+timeout: 10s
+retry: 5
+socks5: "socks5://127.0.0.1:9050"
+stop_on_success: true
+summary: true
+spray: true
+spray_delay: 30m
+hosts:
+  - "ssh://10.0.0.0/24:22"
+  - "rdp://10.0.0.0/24:3389"
+```
+
+#### LDAP Bruteforce
+
+```brutespray -H ldap://10.0.0.1:389 -u "cn=admin,dc=example,dc=com" -p passlist.txt```
+
+```brutespray -H ldaps://10.0.0.1:636 -u "cn=admin,dc=example,dc=com" -p passlist.txt```
+
+#### WinRM Bruteforce
+
+```brutespray -H winrm://10.0.0.1:5985 -u administrator -p passlist.txt```
+
 # Supported Services
 
 * ssh
@@ -189,13 +244,16 @@ Specify a specific network interface for all connections:
 * vmauthd
 * vnc
 * mongodb
-* nntp  
+* nntp
 * asterisk
 * teamspeak
 * oracle
 * xmpp
 * rdp
 * redis
+* ldap
+* ldaps
+* winrm
 * http (basic auth) - *manual targeting only*
 * https (basic auth) - *manual targeting only*
 
@@ -205,6 +263,8 @@ Specify a specific network interface for all connections:
 * oracle
 * xmpp
 * rdp
+* ldap / ldaps
+* winrm
 
 Feel free to open an issue if these work, or if you have any issues
 
@@ -256,16 +316,28 @@ user4:pass1
 - **Host Parallelism**: Control how many hosts are processed simultaneously
 - **Connection Pooling**: Reuses connections for better performance
 - **Dynamic Performance Tracking**: Monitors response times and success rates
-- **Graceful Shutdown**: Proper cleanup and resource management
+- **Circuit Breaker**: Automatically skips hosts after consecutive connection failures
+- **Rate Limiting**: Per-host throttling to avoid detection or server overload
+- **Graceful Shutdown**: Proper cleanup, checkpoint save, and resource management
 - **Progress Tracking**: Real-time progress bars and status updates
+- **Resume/Checkpoint**: Save progress on interrupt and resume later
+
+# Pentesting Integration
+
+- **Metasploit**: `--summary` generates `.rc` resource scripts you can load directly with `msfconsole -r`
+- **NetExec/CrackMapExec**: `--summary` generates shell scripts with `nxc` commands for found credentials
+- **Credential Spraying**: `--spray` mode with configurable delays to avoid account lockouts
+- **Config Files**: YAML configs for repeatable per-engagement settings
 
 # Planned Features
 
 * ~~Add domain option for RDP, SMB~~
 * ~~Ability to set proxy~~
 * ~~Ability to select interface~~
-* More modules
+* ~~More modules~~
 * ~~Better connection handling~~
+* HTTP form-based and digest authentication
+* SNMP v1/v3 support
 
 # Star History
 
