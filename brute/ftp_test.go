@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/x90skysn3k/brutespray/modules"
+	"github.com/x90skysn3k/brutespray/v2/modules"
 )
 
 // startMockFTPServer starts a simple FTP server that accepts/rejects login.

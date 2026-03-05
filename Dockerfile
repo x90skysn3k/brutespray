@@ -1,10 +1,11 @@
 FROM golang:latest AS build-env
 WORKDIR /src
 ENV CGO_ENABLED=0
-COPY go.mod /src/
+COPY go.mod go.sum /src/
 RUN go mod download
 COPY . .
-RUN go build -a -o brutespray -trimpath
+ARG VERSION=dev
+RUN go build -a -o brutespray -trimpath -ldflags "-s -w -X github.com/x90skysn3k/brutespray/v2/brutespray.version=${VERSION}"
 
 FROM alpine:latest
 
@@ -21,4 +22,3 @@ WORKDIR /app
 COPY --from=build-env /src/brutespray .
 
 ENTRYPOINT [ "./brutespray" ]
-

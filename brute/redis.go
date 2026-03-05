@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/go-redis/redis/v8"
-	"github.com/x90skysn3k/brutespray/modules"
+	"github.com/x90skysn3k/brutespray/v2/modules"
 )
 
 func BruteRedis(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) *BruteResult {

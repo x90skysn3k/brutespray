@@ -1,6 +1,6 @@
 # Brutespray
 
-![Version](https://img.shields.io/badge/Version-2.5.1-red)[![goreleaser](https://github.com/x90skysn3k/brutespray/actions/workflows/release.yml/badge.svg)](https://github.com/x90skysn3k/brutespray/actions/workflows/release.yml)[![Go Report Card](https://goreportcard.com/badge/github.com/x90skysn3k/brutespray)](https://goreportcard.com/report/github.com/x90skysn3k/brutespray)
+![Version](https://img.shields.io/badge/Version-2.5.2-red)[![goreleaser](https://github.com/x90skysn3k/brutespray/actions/workflows/release.yml/badge.svg)](https://github.com/x90skysn3k/brutespray/actions/workflows/release.yml)[![Go Report Card](https://goreportcard.com/badge/github.com/x90skysn3k/brutespray/v2)](https://goreportcard.com/report/github.com/x90skysn3k/brutespray/v2)
 
 Created by: Shane Young/@t1d3nio && Jacob Robles/@shellfail 
 
@@ -14,7 +14,7 @@ Brutespray has been re-written in Golang, eliminating the requirement for additi
 # Install
 
 ```
-go install github.com/x90skysn3k/brutespray@latest
+go install github.com/x90skysn3k/brutespray/v2@latest
 ```
 
 [Release Binaries](https://github.com/x90skysn3k/brutespray/releases)

@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/pterm/pterm"
-	"github.com/x90skysn3k/brutespray/modules"
+	"github.com/x90skysn3k/brutespray/v2/modules"
 )
 
 // ProcessHost processes a single host with all its credentials using dedicated host worker pool

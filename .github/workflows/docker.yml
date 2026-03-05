@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - main
+    tags:
+      - "v*"
   workflow_dispatch:
   schedule:
     - cron: "0 0 * * *"
@@ -18,6 +20,16 @@ jobs:
     steps:
       - name: checkout sources
         uses: actions/checkout@v6
+
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/x90skysn3k/brutespray
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -37,6 +49,6 @@ jobs:
         with:
           push: true
           platforms: linux/amd64,linux/arm/v7,linux/arm64/v8,linux/386,linux/ppc64le
-          tags: |
-            ghcr.io/x90skysn3k/brutespray:latest
-
+          tags: ${{ steps.meta.outputs.tags }}
+          build-args: |
+            VERSION=${{ github.ref_name }}

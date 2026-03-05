@@ -4,7 +4,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/x90skysn3k/brutespray/modules"
+	"github.com/x90skysn3k/brutespray/v2/modules"
 )
 
 // BruteFunc is the standard signature for a brute-force module.

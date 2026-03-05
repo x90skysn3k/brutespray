@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/pterm/pterm"
-	"github.com/x90skysn3k/brutespray/brute"
-	"github.com/x90skysn3k/brutespray/modules"
+	"github.com/x90skysn3k/brutespray/v2/brute"
+	"github.com/x90skysn3k/brutespray/v2/modules"
 )
 
 // Credential represents a single credential attempt

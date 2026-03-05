@@ -8,7 +8,7 @@ import (
 	"time"
 
 	mssql "github.com/denisenkom/go-mssqldb"
-	"github.com/x90skysn3k/brutespray/modules"
+	"github.com/x90skysn3k/brutespray/v2/modules"
 )
 
 // mssqlDialer wraps a ConnectionManager to implement the go-mssqldb Dialer

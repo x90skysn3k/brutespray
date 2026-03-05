@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/x90skysn3k/brutespray/modules"
+	"github.com/x90skysn3k/brutespray/v2/modules"
 )
 
 // pop3ReadLine reads a single response line from the POP3 server.
