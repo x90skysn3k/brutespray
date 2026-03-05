@@ -513,7 +513,11 @@ func (wp *WorkerPool) ProcessHost(host modules.Host, service string, combo strin
 		}
 	} else {
 		if service == "vnc" || service == "snmp" {
-			_, passwords := modules.GetUsersAndPasswords(&host, user, password, version)
+			_, passwords, err := modules.GetUsersAndPasswords(&host, user, password, version)
+			if err != nil {
+				fmt.Printf("Error loading wordlist for %s: %v\n", service, err)
+				return
+			}
 			for _, p := range passwords {
 				// Check if we should stop before processing each credential
 				select {
@@ -539,7 +543,11 @@ func (wp *WorkerPool) ProcessHost(host modules.Host, service string, combo strin
 				}
 			}
 		} else {
-			users, passwords := modules.GetUsersAndPasswords(&host, user, password, version)
+			users, passwords, err := modules.GetUsersAndPasswords(&host, user, password, version)
+			if err != nil {
+				fmt.Printf("Error loading wordlist for %s: %v\n", service, err)
+				return
+			}
 			for _, u := range users {
 				for _, p := range passwords {
 					// Check if we should stop before processing each credential
@@ -757,10 +765,18 @@ func Execute() {
 					totalCombinations += modules.CalcCombinationsCombo(users, passwords)
 				} else {
 					if service == "vnc" || service == "snmp" {
-						_, passwords := modules.GetUsersAndPasswords(&h, *user, *password, version)
+						_, passwords, err := modules.GetUsersAndPasswords(&h, *user, *password, version)
+						if err != nil {
+							fmt.Printf("Error loading wordlist for %s: %v\n", service, err)
+							continue
+						}
 						totalCombinations += modules.CalcCombinationsPass(passwords)
 					} else {
-						users, passwords := modules.GetUsersAndPasswords(&h, *user, *password, version)
+						users, passwords, err := modules.GetUsersAndPasswords(&h, *user, *password, version)
+						if err != nil {
+							fmt.Printf("Error loading wordlist for %s: %v\n", service, err)
+							continue
+						}
 						totalCombinations += modules.CalcCombinations(users, passwords)
 					}
 				}

@@ -290,7 +290,8 @@ func PrintResult(service string, host string, port int, user string, pass string
 			content := fmt.Sprintf("[%s] %s:%d - Password '%s' - %s\n", service, host, port, pass, "SUCCESS")
 			err := WriteToFile(service, content, port, output)
 			if err != nil {
-				fmt.Println("write file error:", err)
+				PrintfColored(pterm.FgRed, "\n[!] WRITE ERROR: could not save credential to file: %v\n", err)
+				PrintfColored(pterm.FgYellow, "[!] CREDENTIAL: %s", content)
 			}
 		} else {
 			msg = fmt.Sprintf("[%s] %s:%d - User '%s' - Pass '%s' - %s", service, host, port, user, pass, "SUCCESS")
@@ -298,7 +299,8 @@ func PrintResult(service string, host string, port int, user string, pass string
 			content := fmt.Sprintf("[%s] %s:%d - User '%s' - Pass '%s' - %s\n", service, host, port, user, pass, "SUCCESS")
 			err := WriteToFile(service, content, port, output)
 			if err != nil {
-				fmt.Println("write file error:", err)
+				PrintfColored(pterm.FgRed, "\n[!] WRITE ERROR: could not save credential to file: %v\n", err)
+				PrintfColored(pterm.FgYellow, "[!] CREDENTIAL: %s", content)
 			}
 		}
 	} else if !result && con_result {

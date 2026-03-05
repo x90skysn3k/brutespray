@@ -1,62 +1,55 @@
 package brute
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
+	"net"
 	"time"
 
-	_ "github.com/sijms/go-ora/v2"
+	go_ora "github.com/sijms/go-ora/v2"
 	"github.com/x90skysn3k/brutespray/modules"
 )
 
-func BruteOracle(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) (bool, bool) {
+// oracleDialer wraps a ConnectionManager to implement the go-ora
+// DialerContext interface so connections go through SOCKS5/interface binding.
+type oracleDialer struct {
+	cm *modules.ConnectionManager
+}
 
-	connectionString := fmt.Sprintf("%s:%s@%s:%d", user, password, host, port)
-
-	conn, err := cm.Dial("tcp", fmt.Sprintf("%s:%d", host, port))
+func (d *oracleDialer) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
+	conn, err := d.cm.Dial(network, address)
 	if err != nil {
-		_ = err
-		//fmt.Println("Connection Error:", err)
+		return nil, err
+	}
+	if deadline, ok := ctx.Deadline(); ok {
+		_ = conn.SetDeadline(deadline)
+	}
+	return conn, nil
+}
+
+func BruteOracle(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) (bool, bool) {
+	connString := fmt.Sprintf("oracle://%s:%s@%s:%d/", user, password, host, port)
+
+	connector := go_ora.NewConnector(connString)
+	oraConn, ok := connector.(*go_ora.OracleConnector)
+	if !ok {
 		return false, false
 	}
-	defer conn.Close()
+	oraConn.Dialer(&oracleDialer{cm: cm})
 
-	timer := time.NewTimer(timeout)
-	defer timer.Stop()
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
 
-	type result struct {
-		db  *sql.DB
-		err error
+	db := sql.OpenDB(connector)
+	defer db.Close()
+
+	err := db.PingContext(ctx)
+	if err != nil {
+		if ctx.Err() != nil {
+			return false, false // timeout = connection issue
+		}
+		return false, true
 	}
-
-	done := make(chan result, 1)
-	go func() {
-		db, err := sql.Open("oracle", connectionString)
-		if err != nil {
-			done <- result{nil, err}
-			return
-		}
-		err = db.Ping()
-		done <- result{db, err}
-	}()
-
-	select {
-	case <-timer.C:
-		select {
-		case res := <-done:
-			if res.err != nil {
-				return false, true
-			}
-			defer res.db.Close()
-			return true, true
-		default:
-			return false, false
-		}
-	case res := <-done:
-		if res.err != nil {
-			return false, true
-		}
-		defer res.db.Close()
-		return true, true
-	}
+	return true, true
 }

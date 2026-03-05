@@ -48,8 +48,7 @@ func downloadFileFromGithub(url, localPath string) error {
 
 	if resp.StatusCode == 404 {
 		spinner.Fail("Wordlist not found")
-		pterm.Error.Println("The requested wordlist cannot be downloaded.")
-		os.Exit(1)
+		return fmt.Errorf("wordlist not found at %s (HTTP 404)", url)
 	}
 
 	file, err := os.Create(localPath)
@@ -120,12 +119,12 @@ func ReadPasswordsFromFile(filename string) ([]string, error) {
 	return readFileLines(filename)
 }
 
-func GetUsersFromDefaultWordlist(version string, serviceType string) []string {
+func GetUsersFromDefaultWordlist(version string, serviceType string) ([]string, error) {
 	cacheKey := fmt.Sprintf("users_%s_%s", version, serviceType)
 
 	// Check cache first
 	if cached, exists := wordlistCache.Get(cacheKey); exists {
-		return cached
+		return cached, nil
 	}
 
 	wordlistPath := filepath.Join("wordlist", serviceType, "user")
@@ -145,39 +144,34 @@ func GetUsersFromDefaultWordlist(version string, serviceType string) []string {
 
 	wordlistDir := filepath.Dir(wordlistPath)
 	if _, err := os.Stat(wordlistDir); os.IsNotExist(err) {
-		err := os.MkdirAll(wordlistDir, 0755)
-		if err != nil {
-			fmt.Printf("Error creating wordlist directory: %s\n", err)
-			os.Exit(1)
+		if err := os.MkdirAll(wordlistDir, 0755); err != nil {
+			return nil, fmt.Errorf("creating wordlist directory: %w", err)
 		}
 	}
 
 	if _, err := os.Stat(wordlistPath); os.IsNotExist(err) {
-		err := downloadFileFromGithub(url, wordlistPath)
-		if err != nil {
-			fmt.Printf("Error downloading user wordlist: %s\n", err)
-			os.Exit(1)
+		if err := downloadFileFromGithub(url, wordlistPath); err != nil {
+			return nil, fmt.Errorf("downloading user wordlist: %w", err)
 		}
 	}
 
 	users, err := readFileLines(wordlistPath)
 	if err != nil {
-		fmt.Printf("Error reading user wordlist: %s\n", err)
-		os.Exit(1)
+		return nil, fmt.Errorf("reading user wordlist: %w", err)
 	}
 
 	// Cache the result
 	wordlistCache.Set(cacheKey, users)
 
-	return users
+	return users, nil
 }
 
-func GetPasswordsFromDefaultWordlist(version string, serviceType string) []string {
+func GetPasswordsFromDefaultWordlist(version string, serviceType string) ([]string, error) {
 	cacheKey := fmt.Sprintf("passwords_%s_%s", version, serviceType)
 
 	// Check cache first
 	if cached, exists := wordlistCache.Get(cacheKey); exists {
-		return cached
+		return cached, nil
 	}
 
 	wordlistPath := filepath.Join("wordlist", serviceType, "password")
@@ -197,29 +191,24 @@ func GetPasswordsFromDefaultWordlist(version string, serviceType string) []strin
 
 	wordlistDir := filepath.Dir(wordlistPath)
 	if _, err := os.Stat(wordlistDir); os.IsNotExist(err) {
-		err := os.MkdirAll(wordlistDir, 0755)
-		if err != nil {
-			fmt.Printf("Error creating wordlist directory: %s\n", err)
-			os.Exit(1)
+		if err := os.MkdirAll(wordlistDir, 0755); err != nil {
+			return nil, fmt.Errorf("creating wordlist directory: %w", err)
 		}
 	}
 
 	if _, err := os.Stat(wordlistPath); os.IsNotExist(err) {
-		err := downloadFileFromGithub(url, wordlistPath)
-		if err != nil {
-			fmt.Printf("Error downloading password wordlist: %s\n", err)
-			os.Exit(1)
+		if err := downloadFileFromGithub(url, wordlistPath); err != nil {
+			return nil, fmt.Errorf("downloading password wordlist: %w", err)
 		}
 	}
 
 	passwords, err := readFileLines(wordlistPath)
 	if err != nil {
-		fmt.Printf("Error reading password wordlist: %s\n", err)
-		os.Exit(1)
+		return nil, fmt.Errorf("reading password wordlist: %w", err)
 	}
 
 	// Cache the result
 	wordlistCache.Set(cacheKey, passwords)
 
-	return passwords
+	return passwords, nil
 }
