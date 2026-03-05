@@ -640,7 +640,7 @@ func Execute() {
 	flag.Var(&hostArgs, "H", "Target in the format service://host:port, CIDR ranges supported; can be specified multiple times")
 	quiet := flag.Bool("q", false, "Suppress the banner")
 	timeout := flag.Duration("w", 5*time.Second, "Set timeout delay of bruteforce attempts")
-	insecureTLS := flag.Bool("insecure", false, "Disable TLS certificate verification for HTTPS bruteforce")
+	_ = flag.Bool("insecure", false, "Deprecated: TLS certificate verification is always disabled for bruteforce")
 	retry := flag.Int("r", 3, "Amount of times to retry after receiving connection failed")
 	printhosts := flag.Bool("P", false, "Print found hosts parsed from provided host and file arguments")
 	domain := flag.String("d", "", "Domain to use for RDP authentication (optional)")
@@ -652,7 +652,6 @@ func Execute() {
 
 	NoColorMode = *noColor
 	modules.NoColorMode = *noColor
-	modules.InsecureTLS = *insecureTLS
 	modules.Silent = *silent
 	if *logEvery < 1 {
 		*logEvery = 1

@@ -13,9 +13,6 @@ import (
 	"golang.org/x/net/proxy"
 )
 
-// InsecureTLS controls whether HTTPS/TLS verification is disabled for HTTP(S) modules
-var InsecureTLS bool
-
 // maxConnAge is the maximum age of a pooled connection before it is discarded.
 const maxConnAge = 30 * time.Second
 
@@ -119,7 +116,7 @@ func NewConnectionManager(socks5 string, timeout time.Duration, iface ...string)
 		TLSHandshakeTimeout:   timeout,
 		ResponseHeaderTimeout: timeout,
 		ExpectContinueTimeout: 1 * time.Second,
-		TLSClientConfig:       &tls.Config{InsecureSkipVerify: InsecureTLS},
+		TLSClientConfig:       &tls.Config{InsecureSkipVerify: true},
 		MaxIdleConns:          1000,
 		MaxIdleConnsPerHost:   100,
 		IdleConnTimeout:       90 * time.Second,

@@ -29,7 +29,7 @@ func BruteHTTP(host string, port int, user, password string, timeout time.Durati
 			TLSHandshakeTimeout:   timeout,
 			ResponseHeaderTimeout: timeout,
 			ExpectContinueTimeout: 1 * time.Second,
-			TLSClientConfig:       &tls.Config{InsecureSkipVerify: modules.InsecureTLS},
+			TLSClientConfig:       &tls.Config{InsecureSkipVerify: true},
 		}
 
 		client = &http.Client{
