@@ -129,10 +129,6 @@ github.com/hashicorp/go-uuid v1.0.3/go.mod h1:6SBZvOh/SIDV7/2o3Jml5SYk/TvGqwFJ/b
 github.com/hirochachacha/go-smb2 v1.1.0 h1:b6hs9qKIql9eVXAiN0M2wSFY5xnhbHAQoCwRKbaRTZI=
 github.com/hirochachacha/go-smb2 v1.1.0/go.mod h1:8F1A4d5EZzrGu5R7PU163UcMRDJQl4FtcxjBfsY8TZE=
 github.com/hpcloud/tail v1.0.0/go.mod h1:ab1qPbhIpdTxEkNHXyeSf5vhxWSCs/tWer42PpOxQnU=
-github.com/huin/asn1ber v0.0.0-20120622192748-af09f62e6358 h1:hVXNJ57IHkOA8FBq80UG263MEBwNUMfS9c82J2QE5UQ=
-github.com/huin/asn1ber v0.0.0-20120622192748-af09f62e6358/go.mod h1:qBE210J2T9uLXRB3GNc73SvZACDEFAmDCOlDkV47zbY=
-github.com/icodeface/tls v0.0.0-20230910023335-34df9250cd12 h1:uSJXMFVNfN2hyXDLM19op2fNiCN/nL8xgdmNXgs5738=
-github.com/icodeface/tls v0.0.0-20230910023335-34df9250cd12/go.mod h1:VJNHW2GxCtQP/IQtXykBIPBV8maPJ/dHWirVTwm9GwY=
 github.com/jcmturner/aescts/v2 v2.0.0 h1:9YKLH6ey7H4eDBXW8khjYslgyqG2xZikXP0EQFKrle8=
 github.com/jcmturner/aescts/v2 v2.0.0/go.mod h1:AiaICIRyfYg35RUkr8yESTqvSy7csK90qZ5xfvvsoNs=
 github.com/jcmturner/dnsutils/v2 v2.0.0 h1:lltnkeZGL0wILNvrNiVCR6Ro5PGU/SeBvVO/8c/iPbo=
@@ -240,14 +236,8 @@ github.com/stretchr/testify v1.11.1/go.mod h1:wZwfW3scLgRK+23gO65QZefKpKQRnfz6sD
 github.com/tidwall/transform v0.0.0-20201103190739-32f242e2dbde h1:AMNpJRc7P+GTwVbl8DkK2I9I8BBUzNiHuH/tlxrpan0=
 github.com/tidwall/transform v0.0.0-20201103190739-32f242e2dbde/go.mod h1:MvrEmduDUz4ST5pGZ7CABCnOU5f3ZiOAZzT6b1A6nX8=
 github.com/twitchyliquid64/golang-asm v0.0.0-20190126203739-365674df15fc/go.mod h1:NoCfSFWosfqMqmmD7hApkirIK9ozpHjxRnRxs1l413A=
-github.com/x90skysn3k/grdp v0.0.0-20251231024554-b2385c71efa5 h1:n0igOSiv0hWp7pJKPtQrwZwcWW+cuxVyzo98eAhHeyY=
-github.com/x90skysn3k/grdp v0.0.0-20251231024554-b2385c71efa5/go.mod h1:SjYR4S95oYYshCtxWNv1JUzfKPZXru2YoKa95sZyCHs=
-github.com/x90skysn3k/grdp v0.0.0-20260305220846-4cecfc0227f5 h1:VzXO+8EHDPQZMpJgtgFw+8Vp+ExjUIehKSeU/gN/9o4=
-github.com/x90skysn3k/grdp v0.0.0-20260305220846-4cecfc0227f5/go.mod h1:lx/rrdR3Mxv0rvok5LAYrOpqPiVjH1q4sb59QdufMkY=
-github.com/x90skysn3k/grdp v0.0.0-20260305221349-6d3c1fd84003 h1:4loxBw6+yHGBu+iDthTRkSShKOgkGjgeAruFJ12F8WU=
-github.com/x90skysn3k/grdp v0.0.0-20260305221349-6d3c1fd84003/go.mod h1:lx/rrdR3Mxv0rvok5LAYrOpqPiVjH1q4sb59QdufMkY=
-github.com/x90skysn3k/grdp v1.0.0 h1:miKC4EbBXBMN0vGpJMP9HRIuswXVUikf9KoNYRTPW8k=
-github.com/x90skysn3k/grdp v1.0.0/go.mod h1:lx/rrdR3Mxv0rvok5LAYrOpqPiVjH1q4sb59QdufMkY=
+github.com/x90skysn3k/grdp v1.0.1 h1:+rL54KzjSKBQEv2tNYxT9pLGED7I3aH1peOxl12OQA4=
+github.com/x90skysn3k/grdp v1.0.1/go.mod h1:H/Klzfgyv7SAj3wtrAAxlfBlUXW+Ck0YZ92wetZTPcA=
 github.com/xdg-go/pbkdf2 v1.0.0 h1:Su7DPu48wXMwC3bs7MCNG+z4FhcyEuz5dlvchbq0B0c=
 github.com/xdg-go/pbkdf2 v1.0.0/go.mod h1:jrpuAogTd400dnrH08LKmI/xc1MbPOebTwRqcT5RDeI=
 github.com/xdg-go/scram v1.2.0 h1:bYKF2AEwG5rqd1BumT4gAnvwU/M9nBp2pTSxeZw7Wvs=
