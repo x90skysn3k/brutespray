@@ -88,6 +88,11 @@ type WorkerPool struct {
 	stopOnSuccess bool
 	// Per-host rate limiting (attempts per second; 0 = unlimited)
 	rateLimit float64
+	// Spray mode: iterate passwords first, users second
+	sprayMode  bool
+	sprayDelay time.Duration
+	// Checkpoint for resume capability
+	checkpoint *modules.Checkpoint
 }
 
 // NewHostWorkerPool creates a new host-specific worker pool
@@ -449,6 +454,11 @@ func (wp *WorkerPool) calculateOptimalThreadsForPool(hp *HostWorkerPool) int {
 
 // ProcessHost processes a single host with all its credentials using dedicated host worker pool
 func (wp *WorkerPool) ProcessHost(host modules.Host, service string, combo string, user string, password string, version string, timeout time.Duration, retry int, output string, cm *modules.ConnectionManager, domain string) {
+	// Skip hosts already completed in a previous run
+	if wp.checkpoint != nil && wp.checkpoint.IsHostCompleted(host.Host, host.Port, service) {
+		return
+	}
+
 	// Check if we should stop before acquiring semaphore
 	select {
 	case <-wp.globalStopChan:
@@ -548,29 +558,52 @@ func (wp *WorkerPool) ProcessHost(host modules.Host, service string, combo strin
 				fmt.Printf("Error loading wordlist for %s: %v\n", service, err)
 				return
 			}
-			for _, u := range users {
-				for _, p := range passwords {
-					// Check if we should stop before processing each credential
-					select {
-					case <-wp.globalStopChan:
-						return
-					case <-hostPool.stopChan:
-						return
-					default:
-					}
 
-					cred := Credential{
-						Host:     host,
-						User:     u,
-						Password: p,
-						Service:  service,
+			queueCred := func(u, p string) bool {
+				select {
+				case <-wp.globalStopChan:
+					return false
+				case <-hostPool.stopChan:
+					return false
+				default:
+				}
+				cred := Credential{Host: host, User: u, Password: p, Service: service}
+				select {
+				case hostPool.jobQueue <- cred:
+					return true
+				case <-hostPool.stopChan:
+					return false
+				case <-wp.globalStopChan:
+					return false
+				}
+			}
+
+			if wp.sprayMode {
+				// Spray: try each password across all users before next password
+				for i, p := range passwords {
+					if i > 0 && wp.sprayDelay > 0 {
+						modules.PrintfColored(pterm.FgLightYellow, "[spray] %s — waiting %v before next password round...\n", host.Host, wp.sprayDelay)
+						select {
+						case <-time.After(wp.sprayDelay):
+						case <-wp.globalStopChan:
+							return
+						case <-hostPool.stopChan:
+							return
+						}
 					}
-					select {
-					case hostPool.jobQueue <- cred:
-					case <-hostPool.stopChan:
-						return
-					case <-wp.globalStopChan:
-						return
+					for _, u := range users {
+						if !queueCred(u, p) {
+							return
+						}
+					}
+				}
+			} else {
+				// Standard: try all passwords per user
+				for _, u := range users {
+					for _, p := range passwords {
+						if !queueCred(u, p) {
+							return
+						}
 					}
 				}
 			}
@@ -626,6 +659,11 @@ func (wp *WorkerPool) ProcessHost(host modules.Host, service string, combo strin
 		fmt.Printf("[*] Completed host: %s:%d (%s) - %d attempts, %.1f%% success, avg %.2fs\n",
 			host.Host, host.Port, host.Service, totalAttempts, successRate*100, avgResponseTime.Seconds())
 	}
+
+	// Mark host as completed in checkpoint
+	if wp.checkpoint != nil {
+		wp.checkpoint.MarkHostCompleted(host.Host, host.Port, service)
+	}
 }
 
 func Execute() {
@@ -655,6 +693,10 @@ func Execute() {
 	noColor := flag.Bool("nc", false, "Disable colored output")
 	stopOnSuccess := flag.Bool("stop-on-success", false, "Stop testing a host after finding valid credentials")
 	rateLimit := flag.Float64("rate", 0, "Per-host rate limit in attempts/second (0 = unlimited)")
+	sprayMode := flag.Bool("spray", false, "Spray mode: try each password across all users before next password (avoids lockouts)")
+	sprayDelay := flag.Duration("spray-delay", 30*time.Minute, "Delay between password rounds in spray mode")
+	resumeFile := flag.String("resume", "", "Resume from a checkpoint file (saved automatically on interrupt)")
+	checkpointFile := flag.String("checkpoint", "brutespray-checkpoint.json", "Checkpoint file path for resume capability")
 
 	flag.Parse()
 
@@ -811,6 +853,22 @@ func Execute() {
 	workerPool := NewWorkerPool(*threads, progressCh, *hostParallelism, totalHosts)
 	workerPool.stopOnSuccess = *stopOnSuccess
 	workerPool.rateLimit = *rateLimit
+	workerPool.sprayMode = *sprayMode
+	workerPool.sprayDelay = *sprayDelay
+
+	// Initialize checkpoint for resume capability
+	if *resumeFile != "" {
+		cp, err := modules.LoadCheckpoint(*resumeFile)
+		if err != nil {
+			fmt.Printf("Error loading checkpoint: %v\n", err)
+			os.Exit(1)
+		}
+		workerPool.checkpoint = cp
+		modules.PrintfColored(pterm.FgLightYellow, "[*] Resuming from checkpoint: %d hosts completed, %d credentials found\n",
+			len(cp.CompletedHosts), len(cp.SuccessfulCreds))
+	} else {
+		workerPool.checkpoint = modules.NewCheckpoint(*checkpointFile)
+	}
 
 	// Register signal handler BEFORE launching the goroutine that reads from it (3.8 fix)
 	sigs := make(chan os.Signal, 1)
@@ -937,10 +995,22 @@ func Execute() {
 
 	// Use sync.Once to prevent the signal handler and main flow from racing
 	// on cleanup (3.7 fix).
+	// Start periodic checkpoint saves
+	checkpointStop := make(chan struct{})
+	workerPool.checkpoint.StartPeriodicSave(30*time.Second, checkpointStop)
+
 	var cleanupOnce sync.Once
 	doCleanup := func() {
 		cleanupOnce.Do(func() {
 			workerPool.Stop()
+			close(checkpointStop)
+
+			// Save final checkpoint
+			if err := workerPool.checkpoint.Save(); err != nil {
+				fmt.Printf("[!] Final checkpoint save error: %v\n", err)
+			} else {
+				modules.PrintfColored(pterm.FgLightYellow, "[*] Checkpoint saved to %s\n", workerPool.checkpoint.FilePath)
+			}
 
 			if !NoColorMode && bar != nil {
 				_, _ = bar.Stop()
