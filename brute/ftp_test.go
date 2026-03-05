@@ -35,7 +35,7 @@ func startMockFTPServer(t *testing.T, validUser, validPass string) (int, func())
 
 func handleFTPConn(conn net.Conn, validUser, validPass string) {
 	defer conn.Close()
-	conn.SetDeadline(time.Now().Add(5 * time.Second))
+	_ = conn.SetDeadline(time.Now().Add(5 * time.Second))
 
 	// Send greeting
 	fmt.Fprintf(conn, "220 Mock FTP Server Ready\r\n")

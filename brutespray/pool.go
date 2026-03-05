@@ -365,7 +365,7 @@ func (hwp *HostWorkerPool) processCredential(cred Credential, timeout time.Durat
 	hwp.updatePerformanceMetrics(result.AuthSuccess, duration)
 	// progressCh may be closed during shutdown; recover from the panic.
 	func() {
-		defer func() { recover() }()
+		defer func() { _ = recover() }()
 		hwp.progressCh <- 1
 	}()
 }
