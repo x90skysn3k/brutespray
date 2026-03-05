@@ -61,11 +61,7 @@ func BruteSMTP(host string, port int, user, password string, timeout time.Durati
 			done <- result{false, true}
 			return
 		}
-		defer func() {
-			if err := smtpClient.Quit(); err != nil {
-				// Connection might already be closed by Quit
-			}
-		}()
+		defer smtpClient.Quit() //nolint:errcheck
 
 		if err := smtpClient.Auth(auth); err == nil {
 			done <- result{true, true}
