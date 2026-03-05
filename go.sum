@@ -242,6 +242,10 @@ github.com/tidwall/transform v0.0.0-20201103190739-32f242e2dbde/go.mod h1:MvrEmd
 github.com/twitchyliquid64/golang-asm v0.0.0-20190126203739-365674df15fc/go.mod h1:NoCfSFWosfqMqmmD7hApkirIK9ozpHjxRnRxs1l413A=
 github.com/x90skysn3k/grdp v0.0.0-20251231024554-b2385c71efa5 h1:n0igOSiv0hWp7pJKPtQrwZwcWW+cuxVyzo98eAhHeyY=
 github.com/x90skysn3k/grdp v0.0.0-20251231024554-b2385c71efa5/go.mod h1:SjYR4S95oYYshCtxWNv1JUzfKPZXru2YoKa95sZyCHs=
+github.com/x90skysn3k/grdp v0.0.0-20260305220846-4cecfc0227f5 h1:VzXO+8EHDPQZMpJgtgFw+8Vp+ExjUIehKSeU/gN/9o4=
+github.com/x90skysn3k/grdp v0.0.0-20260305220846-4cecfc0227f5/go.mod h1:lx/rrdR3Mxv0rvok5LAYrOpqPiVjH1q4sb59QdufMkY=
+github.com/x90skysn3k/grdp v0.0.0-20260305221349-6d3c1fd84003 h1:4loxBw6+yHGBu+iDthTRkSShKOgkGjgeAruFJ12F8WU=
+github.com/x90skysn3k/grdp v0.0.0-20260305221349-6d3c1fd84003/go.mod h1:lx/rrdR3Mxv0rvok5LAYrOpqPiVjH1q4sb59QdufMkY=
 github.com/xdg-go/pbkdf2 v1.0.0 h1:Su7DPu48wXMwC3bs7MCNG+z4FhcyEuz5dlvchbq0B0c=
 github.com/xdg-go/pbkdf2 v1.0.0/go.mod h1:jrpuAogTd400dnrH08LKmI/xc1MbPOebTwRqcT5RDeI=
 github.com/xdg-go/scram v1.2.0 h1:bYKF2AEwG5rqd1BumT4gAnvwU/M9nBp2pTSxeZw7Wvs=
