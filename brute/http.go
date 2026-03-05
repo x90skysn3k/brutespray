@@ -84,3 +84,8 @@ func BruteHTTP(host string, port int, user, password string, timeout time.Durati
 		return false, true
 	}
 }
+
+func init() {
+	RegisterHTTP("http", BruteHTTP)
+	RegisterHTTP("https", BruteHTTP)
+}

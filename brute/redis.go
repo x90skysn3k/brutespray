@@ -45,3 +45,5 @@ func BruteRedis(host string, port int, user, password string, timeout time.Durat
 
 	return true, true
 }
+
+func init() { Register("redis", BruteRedis) }

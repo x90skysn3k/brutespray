@@ -93,3 +93,5 @@ func BrutePOP3(host string, port int, user, password string, timeout time.Durati
 	tlsConn.Close()
 	return authOK, connOK
 }
+
+func init() { Register("pop3", BrutePOP3) }

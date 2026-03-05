@@ -71,3 +71,5 @@ func BruteSSH(host string, port int, user, password string, timeout time.Duratio
 		return true, true
 	}
 }
+
+func init() { Register("ssh", BruteSSH) }

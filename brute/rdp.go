@@ -88,3 +88,5 @@ func BruteRDP(host string, port int, user, password string, timeout time.Duratio
 		}
 	}
 }
+
+func init() { RegisterWithDomain("rdp", BruteRDP) }

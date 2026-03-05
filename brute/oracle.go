@@ -53,3 +53,5 @@ func BruteOracle(host string, port int, user, password string, timeout time.Dura
 	}
 	return true, true
 }
+
+func init() { Register("oracle", BruteOracle) }

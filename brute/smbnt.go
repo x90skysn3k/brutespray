@@ -72,3 +72,5 @@ func BruteSMB(host string, port int, user, password string, timeout time.Duratio
 		return handleResult(r)
 	}
 }
+
+func init() { RegisterWithDomain("smbnt", BruteSMB) }

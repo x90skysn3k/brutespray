@@ -59,3 +59,5 @@ func BruteAsterisk(host string, port int, user, password string, timeout time.Du
 		}
 	}
 }
+
+func init() { Register("asterisk", BruteAsterisk) }

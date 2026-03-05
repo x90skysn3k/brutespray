@@ -80,3 +80,5 @@ func isAuthError(err error) bool {
 	}
 	return false
 }
+
+func init() { Register("mongodb", BruteMongoDB) }

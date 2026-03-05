@@ -123,3 +123,5 @@ func readSome(reader *bufio.Reader, maxBytes int) (string, bool) {
 	}
 	return b.String(), b.Len() > 0
 }
+
+func init() { Register("telnet", BruteTelnet) }

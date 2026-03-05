@@ -98,3 +98,5 @@ func BruteSNMP(host string, port int, user, password string, timeout time.Durati
 
 	return false, true
 }
+
+func init() { Register("snmp", BruteSNMP) }

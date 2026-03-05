@@ -81,3 +81,5 @@ func BruteNNTP(host string, port int, user, password string, timeout time.Durati
 		return true, true
 	}
 }
+
+func init() { Register("nntp", BruteNNTP) }

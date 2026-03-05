@@ -59,3 +59,5 @@ func BruteVNC(host string, port int, user string, password string, timeout time.
 		return r.authSuccess, r.connSuccess
 	}
 }
+
+func init() { Register("vnc", BruteVNC) }
