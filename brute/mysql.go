@@ -14,7 +14,7 @@ import (
 
 var mysqlDialerID int64
 
-func BruteMYSQL(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) (bool, bool) {
+func BruteMYSQL(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) *BruteResult {
 	addr := fmt.Sprintf("%s:%d", host, port)
 
 	// Use a unique dialer name per invocation to avoid a data race when
@@ -39,7 +39,7 @@ func BruteMYSQL(host string, port int, user, password string, timeout time.Durat
 
 	db, err := sql.Open("mysql", connString)
 	if err != nil {
-		return false, false
+		return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
 	}
 	defer db.Close()
 
@@ -47,14 +47,14 @@ func BruteMYSQL(host string, port int, user, password string, timeout time.Durat
 	if err != nil {
 		if mysqlErr, ok := err.(*mysql.MySQLError); ok {
 			_ = mysqlErr
-			return false, true // auth-level error
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: err} // auth-level error
 		}
 		if ctx.Err() != nil {
-			return false, false // timeout/cancel = connection issue
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err} // timeout/cancel = connection issue
 		}
-		return false, true
+		return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: err}
 	}
-	return true, true
+	return &BruteResult{AuthSuccess: true, ConnectionSuccess: true}
 }
 
 func init() { Register("mysql", BruteMYSQL) }

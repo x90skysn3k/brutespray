@@ -9,7 +9,7 @@ import (
 	"github.com/x90skysn3k/brutespray/modules"
 )
 
-func BruteSMB(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager, domain string) (bool, bool) {
+func BruteSMB(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager, domain string) *BruteResult {
 	timer := time.NewTimer(timeout)
 	defer timer.Stop()
 
@@ -44,20 +44,20 @@ func BruteSMB(host string, port int, user, password string, timeout time.Duratio
 		done <- result{session, conn, err}
 	}()
 
-	handleResult := func(r result) (bool, bool) {
+	handleResult := func(r result) *BruteResult {
 		if r.err != nil {
 			if r.conn != nil {
 				r.conn.Close()
 			}
-			return false, true
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: r.err}
 		}
 		_, err := r.session.ListSharenames()
 		_ = r.session.Logoff()
 		r.conn.Close()
 		if err != nil {
-			return false, true
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: err}
 		}
-		return true, true
+		return &BruteResult{AuthSuccess: true, ConnectionSuccess: true}
 	}
 
 	select {
@@ -66,7 +66,7 @@ func BruteSMB(host string, port int, user, password string, timeout time.Duratio
 		case r := <-done:
 			return handleResult(r)
 		default:
-			return false, false
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: false}
 		}
 	case r := <-done:
 		return handleResult(r)

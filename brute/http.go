@@ -11,7 +11,7 @@ import (
 	"github.com/x90skysn3k/brutespray/modules"
 )
 
-func BruteHTTP(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager, useHTTPS bool) (bool, bool) {
+func BruteHTTP(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager, useHTTPS bool) *BruteResult {
 	scheme := "http"
 	if useHTTPS {
 		scheme = "https"
@@ -44,7 +44,7 @@ func BruteHTTP(host string, port int, user, password string, timeout time.Durati
 	// Create HTTP request
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		return false, false
+		return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
 	}
 
 	// Set basic auth header
@@ -58,7 +58,7 @@ func BruteHTTP(host string, port int, user, password string, timeout time.Durati
 	// Make the request
 	resp, err := client.Do(req)
 	if err != nil {
-		return false, false
+		return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
 	}
 	defer func() {
 		if resp.Body != nil {
@@ -69,19 +69,19 @@ func BruteHTTP(host string, port int, user, password string, timeout time.Durati
 
 	switch resp.StatusCode {
 	case 200, 201, 202, 204:
-		return true, true
+		return &BruteResult{AuthSuccess: true, ConnectionSuccess: true}
 	case 301, 302, 303, 307, 308:
-		return false, true
+		return &BruteResult{AuthSuccess: false, ConnectionSuccess: true}
 	case 401:
-		return false, true
+		return &BruteResult{AuthSuccess: false, ConnectionSuccess: true}
 	case 403:
-		return false, true
+		return &BruteResult{AuthSuccess: false, ConnectionSuccess: true}
 	case 404, 405:
-		return false, true
+		return &BruteResult{AuthSuccess: false, ConnectionSuccess: true}
 	case 500, 502, 503, 504:
-		return false, true
+		return &BruteResult{AuthSuccess: false, ConnectionSuccess: true}
 	default:
-		return false, true
+		return &BruteResult{AuthSuccess: false, ConnectionSuccess: true}
 	}
 }
 

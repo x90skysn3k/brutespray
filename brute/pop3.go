@@ -18,7 +18,7 @@ func pop3ReadLine(r *bufio.Reader) (string, error) {
 }
 
 // pop3Auth attempts USER/PASS authentication over an existing connection.
-func pop3Auth(conn net.Conn, user, password string, timeout time.Duration) (authSuccess bool, connSuccess bool) {
+func pop3Auth(conn net.Conn, user, password string, timeout time.Duration) *BruteResult {
 	deadline := time.Now().Add(timeout)
 	_ = conn.SetDeadline(deadline)
 
@@ -27,59 +27,59 @@ func pop3Auth(conn net.Conn, user, password string, timeout time.Duration) (auth
 	// Read server greeting
 	greeting, err := pop3ReadLine(r)
 	if err != nil || !strings.HasPrefix(greeting, "+OK") {
-		return false, false
+		return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
 	}
 
 	// Send USER
 	_, err = fmt.Fprintf(conn, "USER %s\r\n", user)
 	if err != nil {
-		return false, false
+		return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
 	}
 	resp, err := pop3ReadLine(r)
 	if err != nil {
-		return false, false
+		return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
 	}
 	if !strings.HasPrefix(resp, "+OK") {
-		return false, true
+		return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: nil}
 	}
 
 	// Send PASS
 	_, err = fmt.Fprintf(conn, "PASS %s\r\n", password)
 	if err != nil {
-		return false, false
+		return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
 	}
 	resp, err = pop3ReadLine(r)
 	if err != nil {
-		return false, false
+		return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
 	}
 
 	// Send QUIT regardless
 	_, _ = fmt.Fprintf(conn, "QUIT\r\n")
 
 	if strings.HasPrefix(resp, "+OK") {
-		return true, true
+		return &BruteResult{AuthSuccess: true, ConnectionSuccess: true}
 	}
-	return false, true
+	return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: nil}
 }
 
-func BrutePOP3(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) (bool, bool) {
+func BrutePOP3(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) *BruteResult {
 	addr := fmt.Sprintf("%s:%d", host, port)
 
 	// Try plaintext first
 	conn, err := cm.Dial("tcp", addr)
 	if err != nil {
-		return false, false
+		return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
 	}
-	authOK, connOK := pop3Auth(conn, user, password, timeout)
+	result := pop3Auth(conn, user, password, timeout)
 	conn.Close()
-	if connOK {
-		return authOK, true
+	if result.ConnectionSuccess {
+		return result
 	}
 
 	// Try TLS
 	conn, err = cm.Dial("tcp", addr)
 	if err != nil {
-		return false, false
+		return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
 	}
 	tlsConn := tls.Client(conn, &tls.Config{
 		InsecureSkipVerify: true,
@@ -87,11 +87,11 @@ func BrutePOP3(host string, port int, user, password string, timeout time.Durati
 	})
 	if err := tlsConn.Handshake(); err != nil {
 		conn.Close()
-		return false, false
+		return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
 	}
-	authOK, connOK = pop3Auth(tlsConn, user, password, timeout)
+	result = pop3Auth(tlsConn, user, password, timeout)
 	tlsConn.Close()
-	return authOK, connOK
+	return result
 }
 
 func init() { Register("pop3", BrutePOP3) }

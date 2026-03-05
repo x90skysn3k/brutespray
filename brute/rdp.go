@@ -17,7 +17,7 @@ import (
 	"github.com/x90skysn3k/grdp/protocol/x224"
 )
 
-func BruteRDP(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager, domain string) (bool, bool) {
+func BruteRDP(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager, domain string) *BruteResult {
 	glog.SetLevel(pdu.STREAM_LOW)
 	logger := log.New(io.Discard, "", 0)
 	glog.SetLogger(logger)
@@ -25,7 +25,7 @@ func BruteRDP(host string, port int, user, password string, timeout time.Duratio
 	conn, err := cm.Dial("tcp", fmt.Sprintf("%s:%d", host, port))
 	if err != nil {
 		glog.Errorf("[dial err] %v", err)
-		return false, false
+		return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
 	}
 	defer conn.Close()
 	glog.Info(conn.LocalAddr().String())
@@ -76,15 +76,15 @@ func BruteRDP(host string, port int, user, password string, timeout time.Duratio
 
 	select {
 	case result := <-success:
-		return result, true
+		return &BruteResult{AuthSuccess: result, ConnectionSuccess: true}
 	case <-timer.C:
 		// Force the connection closed so the blocked goroutine exits
 		_ = conn.SetDeadline(time.Now())
 		select {
 		case result := <-success:
-			return result, true
+			return &BruteResult{AuthSuccess: result, ConnectionSuccess: true}
 		default:
-			return false, false
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: false}
 		}
 	}
 }

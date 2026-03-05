@@ -30,12 +30,12 @@ func (d *pqDialer) DialTimeout(network, address string, timeout time.Duration) (
 	return conn, nil
 }
 
-func BrutePostgres(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) (bool, bool) {
+func BrutePostgres(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) *BruteResult {
 	connStr := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=postgres sslmode=disable", host, port, user, password)
 
 	connector, err := pq.NewConnector(connStr)
 	if err != nil {
-		return false, false
+		return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
 	}
 	connector.Dialer(&pqDialer{cm: cm})
 
@@ -48,11 +48,11 @@ func BrutePostgres(host string, port int, user, password string, timeout time.Du
 	err = db.PingContext(ctx)
 	if err != nil {
 		if ctx.Err() != nil {
-			return false, false // timeout = connection issue
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err} // timeout = connection issue
 		}
-		return false, true
+		return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: err}
 	}
-	return true, true
+	return &BruteResult{AuthSuccess: true, ConnectionSuccess: true}
 }
 
 func init() { Register("postgres", BrutePostgres) }

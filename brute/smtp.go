@@ -31,7 +31,7 @@ func (a *plainAuth) Next(fromServer []byte, more bool) ([]byte, error) {
 	return nil, nil
 }
 
-func BruteSMTP(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) (bool, bool) {
+func BruteSMTP(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) *BruteResult {
 	auth := PlainAuth("", user, password, host)
 
 	timer := time.NewTimer(timeout)
@@ -45,7 +45,7 @@ func BruteSMTP(host string, port int, user, password string, timeout time.Durati
 
 	conn, err := cm.Dial("tcp", fmt.Sprintf("%s:%d", host, port))
 	if err != nil {
-		return false, false
+		return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
 	}
 
 	go func() {
@@ -87,12 +87,12 @@ func BruteSMTP(host string, port int, user, password string, timeout time.Durati
 		_ = conn.SetDeadline(time.Now())
 		select {
 		case r := <-done:
-			return r.authSuccess, r.connSuccess
+			return &BruteResult{AuthSuccess: r.authSuccess, ConnectionSuccess: r.connSuccess}
 		default:
-			return false, false
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: nil}
 		}
 	case r := <-done:
-		return r.authSuccess, r.connSuccess
+		return &BruteResult{AuthSuccess: r.authSuccess, ConnectionSuccess: r.connSuccess}
 	}
 }
 

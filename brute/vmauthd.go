@@ -10,7 +10,7 @@ import (
 	"github.com/x90skysn3k/brutespray/modules"
 )
 
-func BruteVMAuthd(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) (bool, bool) {
+func BruteVMAuthd(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) *BruteResult {
 	timer := time.NewTimer(timeout)
 	defer timer.Stop()
 
@@ -22,7 +22,7 @@ func BruteVMAuthd(host string, port int, user, password string, timeout time.Dur
 
 	conn, err := cm.Dial("tcp", fmt.Sprintf("%s:%d", host, port))
 	if err != nil {
-		return false, false
+		return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
 	}
 
 	go func() {
@@ -97,12 +97,12 @@ func BruteVMAuthd(host string, port int, user, password string, timeout time.Dur
 		_ = conn.SetDeadline(time.Now())
 		select {
 		case r := <-done:
-			return r.authSuccess, r.connSuccess
+			return &BruteResult{AuthSuccess: r.authSuccess, ConnectionSuccess: r.connSuccess}
 		default:
-			return false, false
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: nil}
 		}
 	case r := <-done:
-		return r.authSuccess, r.connSuccess
+		return &BruteResult{AuthSuccess: r.authSuccess, ConnectionSuccess: r.connSuccess}
 	}
 }
 

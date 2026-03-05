@@ -1,993 +1,25 @@
 package brutespray
 
 import (
-	"flag"
 	"fmt"
 	"os"
 	"os/signal"
-	"strconv"
-	"strings"
-	"math/rand"
 	"sync"
-	"sync/atomic"
 	"syscall"
 	"time"
 
 	"github.com/pterm/pterm"
-	"github.com/x90skysn3k/brutespray/banner"
 	"github.com/x90skysn3k/brutespray/brute"
 	"github.com/x90skysn3k/brutespray/modules"
 )
 
-var masterServiceList = brute.Services()
-
-var BetaServiceList = []string{"asterisk", "nntp", "oracle", "xmpp", "rdp", "ldap", "ldaps", "winrm"}
-
-var version = "v2.5.1"
-var NoColorMode bool
-
-// Credential represents a single credential attempt
-type Credential struct {
-	Host     modules.Host
-	User     string
-	Password string
-	Service  string
-}
-
-// hostListFlag collects multiple -H targets
-type hostListFlag []string
-
-func (h *hostListFlag) String() string { return strings.Join(*h, ",") }
-func (h *hostListFlag) Set(value string) error {
-	if value == "" {
-		return fmt.Errorf("empty host provided to -H")
-	}
-	*h = append(*h, value)
-	return nil
-}
-
-// HostWorkerPool manages workers for a specific host
-type HostWorkerPool struct {
-	host           modules.Host
-	workers        int
-	targetWorkers  int
-	currentWorkers int32
-	jobQueue       chan Credential
-	progressCh     chan int
-	wg             sync.WaitGroup
-	stopChan       chan struct{}
-	// Stop-on-success: close stopChan when first credential succeeds
-	stopOnSuccess bool
-	foundSuccess  int32 // atomic flag
-	// Per-host rate limiting (nil = unlimited)
-	rateTicker *time.Ticker
-	// Adaptive backoff: consecutive connection failures trigger increasing delays
-	consecutiveConnFails int64 // atomic
-	// Performance tracking for dynamic adjustment
-	avgResponseTime time.Duration
-	successRate     float64
-	totalAttempts   int64
-	mutex           sync.RWMutex
-}
-
-// WorkerPool manages the worker goroutines for brute force attempts with per-host allocation
-type WorkerPool struct {
-	globalWorkers   int
-	threadsPerHost  int
-	hostPools       map[string]*HostWorkerPool
-	hostPoolsMutex  sync.RWMutex
-	progressCh      chan int
-	globalStopChan  chan struct{}
-	hostParallelism int
-	hostSem         chan struct{}
-	// Dynamic thread allocation
-	dynamicAllocation bool
-	minThreadsPerHost int
-	maxThreadsPerHost int
-	// Statistics control
-	noStats    bool
-	scalerStop chan struct{}
-	// Stop-on-success: skip remaining credentials for a host after first success
-	stopOnSuccess bool
-	// Per-host rate limiting (attempts per second; 0 = unlimited)
-	rateLimit float64
-	// Spray mode: iterate passwords first, users second
-	sprayMode  bool
-	sprayDelay time.Duration
-	// Checkpoint for resume capability
-	checkpoint *modules.Checkpoint
-}
-
-// NewHostWorkerPool creates a new host-specific worker pool
-func NewHostWorkerPool(host modules.Host, workers int, progressCh chan int, stopOnSuccess bool, rateLimit float64) *HostWorkerPool {
-	hwp := &HostWorkerPool{
-		host:          host,
-		workers:       workers,
-		targetWorkers: workers,
-		jobQueue:      make(chan Credential, workers*10), // Smaller buffer per host
-		progressCh:    progressCh,
-		stopChan:      make(chan struct{}),
-		stopOnSuccess: stopOnSuccess,
-	}
-	if rateLimit > 0 {
-		interval := time.Duration(float64(time.Second) / rateLimit)
-		hwp.rateTicker = time.NewTicker(interval)
-	}
-	return hwp
-}
-
-// NewWorkerPool creates a new worker pool with per-host thread allocation
-func NewWorkerPool(threadsPerHost int, progressCh chan int, hostParallelism int, hostCount int) *WorkerPool {
-	// Calculate total workers across all hosts (no capping)
-	totalWorkers := threadsPerHost * hostCount
-
-	return &WorkerPool{
-		globalWorkers:     totalWorkers,
-		threadsPerHost:    threadsPerHost,
-		hostPools:         make(map[string]*HostWorkerPool),
-		progressCh:        progressCh,
-		globalStopChan:    make(chan struct{}),
-		hostParallelism:   hostParallelism,
-		hostSem:           make(chan struct{}, hostParallelism),
-		dynamicAllocation: true,
-		minThreadsPerHost: 1,
-		maxThreadsPerHost: threadsPerHost * 2,
-		scalerStop:        make(chan struct{}),
-	}
-}
-
-// Start starts the host-specific worker pool with staggered first attempts so
-// workers don't all hit the target at the same instant (avoids chunked output).
-func (hwp *HostWorkerPool) Start(timeout time.Duration, retry int, output string, cm *modules.ConnectionManager, domain string, noStats bool) {
-	stagger := time.Duration(0)
-	if hwp.workers > 1 {
-		stagger = timeout / time.Duration(hwp.workers)
-		if stagger > time.Second {
-			stagger = time.Second
-		}
-	}
-	for i := 0; i < hwp.workers; i++ {
-		hwp.wg.Add(1)
-		atomic.AddInt32(&hwp.currentWorkers, 1)
-		initialDelay := time.Duration(i) * stagger
-		go hwp.worker(timeout, retry, output, cm, domain, noStats, initialDelay)
-	}
-}
-
-// scaleTo adjusts the number of workers towards target. It can only add workers; reducing
-// happens cooperatively when workers finish a job and see they are above target.
-func (hwp *HostWorkerPool) scaleTo(newTarget int, timeout time.Duration, retry int, output string, cm *modules.ConnectionManager, domain string, noStats bool) {
-	if newTarget < 1 {
-		newTarget = 1
-	}
-	hwp.mutex.Lock()
-	hwp.targetWorkers = newTarget
-	hwp.mutex.Unlock()
-	// Add workers if below target
-	for int(atomic.LoadInt32(&hwp.currentWorkers)) < newTarget {
-		hwp.wg.Add(1)
-		atomic.AddInt32(&hwp.currentWorkers, 1)
-		go hwp.worker(timeout, retry, output, cm, domain, noStats, 0)
-	}
-}
-
-// Start starts all host worker pools
-func (wp *WorkerPool) Start(timeout time.Duration, retry int, output string, cm *modules.ConnectionManager, domain string, noStats bool) {
-	// Store noStats for use in ProcessHost
-	wp.noStats = noStats
-	// Host worker pools are started individually when hosts are processed
-	// Launch a scaler that periodically adjusts per-host worker counts
-	go func() {
-		ticker := time.NewTicker(2 * time.Second)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-wp.scalerStop:
-				return
-			case <-wp.globalStopChan:
-				return
-			case <-ticker.C:
-				wp.hostPoolsMutex.RLock()
-				for _, hp := range wp.hostPools {
-					target := wp.calculateOptimalThreadsForPool(hp)
-					hp.scaleTo(target, timeout, retry, output, cm, domain, noStats)
-				}
-				wp.hostPoolsMutex.RUnlock()
-			}
-		}
-	}()
-}
-
-// Stop stops the host-specific worker pool
-func (hwp *HostWorkerPool) Stop() {
-	select {
-	case <-hwp.stopChan:
-		// Already stopped
-		return
-	default:
-		close(hwp.stopChan)
-	}
-	hwp.wg.Wait()
-	if hwp.rateTicker != nil {
-		hwp.rateTicker.Stop()
-	}
-}
-
-// Stop stops all host worker pools immediately
-func (wp *WorkerPool) Stop() {
-	// Close global stop channel first to signal all operations to stop
-	select {
-	case <-wp.globalStopChan:
-		// Already stopped
-		return
-	default:
-		close(wp.globalStopChan)
-	}
-
-	// Stop scaler
-	select {
-	case <-wp.scalerStop:
-	default:
-		close(wp.scalerStop)
-	}
-
-	// Stop all host pools concurrently for faster shutdown
-	wp.hostPoolsMutex.RLock()
-	var stopWg sync.WaitGroup
-	for _, hostPool := range wp.hostPools {
-		stopWg.Add(1)
-		go func(hp *HostWorkerPool) {
-			defer stopWg.Done()
-			hp.Stop()
-		}(hostPool)
-	}
-	wp.hostPoolsMutex.RUnlock()
-
-	// Wait for all host pools to stop, but with a timeout to prevent hanging
-	done := make(chan struct{})
-	go func() {
-		stopWg.Wait()
-		close(done)
-	}()
-
-	select {
-	case <-done:
-		// All stopped cleanly
-	case <-time.After(2 * time.Second):
-		// Force exit after timeout
-		fmt.Println("[!] Force stopping after timeout")
-	}
-}
-
-// worker is the main worker goroutine for host-specific worker pool
-func (hwp *HostWorkerPool) worker(timeout time.Duration, retry int, output string, cm *modules.ConnectionManager, domain string, noStats bool, initialDelay time.Duration) {
-	defer hwp.wg.Done()
-
-	// Stagger the first attempt so workers don't all hit the target at once
-	if initialDelay > 0 {
-		select {
-		case <-time.After(initialDelay):
-		case <-hwp.stopChan:
-			atomic.AddInt32(&hwp.currentWorkers, -1)
-			return
-		}
-	}
-
-	for {
-		// If scaling down and queue appears empty, allow this worker to exit
-		hwp.mutex.RLock()
-		target := hwp.targetWorkers
-		hwp.mutex.RUnlock()
-		if int(atomic.LoadInt32(&hwp.currentWorkers)) > target {
-			select {
-			case <-hwp.stopChan:
-				atomic.AddInt32(&hwp.currentWorkers, -1)
-				return
-			default:
-				// Only exit if no job immediately available
-				select {
-				case <-hwp.stopChan:
-					atomic.AddInt32(&hwp.currentWorkers, -1)
-					return
-				case cred, ok := <-hwp.jobQueue:
-					if !ok {
-						atomic.AddInt32(&hwp.currentWorkers, -1)
-						return
-					}
-					hwp.processCredential(cred, timeout, retry, output, cm, domain, noStats)
-					continue
-				default:
-					atomic.AddInt32(&hwp.currentWorkers, -1)
-					return
-				}
-			}
-		}
-		select {
-		case <-hwp.stopChan:
-			atomic.AddInt32(&hwp.currentWorkers, -1)
-			return
-		case cred, ok := <-hwp.jobQueue:
-			if !ok {
-				atomic.AddInt32(&hwp.currentWorkers, -1)
-				return
-			}
-			hwp.processCredential(cred, timeout, retry, output, cm, domain, noStats)
-		}
-	}
-}
-
-func (hwp *HostWorkerPool) processCredential(cred Credential, timeout time.Duration, retry int, output string, cm *modules.ConnectionManager, domain string, noStats bool) {
-	// Random jitter to prevent workers from re-synchronizing after completing
-	// jobs with similar response times. Scale jitter with timeout.
-	maxJitter := timeout / 10
-	if maxJitter > 500*time.Millisecond {
-		maxJitter = 500 * time.Millisecond
-	}
-	if maxJitter > 0 {
-		time.Sleep(time.Duration(rand.Int63n(int64(maxJitter))))
-	}
-
-	// Adaptive backoff: when a host has many consecutive connection failures,
-	// back off before trying again. Escalates: 2s, 4s, 8s, 16s, capped at 30s.
-	fails := atomic.LoadInt64(&hwp.consecutiveConnFails)
-	if fails > 0 {
-		backoff := time.Duration(1<<uint(fails)) * time.Second
-		if backoff > 30*time.Second {
-			backoff = 30 * time.Second
-		}
-		if fails >= 3 {
-			hostKey := fmt.Sprintf("%s:%d", cred.Host.Host, cred.Host.Port)
-			modules.PrintfColored(pterm.FgYellow, "[*] %s — backing off %v (%d consecutive connection failures)\n", hostKey, backoff, fails)
-		}
-		select {
-		case <-time.After(backoff):
-		case <-hwp.stopChan:
-			return
-		}
-	}
-
-	// Rate limiting: wait for ticker before proceeding
-	if hwp.rateTicker != nil {
-		select {
-		case <-hwp.rateTicker.C:
-		case <-hwp.stopChan:
-			return
-		}
-	}
-
-	// Track performance for dynamic adjustment
-	startTime := time.Now()
-
-	// Execute the brute force attempt
-	result := brute.RunBrute(cred.Host, cred.User, cred.Password, hwp.progressCh, timeout, retry, output, "", "", domain, cm)
-
-	// Record statistics (if enabled) — only count connection errors, not auth failures
-	duration := time.Since(startTime)
-	if !noStats {
-		if !result.ConnectionSuccess {
-			modules.RecordConnectionError(cred.Host.Host)
-		}
-	}
-
-	// Update adaptive backoff counter
-	if result.ConnectionSuccess {
-		atomic.StoreInt64(&hwp.consecutiveConnFails, 0)
-	} else {
-		atomic.AddInt64(&hwp.consecutiveConnFails, 1)
-	}
-
-	// Stop-on-success: signal host pool to stop processing remaining credentials
-	if result.AuthSuccess && hwp.stopOnSuccess {
-		if atomic.CompareAndSwapInt32(&hwp.foundSuccess, 0, 1) {
-			select {
-			case <-hwp.stopChan:
-			default:
-				close(hwp.stopChan)
-			}
-		}
-	}
-
-	// Update performance metrics
-	hwp.updatePerformanceMetrics(result.AuthSuccess, duration)
-	// progressCh may be closed during shutdown; recover from the panic.
-	func() {
-		defer func() { recover() }()
-		hwp.progressCh <- 1
-	}()
-}
-
-// updatePerformanceMetrics updates the performance metrics for the host
-func (hwp *HostWorkerPool) updatePerformanceMetrics(success bool, responseTime time.Duration) {
-	hwp.mutex.Lock()
-	defer hwp.mutex.Unlock()
-
-	hwp.totalAttempts++
-
-	// Update average response time using exponential moving average
-	if hwp.totalAttempts == 1 {
-		hwp.avgResponseTime = responseTime
-	} else {
-		alpha := 0.1
-		hwp.avgResponseTime = time.Duration(float64(hwp.avgResponseTime)*(1-alpha) + float64(responseTime)*alpha)
-	}
-
-	// Update success rate
-	if success {
-		hwp.successRate = (hwp.successRate*float64(hwp.totalAttempts-1) + 1.0) / float64(hwp.totalAttempts)
-	} else {
-		hwp.successRate = hwp.successRate * float64(hwp.totalAttempts-1) / float64(hwp.totalAttempts)
-	}
-}
-
-// AddJob adds a credential to the appropriate host's job queue
-func (wp *WorkerPool) AddJob(cred Credential) {
-	hostKey := fmt.Sprintf("%s:%d", cred.Host.Host, cred.Host.Port)
-
-	wp.hostPoolsMutex.RLock()
-	hostPool, exists := wp.hostPools[hostKey]
-	wp.hostPoolsMutex.RUnlock()
-
-	if !exists {
-		// This shouldn't happen if ProcessHost is called first, but handle gracefully
-		return
-	}
-
-	select {
-	case hostPool.jobQueue <- cred:
-	case <-hostPool.stopChan:
-	case <-wp.globalStopChan:
-	}
-}
-
-// getOrCreateHostPool gets or creates a host-specific worker pool
-func (wp *WorkerPool) getOrCreateHostPool(host modules.Host) *HostWorkerPool {
-	hostKey := fmt.Sprintf("%s:%d", host.Host, host.Port)
-
-	wp.hostPoolsMutex.RLock()
-	hostPool, exists := wp.hostPools[hostKey]
-	wp.hostPoolsMutex.RUnlock()
-
-	if !exists {
-		wp.hostPoolsMutex.Lock()
-		// Double-check after acquiring write lock
-		if hostPool, exists = wp.hostPools[hostKey]; !exists {
-			// Determine threads for this host (could be dynamic based on performance)
-			threadsForHost := wp.threadsPerHost
-			if wp.dynamicAllocation {
-				threadsForHost = wp.calculateOptimalThreadsForHost(host)
-			}
-
-			hostPool = NewHostWorkerPool(host, threadsForHost, wp.progressCh, wp.stopOnSuccess, wp.rateLimit)
-			wp.hostPools[hostKey] = hostPool
-		}
-		wp.hostPoolsMutex.Unlock()
-	}
-
-	return hostPool
-}
-
-// calculateOptimalThreadsForHost returns the exact threads per host as specified by user
-func (wp *WorkerPool) calculateOptimalThreadsForHost(host modules.Host) int {
-	// Backward-compatible default used when not using host pool state
-	return wp.threadsPerHost
-}
-
-// calculateOptimalThreadsForPool computes a target worker count based on current
-// per-host pool performance: faster avg response -> more threads; many errors -> fewer.
-func (wp *WorkerPool) calculateOptimalThreadsForPool(hp *HostWorkerPool) int {
-	hp.mutex.RLock()
-	avg := hp.avgResponseTime
-	success := hp.successRate
-	attempts := hp.totalAttempts
-	hp.mutex.RUnlock()
-
-	target := wp.threadsPerHost
-	if attempts < 10 {
-		return target
-	}
-
-	// Scale with simple rules of thumb
-	// Very fast responses (<200ms) -> double threads (up to max)
-	if avg < 200*time.Millisecond {
-		target = wp.threadsPerHost * 2
-	} else if avg > 2*time.Second {
-		// Slow responses -> halve threads (down to min)
-		target = wp.threadsPerHost / 2
-		if target < 1 {
-			target = 1
-		}
-	}
-
-	// If success rate high, reduce retries via speed-up threads modestly
-	if success > 0.25 {
-		target += wp.threadsPerHost / 2
-	}
-
-	if target < wp.minThreadsPerHost {
-		target = wp.minThreadsPerHost
-	}
-	if target > wp.maxThreadsPerHost {
-		target = wp.maxThreadsPerHost
-	}
-	return target
-}
-
-// Helper function for min
-
-// ProcessHost processes a single host with all its credentials using dedicated host worker pool
-func (wp *WorkerPool) ProcessHost(host modules.Host, service string, combo string, user string, password string, version string, timeout time.Duration, retry int, output string, cm *modules.ConnectionManager, domain string) {
-	// Skip hosts already completed in a previous run
-	if wp.checkpoint != nil && wp.checkpoint.IsHostCompleted(host.Host, host.Port, service) {
-		return
-	}
-
-	// Check if we should stop before acquiring semaphore
-	select {
-	case <-wp.globalStopChan:
-		return
-	default:
-	}
-
-	// Acquire host semaphore to limit concurrent hosts
-	select {
-	case wp.hostSem <- struct{}{}:
-	case <-wp.globalStopChan:
-		return
-	}
-	defer func() { <-wp.hostSem }()
-
-	// Check again after acquiring semaphore
-	select {
-	case <-wp.globalStopChan:
-		return
-	default:
-	}
-
-	// Get or create host-specific worker pool
-	hostPool := wp.getOrCreateHostPool(host)
-
-	// Start the host worker pool
-	hostPool.Start(timeout, retry, output, cm, domain, wp.noStats)
-
-	// Debug output to show host processing
-	if !NoColorMode {
-		modules.PrintfColored(pterm.FgLightGreen, "[*] Processing host: %s:%d (%s) with %d threads\n", host.Host, host.Port, host.Service, hostPool.workers)
-	} else {
-		fmt.Printf("[*] Processing host: %s:%d (%s) with %d threads\n", host.Host, host.Port, host.Service, hostPool.workers)
-	}
-
-	// Generate and queue all credentials for this host
-	if combo != "" {
-		users, passwords := modules.GetUsersAndPasswordsCombo(&host, combo, version)
-		for i := range users {
-			// Check if we should stop before processing each credential
-			select {
-			case <-wp.globalStopChan:
-				return
-			case <-hostPool.stopChan:
-				return
-			default:
-			}
-
-			cred := Credential{
-				Host:     host,
-				User:     users[i],
-				Password: passwords[i],
-				Service:  service,
-			}
-			select {
-			case hostPool.jobQueue <- cred:
-			case <-hostPool.stopChan:
-				return
-			case <-wp.globalStopChan:
-				return
-			}
-		}
-	} else {
-		if service == "vnc" || service == "snmp" {
-			_, passwords, err := modules.GetUsersAndPasswords(&host, user, password, version)
-			if err != nil {
-				fmt.Printf("Error loading wordlist for %s: %v\n", service, err)
-				return
-			}
-			for _, p := range passwords {
-				// Check if we should stop before processing each credential
-				select {
-				case <-wp.globalStopChan:
-					return
-				case <-hostPool.stopChan:
-					return
-				default:
-				}
-
-				cred := Credential{
-					Host:     host,
-					User:     "",
-					Password: p,
-					Service:  service,
-				}
-				select {
-				case hostPool.jobQueue <- cred:
-				case <-hostPool.stopChan:
-					return
-				case <-wp.globalStopChan:
-					return
-				}
-			}
-		} else {
-			users, passwords, err := modules.GetUsersAndPasswords(&host, user, password, version)
-			if err != nil {
-				fmt.Printf("Error loading wordlist for %s: %v\n", service, err)
-				return
-			}
-
-			queueCred := func(u, p string) bool {
-				select {
-				case <-wp.globalStopChan:
-					return false
-				case <-hostPool.stopChan:
-					return false
-				default:
-				}
-				cred := Credential{Host: host, User: u, Password: p, Service: service}
-				select {
-				case hostPool.jobQueue <- cred:
-					return true
-				case <-hostPool.stopChan:
-					return false
-				case <-wp.globalStopChan:
-					return false
-				}
-			}
-
-			if wp.sprayMode {
-				// Spray: try each password across all users before next password
-				for i, p := range passwords {
-					if i > 0 && wp.sprayDelay > 0 {
-						modules.PrintfColored(pterm.FgLightYellow, "[spray] %s — waiting %v before next password round...\n", host.Host, wp.sprayDelay)
-						select {
-						case <-time.After(wp.sprayDelay):
-						case <-wp.globalStopChan:
-							return
-						case <-hostPool.stopChan:
-							return
-						}
-					}
-					for _, u := range users {
-						if !queueCred(u, p) {
-							return
-						}
-					}
-				}
-			} else {
-				// Standard: try all passwords per user
-				for _, u := range users {
-					for _, p := range passwords {
-						if !queueCred(u, p) {
-							return
-						}
-					}
-				}
-			}
-		}
-	}
-
-	// Close the job queue to signal no more jobs will be added
-	select {
-	case <-wp.globalStopChan:
-		// If we're stopping, don't close the queue normally, let Stop() handle it
-		hostPool.Stop()
-		return
-	case <-hostPool.stopChan:
-		// Host pool already stopped
-		return
-	default:
-		close(hostPool.jobQueue)
-	}
-
-	// Wait for all jobs to complete or be interrupted
-	done := make(chan struct{})
-	go func() {
-		hostPool.wg.Wait()
-		close(done)
-	}()
-
-	select {
-	case <-done:
-		// All jobs completed normally
-	case <-wp.globalStopChan:
-		// Interrupted, stop the host pool
-		hostPool.Stop()
-		return
-	case <-hostPool.stopChan:
-		// Host pool stopped
-		return
-	}
-
-	// Now stop the host pool (this will close stopChan but jobQueue is already closed)
-	hostPool.Stop()
-
-	// Debug output to show host completion with performance metrics
-	hostPool.mutex.RLock()
-	avgResponseTime := hostPool.avgResponseTime
-	successRate := hostPool.successRate
-	totalAttempts := hostPool.totalAttempts
-	hostPool.mutex.RUnlock()
-
-	if !NoColorMode {
-		modules.PrintfColored(pterm.FgLightGreen, "[*] Completed host: %s:%d (%s) - %d attempts, %.1f%% success, avg %.2fs\n",
-			host.Host, host.Port, host.Service, totalAttempts, successRate*100, avgResponseTime.Seconds())
-	} else {
-		fmt.Printf("[*] Completed host: %s:%d (%s) - %d attempts, %.1f%% success, avg %.2fs\n",
-			host.Host, host.Port, host.Service, totalAttempts, successRate*100, avgResponseTime.Seconds())
-	}
-
-	// Mark host as completed in checkpoint
-	if wp.checkpoint != nil {
-		wp.checkpoint.MarkHostCompleted(host.Host, host.Port, service)
-	}
-}
-
 func Execute() {
-	user := flag.String("u", "", "Username or user list to bruteforce For SMBNT and RDP, use domain\\username format (e.g., CORP\\jdoe)")
-	password := flag.String("p", "", "Password or password file to use for bruteforce")
-	combo := flag.String("C", "", "Specify a combo wordlist deiminated by ':', example: user1:password")
-	output := flag.String("o", "brutespray-output", "Directory containing successful attempts")
-	summary := flag.Bool("summary", false, "Generate comprehensive summary report with statistics")
-	noStats := flag.Bool("no-stats", false, "Disable statistics tracking for better performance")
-	silent := flag.Bool("silent", false, "Suppress per-attempt console logs (still records successes and summary)")
-	logEvery := flag.Int("log-every", 1, "Print every N attempts when not in silent mode (>=1)")
-	threads := flag.Int("t", 10, "Number of threads per host (also acts as max threads per host)")
-	hostParallelism := flag.Int("T", 5, "Number of hosts to bruteforce at the same time")
-	socksProxy := flag.String("socks5", "", "Socks5 proxy to use for bruteforce (supports socks5://user:pass@host:port or host:port)")
-	netInterface := flag.String("iface", "", "Specific network interface to use for bruteforce traffic (defaults to active interface)")
-	serviceType := flag.String("s", "all", "Service type: ssh, ftp, smtp, etc; Default all")
-	listServices := flag.Bool("S", false, "List all supported services")
-	file := flag.String("f", "", "File to parse; Supported: Nmap, Nessus, Nexpose, Lists, etc")
-	var hostArgs hostListFlag
-	flag.Var(&hostArgs, "H", "Target in the format service://host:port, CIDR ranges supported; can be specified multiple times")
-	quiet := flag.Bool("q", false, "Suppress the banner")
-	timeout := flag.Duration("w", 5*time.Second, "Set timeout delay of bruteforce attempts")
-	_ = flag.Bool("insecure", false, "Deprecated: TLS certificate verification is always disabled for bruteforce")
-	retry := flag.Int("r", 3, "Amount of times to retry after receiving connection failed")
-	printhosts := flag.Bool("P", false, "Print found hosts parsed from provided host and file arguments")
-	domain := flag.String("d", "", "Domain to use for RDP authentication (optional)")
-	noColor := flag.Bool("nc", false, "Disable colored output")
-	stopOnSuccess := flag.Bool("stop-on-success", false, "Stop testing a host after finding valid credentials")
-	rateLimit := flag.Float64("rate", 0, "Per-host rate limit in attempts/second (0 = unlimited)")
-	sprayMode := flag.Bool("spray", false, "Spray mode: try each password across all users before next password (avoids lockouts)")
-	sprayDelay := flag.Duration("spray-delay", 30*time.Minute, "Delay between password rounds in spray mode")
-	resumeFile := flag.String("resume", "", "Resume from a checkpoint file (saved automatically on interrupt)")
-	checkpointFile := flag.String("checkpoint", "brutespray-checkpoint.json", "Checkpoint file path for resume capability")
-	configFile := flag.String("config", "", "YAML config file (CLI flags override config values)")
+	cfg := ParseConfig()
 
-	flag.Parse()
-
-	// Load config file and apply defaults (CLI flags override)
-	if *configFile != "" {
-		cfg, err := modules.LoadConfig(*configFile)
-		if err != nil {
-			fmt.Printf("Error loading config: %v\n", err)
-			os.Exit(1)
-		}
-		// Track which flags were explicitly set on CLI
-		setFlags := make(map[string]bool)
-		flag.Visit(func(f *flag.Flag) { setFlags[f.Name] = true })
-
-		// Apply config values only for flags not explicitly set
-		if !setFlags["u"] && cfg.User != "" {
-			*user = cfg.User
-		}
-		if !setFlags["p"] && cfg.Password != "" {
-			*password = cfg.Password
-		}
-		if !setFlags["C"] && cfg.Combo != "" {
-			*combo = cfg.Combo
-		}
-		if !setFlags["o"] && cfg.Output != "" {
-			*output = cfg.Output
-		}
-		if !setFlags["t"] && cfg.Threads > 0 {
-			*threads = cfg.Threads
-		}
-		if !setFlags["T"] && cfg.HostParallelism > 0 {
-			*hostParallelism = cfg.HostParallelism
-		}
-		if !setFlags["w"] && cfg.Timeout > 0 {
-			*timeout = cfg.Timeout
-		}
-		if !setFlags["r"] && cfg.Retry > 0 {
-			*retry = cfg.Retry
-		}
-		if !setFlags["s"] && cfg.Service != "" {
-			*serviceType = cfg.Service
-		}
-		if !setFlags["socks5"] && cfg.Socks5 != "" {
-			*socksProxy = cfg.Socks5
-		}
-		if !setFlags["iface"] && cfg.Interface != "" {
-			*netInterface = cfg.Interface
-		}
-		if !setFlags["d"] && cfg.Domain != "" {
-			*domain = cfg.Domain
-		}
-		if !setFlags["rate"] && cfg.RateLimit > 0 {
-			*rateLimit = cfg.RateLimit
-		}
-		if !setFlags["stop-on-success"] && cfg.StopOnSuccess {
-			*stopOnSuccess = true
-		}
-		if !setFlags["silent"] && cfg.Silent {
-			*silent = true
-		}
-		if !setFlags["log-every"] && cfg.LogEvery > 0 {
-			*logEvery = cfg.LogEvery
-		}
-		if !setFlags["summary"] && cfg.Summary {
-			*summary = true
-		}
-		if !setFlags["nc"] && cfg.NoColor {
-			*noColor = true
-		}
-		if !setFlags["spray"] && cfg.Spray {
-			*sprayMode = true
-		}
-		if !setFlags["spray-delay"] && cfg.SprayDelay > 0 {
-			*sprayDelay = cfg.SprayDelay
-		}
-		if !setFlags["f"] && cfg.File != "" {
-			*file = cfg.File
-		}
-		if len(cfg.Hosts) > 0 && len(hostArgs) == 0 {
-			for _, h := range cfg.Hosts {
-				hostArgs = append(hostArgs, h)
-			}
-		}
-	}
-
-	NoColorMode = *noColor
-	modules.NoColorMode = *noColor
-	modules.Silent = *silent
-	if *logEvery < 1 {
-		*logEvery = 1
-	}
-	modules.LogEvery = int64(*logEvery)
-	// If -p was provided explicitly and is empty (length zero), instruct
-	// modules to use a single blank password instead of default wordlist.
-	{
-		providedPassword := false
-		flag.Visit(func(f *flag.Flag) {
-			if f.Name == "p" {
-				providedPassword = true
-			}
-		})
-		if providedPassword && *password == "" {
-			modules.UseEmptyPassword = true
-		}
-	}
-	banner.Banner(version, *quiet, NoColorMode)
-
-	getSupportedServices := func(serviceType string) []string {
-		if serviceType != "all" {
-			supportedServices := strings.Split(serviceType, ",")
-			for i := range supportedServices {
-				supportedServices[i] = strings.TrimSpace(supportedServices[i])
-			}
-			return supportedServices
-		}
-		return masterServiceList
-	}
-
-	if *listServices {
-		if NoColorMode {
-			fmt.Println("Supported services:", strings.Join(getSupportedServices(*serviceType), ", "))
-		} else {
-			pterm.DefaultSection.Println("Supported services:", strings.Join(getSupportedServices(*serviceType), ", "))
-		}
-		os.Exit(0)
-	} else {
-		if flag.NFlag() == 0 {
-			flag.Usage()
-			if NoColorMode {
-				fmt.Println("Supported services:", strings.Join(getSupportedServices(*serviceType), ", "))
-			} else {
-				pterm.DefaultSection.Println("Supported services:", strings.Join(getSupportedServices(*serviceType), ", "))
-			}
-			os.Exit(2)
-		}
-	}
-
-	if len(hostArgs) == 0 && *file == "" {
-		flag.Usage()
-		os.Exit(2)
-	}
-
-	var hosts map[modules.Host]int
-	var err error
-	if *file != "" {
-		// Pre-validate the provided file path and emit a standardized error on stderr
-		if !modules.IsFile(*file) {
-			fmt.Fprintln(os.Stderr, "Invalid -f path: file does not exist or is not accessible:", *file)
-			os.Exit(2)
-		}
-		hosts, err = modules.ParseFile(*file)
-		if err != nil {
-			fmt.Fprintln(os.Stderr, "Failed to parse input file:", err)
-			os.Exit(1)
-		}
-	}
-
-	var hostsList []modules.Host
-	for h := range hosts {
-		hostsList = append(hostsList, h)
-	}
-
-	// Parse all -H hosts
-	if len(hostArgs) > 0 {
-		var hostObj modules.Host
-		for _, hostArg := range hostArgs {
-			parsed, err := hostObj.Parse(hostArg)
-			if err != nil {
-				fmt.Println("Error parsing host:", err)
-				os.Exit(1)
-			}
-			hostsList = append(hostsList, parsed...)
-		}
-	}
-
-	supportedServices := getSupportedServices(*serviceType)
-
-	totalCombinations := 0
-	nopassServices := 0
-	for _, service := range supportedServices {
-		for _, h := range hostsList {
-			if h.Service == service {
-				for _, beta := range BetaServiceList {
-					if beta == h.Service {
-						modules.PrintWarningBeta(h.Service)
-					}
-				}
-				if *combo != "" {
-					users, passwords := modules.GetUsersAndPasswordsCombo(&h, *combo, version)
-					totalCombinations += modules.CalcCombinationsCombo(users, passwords)
-				} else {
-					if service == "vnc" || service == "snmp" {
-						_, passwords, err := modules.GetUsersAndPasswords(&h, *user, *password, version)
-						if err != nil {
-							fmt.Printf("Error loading wordlist for %s: %v\n", service, err)
-							continue
-						}
-						totalCombinations += modules.CalcCombinationsPass(passwords)
-					} else {
-						users, passwords, err := modules.GetUsersAndPasswords(&h, *user, *password, version)
-						if err != nil {
-							fmt.Printf("Error loading wordlist for %s: %v\n", service, err)
-							continue
-						}
-						totalCombinations += modules.CalcCombinations(users, passwords)
-					}
-				}
-			}
-		}
-	}
-
-	// Validate threads per host (no upper limit)
-	if *threads < 1 {
-		*threads = 1
-	}
-
-	// Optimize host parallelism
-	totalHosts := len(hostsList)
-	if *hostParallelism > totalHosts {
-		*hostParallelism = totalHosts
-	}
-	if *hostParallelism < 1 {
-		*hostParallelism = 1
-	}
+	totalHosts := len(cfg.Hosts)
 
 	// Create optimized worker pool with per-host thread allocation
-	// Buffer based on total threads across all hosts but cap to prevent huge memory spikes
-	totalThreadEstimate := (*threads) * totalHosts * 10
+	totalThreadEstimate := cfg.Threads * totalHosts * 10
 	if totalThreadEstimate < 1 {
 		totalThreadEstimate = 1
 	}
@@ -995,19 +27,19 @@ func Execute() {
 		totalThreadEstimate = 100000
 	}
 	progressCh := make(chan int, totalThreadEstimate)
-	workerPool := NewWorkerPool(*threads, progressCh, *hostParallelism, totalHosts)
-	workerPool.stopOnSuccess = *stopOnSuccess
-	workerPool.rateLimit = *rateLimit
-	workerPool.sprayMode = *sprayMode
-	workerPool.sprayDelay = *sprayDelay
+	workerPool := NewWorkerPool(cfg.Threads, progressCh, cfg.HostParallelism, totalHosts)
+	workerPool.stopOnSuccess = cfg.StopOnSuccess
+	workerPool.rateLimit = cfg.RateLimit
+	workerPool.sprayMode = cfg.SprayMode
+	workerPool.sprayDelay = cfg.SprayDelay
 
 	// Only enable the circuit breaker in spray mode where skipping unreachable
 	// hosts is useful. In normal mode, keep trying — connection hiccups are common.
-	brute.GetCircuitBreaker().SetDisabled(!*sprayMode)
+	brute.GetCircuitBreaker().SetDisabled(!cfg.SprayMode)
 
 	// Initialize checkpoint for resume capability
-	if *resumeFile != "" {
-		cp, err := modules.LoadCheckpoint(*resumeFile)
+	if cfg.ResumeFile != "" {
+		cp, err := modules.LoadCheckpoint(cfg.ResumeFile)
 		if err != nil {
 			fmt.Printf("Error loading checkpoint: %v\n", err)
 			os.Exit(1)
@@ -1016,82 +48,30 @@ func Execute() {
 		modules.PrintfColored(pterm.FgLightYellow, "[*] Resuming from checkpoint: %d hosts completed, %d credentials found\n",
 			len(cp.CompletedHosts), len(cp.SuccessfulCreds))
 	} else {
-		workerPool.checkpoint = modules.NewCheckpoint(*checkpointFile)
+		workerPool.checkpoint = modules.NewCheckpoint(cfg.CheckpointFile)
 	}
 
-	// Register signal handler BEFORE launching the goroutine that reads from it (3.8 fix)
+	// Register signal handler BEFORE launching the goroutine that reads from it
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 
-	if *printhosts {
-		modules.PrintlnColored(pterm.FgLightGreen, "Found Services:")
-		data := pterm.TableData{}
-
-		header := []string{"IP", "Service and Port"}
-		data = append(data, header)
-
-		hostToServices := make(map[string][]string)
-
-		for _, h := range hostsList {
-			portstr := strconv.Itoa(h.Port)
-			service := h.Service + " on port " + portstr
-			if _, ok := hostToServices[h.Host]; !ok {
-				hostToServices[h.Host] = []string{service}
-			} else {
-				hostToServices[h.Host] = append(hostToServices[h.Host], service)
-			}
-		}
-
-		for ip, services := range hostToServices {
-			row := []string{ip, strings.Join(services, "\n")}
-			data = append(data, row)
-		}
-
-		if NoColorMode {
-			// Print table data in plain text format
-			fmt.Println("Found Services:")
-			for i, row := range data {
-				if i == 0 {
-					fmt.Println("IP\tService and Port")
-					fmt.Println("--\t----------------")
-				} else {
-					fmt.Printf("%s\t%s\n", row[0], row[1])
-				}
-			}
-		} else {
-			err := pterm.DefaultTable.WithRowSeparator("-").WithHeaderRowSeparator("-").WithData(data).Render()
-			if err != nil {
-				_ = err
-			}
-		}
-		if NoColorMode {
-			fmt.Println("Waiting...")
-			time.Sleep(3 * time.Second)
-		} else {
-			spinner, _ := pterm.DefaultSpinner.Start("Waiting...")
-			time.Sleep(3 * time.Second)
-			err := spinner.Stop()
-			if err != nil {
-				_ = err
-			}
-		}
+	if cfg.PrintHosts {
+		PrintHostTable(cfg.Hosts)
 	}
 
-	if *socksProxy != "" {
-		modules.PrintfColored(pterm.FgLightYellow, "Socks5 Proxy: %s\n", *socksProxy)
+	if cfg.SocksProxy != "" {
+		modules.PrintfColored(pterm.FgLightYellow, "Socks5 Proxy: %s\n", cfg.SocksProxy)
 	}
 
 	// Initialize Connection Manager once
-	cm, err := modules.NewConnectionManager(*socksProxy, *timeout, *netInterface)
+	cm, err := modules.NewConnectionManager(cfg.SocksProxy, cfg.Timeout, cfg.NetInterface)
 	if err != nil {
 		fmt.Printf("Error creating connection manager: %v\n", err)
 		os.Exit(1)
 	}
 
-	if *netInterface != "" {
-		// We can use the CM to validate or just print info. CM has checked it.
+	if cfg.NetInterface != "" {
 		modules.PrintfColored(pterm.FgLightYellow, "Network Interface: %s\n", cm.Iface)
-		// Get IP from CM logic ideally, but let's trust it worked.
 		ipAddr, err := modules.GetIPv4Address(cm.Iface)
 		if err == nil {
 			modules.PrintfColored(pterm.FgLightYellow, "Local Address: %s\n", ipAddr)
@@ -1099,9 +79,9 @@ func Execute() {
 	}
 
 	modules.PrintlnColored(pterm.FgLightYellow, "\nStarting bruteforce attack...")
-	maxConcurrentThreads := *threads * *hostParallelism
-	modules.PrintlnColored(pterm.FgLightYellow, fmt.Sprintf("Threads per Host: %d, Max Concurrent Threads: %d, Concurrent Hosts: %d, Total Combinations: %d", *threads, maxConcurrentThreads, *hostParallelism, (totalCombinations)-nopassServices))
-	modules.PrintlnColored(pterm.FgLightYellow, fmt.Sprintf("Total Hosts: %d, Maximum %d hosts will be processed concurrently", totalHosts, *hostParallelism))
+	maxConcurrentThreads := cfg.Threads * cfg.HostParallelism
+	modules.PrintlnColored(pterm.FgLightYellow, fmt.Sprintf("Threads per Host: %d, Max Concurrent Threads: %d, Concurrent Hosts: %d, Total Combinations: %d", cfg.Threads, maxConcurrentThreads, cfg.HostParallelism, cfg.TotalCombinations))
+	modules.PrintlnColored(pterm.FgLightYellow, fmt.Sprintf("Total Hosts: %d, Maximum %d hosts will be processed concurrently", totalHosts, cfg.HostParallelism))
 
 	if NoColorMode {
 		fmt.Println("\n[*] Testing credentials...")
@@ -1116,40 +96,16 @@ func Execute() {
 
 	var bar *pterm.ProgressbarPrinter
 	if !NoColorMode {
-		bar, _ = pterm.DefaultProgressbar.WithTotal((totalCombinations) - nopassServices).WithTitle("Progress").Start()
+		bar, _ = pterm.DefaultProgressbar.WithTotal(cfg.TotalCombinations).WithTitle("Progress").Start()
 	}
 
-	currentCounter := 0
-	counterMutex := sync.Mutex{}
+	counterMutex, currentCounter := StartProgressTracker(progressCh, cfg.TotalCombinations, cfg.Threads, bar)
 
-	go func() {
-		for range progressCh {
-			counterMutex.Lock()
-			currentCounter++
-			modules.OutputMu.Lock()
-			if NoColorMode {
-				// Update progress periodically. Avoid modulo by zero when threads is small.
-				step := (*threads) / 2
-				if step < 1 {
-					step = 1
-				}
-				if currentCounter%step == 0 || currentCounter == (totalCombinations)-nopassServices {
-					fmt.Printf("\n[*] Progress: %d/%d combinations tested\n", currentCounter, (totalCombinations)-nopassServices)
-				}
-			} else {
-				bar.Increment()
-			}
-			modules.OutputMu.Unlock()
-			counterMutex.Unlock()
-		}
-	}()
-
-	// Use sync.Once to prevent the signal handler and main flow from racing
-	// on cleanup (3.7 fix).
 	// Start periodic checkpoint saves
 	checkpointStop := make(chan struct{})
 	workerPool.checkpoint.StartPeriodicSave(30*time.Second, checkpointStop)
 
+	// Use sync.Once to prevent the signal handler and main flow from racing on cleanup
 	var cleanupOnce sync.Once
 	doCleanup := func() {
 		cleanupOnce.Do(func() {
@@ -1168,14 +124,14 @@ func Execute() {
 			}
 
 			counterMutex.Lock()
-			modules.PrintlnColored(pterm.FgLightYellow, fmt.Sprintf("[*] Final Status: %d/%d combinations tested", currentCounter, (totalCombinations)-nopassServices))
+			modules.PrintlnColored(pterm.FgLightYellow, fmt.Sprintf("[*] Final Status: %d/%d combinations tested", *currentCounter, cfg.TotalCombinations))
 			counterMutex.Unlock()
 
-			modules.SetTotalHostsAndServices(totalHosts, len(supportedServices))
+			modules.SetTotalHostsAndServices(totalHosts, len(cfg.SupportedServices))
 
-			if *summary {
+			if cfg.Summary {
 				modules.PrintlnColored(pterm.FgLightYellow, "[*] Generating summary report...")
-				modules.PrintComprehensiveSummary(*output)
+				modules.PrintComprehensiveSummary(cfg.Output)
 			}
 
 			cm.ClearPool()
@@ -1191,13 +147,13 @@ func Execute() {
 	}()
 
 	// Start the worker pool
-	workerPool.Start(*timeout, *retry, *output, cm, *domain, *noStats)
+	workerPool.Start(cfg.Timeout, cfg.Retry, cfg.Output, cm, cfg.Domain, cfg.NoStats)
 
 	// Process hosts with proper parallelism.
 	// Interleave dispatch across services so that a large SSH list doesn't
-	// starve FTP/HTTP targets waiting behind the host semaphore (2.5 fix).
+	// starve FTP/HTTP targets waiting behind the host semaphore.
 	var hostWg sync.WaitGroup
-	for _, h := range hostsList {
+	for _, h := range cfg.Hosts {
 		hostWg.Add(1)
 		go func(host modules.Host) {
 			defer hostWg.Done()
@@ -1205,7 +161,7 @@ func Execute() {
 			case <-workerPool.globalStopChan:
 				return
 			default:
-				workerPool.ProcessHost(host, host.Service, *combo, *user, *password, version, *timeout, *retry, *output, cm, *domain)
+				workerPool.ProcessHost(host, host.Service, cfg.Combo, cfg.User, cfg.Password, version, cfg.Timeout, cfg.Retry, cfg.Output, cm, cfg.Domain)
 			}
 		}(h)
 	}
@@ -1223,7 +179,6 @@ func Execute() {
 	case <-workerPool.globalStopChan:
 		// Interrupted by signal, hosts will stop themselves
 		fmt.Println("[*] Waiting for hosts to finish current operations...")
-		// Give a brief moment for graceful shutdown, then force exit will happen in signal handler
 	}
 
 	// Close progress channel to stop progress goroutine cleanly
@@ -1252,5 +207,4 @@ func Execute() {
 		}
 		fmt.Println("===============================================")
 	}
-
 }

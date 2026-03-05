@@ -17,6 +17,8 @@ import (
 type BruteResult struct {
 	AuthSuccess       bool
 	ConnectionSuccess bool
+	Error             error  // underlying error for diagnostics
+	Banner            string // service banner if captured (future use)
 }
 
 // CircuitBreaker tracks consecutive connection failures per host and trips
@@ -138,7 +140,6 @@ func calculateBackoff(retryCount int) time.Duration {
 
 func RunBrute(h modules.Host, u string, p string, progressCh chan<- int, timeout time.Duration, maxRetries int, output string, socks5 string, netInterface string, domain string, cm *modules.ConnectionManager) BruteResult {
 	service := h.Service
-	var result, con_result bool
 
 	// Start performance monitoring
 	startTime := time.Now()
@@ -155,6 +156,7 @@ func RunBrute(h modules.Host, u string, p string, progressCh chan<- int, timeout
 	}
 
 	retries := 0
+	var modResult *BruteResult
 
 	for {
 		if retries >= maxRetries {
@@ -176,7 +178,7 @@ func RunBrute(h modules.Host, u string, p string, progressCh chan<- int, timeout
 
 		switch {
 		case entry.standard != nil:
-			result, con_result = entry.standard(h.Host, h.Port, u, p, timeout, cm)
+			modResult = entry.standard(h.Host, h.Port, u, p, timeout, cm)
 		case entry.withDomain != nil:
 			parsedUser := u
 			parsedDomain := domain
@@ -187,10 +189,13 @@ func RunBrute(h modules.Host, u string, p string, progressCh chan<- int, timeout
 					parsedUser = parts[1]
 				}
 			}
-			result, con_result = entry.withDomain(h.Host, h.Port, parsedUser, p, timeout, cm, parsedDomain)
+			modResult = entry.withDomain(h.Host, h.Port, parsedUser, p, timeout, cm, parsedDomain)
 		case entry.http != nil:
-			result, con_result = entry.http(h.Host, h.Port, u, p, timeout, cm, service == "https")
+			modResult = entry.http(h.Host, h.Port, u, p, timeout, cm, service == "https")
 		}
+
+		result := modResult.AuthSuccess
+		con_result := modResult.ConnectionSuccess
 
 		if con_result {
 			// Connection succeeded — reset circuit breaker and record attempt
@@ -234,7 +239,7 @@ func RunBrute(h modules.Host, u string, p string, progressCh chan<- int, timeout
 		}
 	}
 
-	modules.PrintResult(service, h.Host, h.Port, u, p, result, con_result, progressCh, false, output, 0)
-	return BruteResult{AuthSuccess: result, ConnectionSuccess: con_result}
+	modules.PrintResult(service, h.Host, h.Port, u, p, modResult.AuthSuccess, modResult.ConnectionSuccess, progressCh, false, output, 0)
+	return BruteResult{AuthSuccess: modResult.AuthSuccess, ConnectionSuccess: modResult.ConnectionSuccess}
 }
 

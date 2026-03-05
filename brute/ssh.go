@@ -9,7 +9,7 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-func BruteSSH(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) (bool, bool) {
+func BruteSSH(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) *BruteResult {
 	config := &ssh.ClientConfig{
 		User: user,
 		Auth: []ssh.AuthMethod{
@@ -31,7 +31,7 @@ func BruteSSH(host string, port int, user, password string, timeout time.Duratio
 
 	conn, err = cm.Dial("tcp", fmt.Sprintf("%s:%d", host, port))
 	if err != nil {
-		return false, false
+		return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
 	}
 
 	go func() {
@@ -46,29 +46,26 @@ func BruteSSH(host string, port int, user, password string, timeout time.Duratio
 
 	select {
 	case <-timer.C:
-		// Timeout fired — force the blocked goroutine to exit by killing the
-		// connection deadline so the SSH handshake fails immediately.
 		_ = conn.SetDeadline(time.Now())
-		// Prefer any available result over reporting timeout
 		select {
 		case result := <-done:
 			conn.Close()
 			if result.err != nil {
-				return false, true
+				return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: result.err}
 			}
 			result.client.Close()
-			return true, true
+			return &BruteResult{AuthSuccess: true, ConnectionSuccess: true}
 		default:
 			conn.Close()
-			return false, false
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: fmt.Errorf("timeout")}
 		}
 	case result := <-done:
 		conn.Close()
 		if result.err != nil {
-			return false, true
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: result.err}
 		}
 		result.client.Close()
-		return true, true
+		return &BruteResult{AuthSuccess: true, ConnectionSuccess: true}
 	}
 }
 

@@ -9,7 +9,7 @@ import (
 	"github.com/x90skysn3k/brutespray/modules"
 )
 
-func BruteWinRM(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) (bool, bool) {
+func BruteWinRM(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) *BruteResult {
 	endpoint := winrm.NewEndpoint(host, port, port == 5986, true, nil, nil, nil, timeout)
 
 	params := winrm.DefaultParameters
@@ -19,7 +19,7 @@ func BruteWinRM(host string, port int, user, password string, timeout time.Durat
 
 	client, err := winrm.NewClientWithParameters(endpoint, user, password, params)
 	if err != nil {
-		return false, false
+		return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
@@ -31,16 +31,16 @@ func BruteWinRM(host string, port int, user, password string, timeout time.Durat
 		errStr := fmt.Sprintf("%v", err)
 		// WinRM returns HTTP 401 for bad creds
 		if contains401(errStr) {
-			return false, true
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: err}
 		}
 		if ctx.Err() != nil {
-			return false, false
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: ctx.Err()}
 		}
-		return false, true
+		return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: err}
 	}
 
 	_ = stdout
-	return true, true
+	return &BruteResult{AuthSuccess: true, ConnectionSuccess: true}
 }
 
 func contains401(s string) bool {

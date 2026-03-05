@@ -9,7 +9,7 @@ import (
 	"gosrc.io/xmpp/stanza"
 )
 
-func BruteXMPP(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) (bool, bool) {
+func BruteXMPP(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) *BruteResult {
 	portstr := strconv.Itoa(port)
 	hoststr := host + ":" + portstr
 	timer := time.NewTimer(timeout)
@@ -24,7 +24,7 @@ func BruteXMPP(host string, port int, user, password string, timeout time.Durati
 	// Dial outside the goroutine to avoid a data race on conn.
 	conn, err := cm.Dial("tcp", hoststr)
 	if err != nil {
-		return false, false
+		return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
 	}
 
 	go func() {
@@ -54,31 +54,31 @@ func BruteXMPP(host string, port int, user, password string, timeout time.Durati
 		select {
 		case res := <-done:
 			if res.err != nil {
-				return false, true
+				return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: res.err}
 			}
 			presence := stanza.NewPresence(stanza.Attrs{})
 			if err := res.session.Send(presence); err != nil {
 				_ = res.session.Disconnect()
-				return false, true
+				return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: err}
 			}
 			_ = res.session.Disconnect()
-			return true, true
+			return &BruteResult{AuthSuccess: true, ConnectionSuccess: true}
 		default:
-			return false, false
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: nil}
 		}
 	case res := <-done:
 		if res.err != nil {
-			return false, true
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: res.err}
 		}
 
 		presence := stanza.NewPresence(stanza.Attrs{})
 		if err := res.session.Send(presence); err != nil {
 			_ = res.session.Disconnect()
-			return false, true
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: err}
 		}
 
 		_ = res.session.Disconnect()
-		return true, true
+		return &BruteResult{AuthSuccess: true, ConnectionSuccess: true}
 	}
 }
 
