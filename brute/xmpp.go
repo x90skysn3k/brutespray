@@ -81,3 +81,5 @@ func BruteXMPP(host string, port int, user, password string, timeout time.Durati
 		return true, true
 	}
 }
+
+func init() { Register("xmpp", BruteXMPP) }

@@ -95,3 +95,5 @@ func BruteSMTP(host string, port int, user, password string, timeout time.Durati
 		return r.authSuccess, r.connSuccess
 	}
 }
+
+func init() { Register("smtp", BruteSMTP) }

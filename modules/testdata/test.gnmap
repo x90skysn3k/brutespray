@@ -1,0 +1,4 @@
+# Nmap 7.94 scan initiated as: nmap -sV -oG test.gnmap 10.0.0.1-3
+Host: 10.0.0.1 ()	Ports: 22/open/tcp//ssh//OpenSSH 8.9/, 80/open/tcp//http//Apache/
+Host: 10.0.0.2 ()	Ports: 3306/open/tcp//mysql//MySQL 8.0/, 5432/open/tcp//postgres//PostgreSQL/
+Host: 10.0.0.3 ()	Ports: 445/open/tcp//microsoft-ds//Windows SMB/

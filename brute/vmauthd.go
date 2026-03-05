@@ -105,3 +105,5 @@ func BruteVMAuthd(host string, port int, user, password string, timeout time.Dur
 		return r.authSuccess, r.connSuccess
 	}
 }
+
+func init() { Register("vmauthd", BruteVMAuthd) }

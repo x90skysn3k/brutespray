@@ -60,3 +60,5 @@ func BruteTeamSpeak(host string, port int, user, password string, timeout time.D
 
 	return false, false
 }
+
+func init() { Register("teamspeak", BruteTeamSpeak) }

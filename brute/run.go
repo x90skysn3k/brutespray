@@ -151,16 +151,17 @@ func RunBrute(h modules.Host, u string, p string, progressCh chan<- int, timeout
 		// Calculate backoff delay (decoupled from timeout)
 		delayTime := calculateBackoff(retries)
 
-		switch service {
-		case "ssh":
-			result, con_result = BruteSSH(h.Host, h.Port, u, p, timeout, cm)
-		case "ftp":
-			result, con_result = BruteFTP(h.Host, h.Port, u, p, timeout, cm)
-		case "mssql":
-			result, con_result = BruteMSSQL(h.Host, h.Port, u, p, timeout, cm)
-		case "telnet":
-			result, con_result = BruteTelnet(h.Host, h.Port, u, p, timeout, cm)
-		case "smbnt":
+		entry, ok := Lookup(service)
+		if !ok {
+			metrics.RecordAttempt(false, time.Since(startTime))
+			modules.RecordAttempt(false)
+			return BruteResult{AuthSuccess: false, ConnectionSuccess: false}
+		}
+
+		switch {
+		case entry.standard != nil:
+			result, con_result = entry.standard(h.Host, h.Port, u, p, timeout, cm)
+		case entry.withDomain != nil:
 			parsedUser := u
 			parsedDomain := domain
 			if parsedDomain == "" && strings.Contains(u, "\\") {
@@ -170,56 +171,9 @@ func RunBrute(h modules.Host, u string, p string, progressCh chan<- int, timeout
 					parsedUser = parts[1]
 				}
 			}
-			result, con_result = BruteSMB(h.Host, h.Port, parsedUser, p, timeout, cm, parsedDomain)
-		case "postgres":
-			result, con_result = BrutePostgres(h.Host, h.Port, u, p, timeout, cm)
-		case "smtp":
-			result, con_result = BruteSMTP(h.Host, h.Port, u, p, timeout, cm)
-		case "imap":
-			result, con_result = BruteIMAP(h.Host, h.Port, u, p, timeout, cm)
-		case "pop3":
-			result, con_result = BrutePOP3(h.Host, h.Port, u, p, timeout, cm)
-		case "snmp":
-			result, con_result = BruteSNMP(h.Host, h.Port, u, p, timeout, cm)
-		case "mysql":
-			result, con_result = BruteMYSQL(h.Host, h.Port, u, p, timeout, cm)
-		case "vmauthd":
-			result, con_result = BruteVMAuthd(h.Host, h.Port, u, p, timeout, cm)
-		case "asterisk":
-			result, con_result = BruteAsterisk(h.Host, h.Port, u, p, timeout, cm)
-		case "vnc":
-			result, con_result = BruteVNC(h.Host, h.Port, u, p, timeout, cm)
-		case "mongodb":
-			result, con_result = BruteMongoDB(h.Host, h.Port, u, p, timeout, cm)
-		case "nntp":
-			result, con_result = BruteNNTP(h.Host, h.Port, u, p, timeout, cm)
-		case "oracle":
-			result, con_result = BruteOracle(h.Host, h.Port, u, p, timeout, cm)
-		case "teamspeak":
-			result, con_result = BruteTeamSpeak(h.Host, h.Port, u, p, timeout, cm)
-		case "xmpp":
-			result, con_result = BruteXMPP(h.Host, h.Port, u, p, timeout, cm)
-		case "rdp":
-			parsedUser := u
-			parsedDomain := domain
-			if domain == "" && strings.Contains(u, "\\") {
-				parts := strings.SplitN(u, "\\", 2)
-				if len(parts) == 2 {
-					parsedDomain = parts[0]
-					parsedUser = parts[1]
-				}
-			}
-			result, con_result = BruteRDP(h.Host, h.Port, parsedUser, p, timeout, cm, parsedDomain)
-		case "redis":
-			result, con_result = BruteRedis(h.Host, h.Port, u, p, timeout, cm)
-		case "http":
-			result, con_result = BruteHTTP(h.Host, h.Port, u, p, timeout, cm, false)
-		case "https":
-			result, con_result = BruteHTTP(h.Host, h.Port, u, p, timeout, cm, true)
-		default:
-			metrics.RecordAttempt(false, time.Since(startTime))
-			modules.RecordAttempt(false)
-			return BruteResult{AuthSuccess: false, ConnectionSuccess: false}
+			result, con_result = entry.withDomain(h.Host, h.Port, parsedUser, p, timeout, cm, parsedDomain)
+		case entry.http != nil:
+			result, con_result = entry.http(h.Host, h.Port, u, p, timeout, cm, service == "https")
 		}
 
 		if con_result {

@@ -54,3 +54,5 @@ func BrutePostgres(host string, port int, user, password string, timeout time.Du
 	}
 	return true, true
 }
+
+func init() { Register("postgres", BrutePostgres) }
