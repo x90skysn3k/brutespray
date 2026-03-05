@@ -1,48 +1,61 @@
 package brute
 
 import (
+	"bufio"
 	"fmt"
 	"strings"
 	"time"
 
-	"github.com/wenerme/astgo/ami"
 	"github.com/x90skysn3k/brutespray/modules"
 )
 
-// BruteAsterisk is an alpha module — results may be inaccurate.
-// NOTE: The ami library makes its own TCP connection; SOCKS5 proxy and
-// interface binding do not apply. The CM dial serves as a reachability check.
 func BruteAsterisk(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) (bool, bool) {
-	target := fmt.Sprintf("%s:%d", host, port)
+	addr := fmt.Sprintf("%s:%d", host, port)
 
-	// Reachability check via CM (proxy/interface aware)
-	conn, err := cm.Dial("tcp", target)
+	conn, err := cm.Dial("tcp", addr)
 	if err != nil {
 		return false, false
 	}
-	conn.Close()
+	defer conn.Close()
 
-	if cm.Socks5 != "" {
-		modules.PrintProxyWarning("asterisk")
+	deadline := time.Now().Add(timeout)
+	_ = conn.SetDeadline(deadline)
+
+	r := bufio.NewReader(conn)
+
+	// Read AMI banner (e.g., "Asterisk Call Manager/...")
+	banner, err := r.ReadString('\n')
+	if err != nil || !strings.Contains(banner, "Asterisk") {
+		return false, false
 	}
 
-	boot := make(chan *ami.Message, 1)
-
-	amiConn, err := ami.Connect(
-		target,
-		ami.WithAuth(user, password),
-		ami.WithSubscribe(ami.SubscribeFullyBootedChanOnce(boot)),
-	)
+	// Send Login action
+	loginCmd := fmt.Sprintf("Action: Login\r\nUsername: %s\r\nSecret: %s\r\n\r\n", user, password)
+	_, err = conn.Write([]byte(loginCmd))
 	if err != nil {
-		return false, true
+		return false, false
 	}
 
-	<-boot
+	// Read response lines until we find Response: or hit blank line
+	for {
+		line, err := r.ReadString('\n')
+		if err != nil {
+			return false, false
+		}
+		line = strings.TrimSpace(line)
 
-	closeErr := amiConn.Close()
-	if closeErr != nil && strings.Contains(closeErr.Error(), "Authentication accepted") {
-		return true, true
+		if strings.HasPrefix(line, "Response:") {
+			if strings.Contains(line, "Success") {
+				// Send Logoff
+				_, _ = conn.Write([]byte("Action: Logoff\r\n\r\n"))
+				return true, true
+			}
+			return false, true
+		}
+
+		// Empty line marks end of response block
+		if line == "" {
+			return false, true
+		}
 	}
-
-	return false, true
 }

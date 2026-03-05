@@ -50,72 +50,65 @@ func GetUsersAndPasswordsCombo(h *Host, combo string, version string) ([]string,
 	return userSlice, passSlice
 }
 
-func GetUsersAndPasswords(h *Host, user string, password string, version string) ([]string, []string) {
-	userCh := make(chan string)
-	passCh := make(chan string)
+func GetUsersAndPasswords(h *Host, user string, password string, version string) ([]string, []string, error) {
+	type result struct {
+		words []string
+		err   error
+	}
+	userCh := make(chan result, 1)
+	passCh := make(chan result, 1)
 
 	go func() {
-		defer close(userCh)
 		if user != "" {
 			if IsFile(user) {
 				users, err := ReadUsersFromFile(user)
 				if err != nil {
-					fmt.Println("Error reading user file:", err)
-					os.Exit(1)
+					userCh <- result{nil, fmt.Errorf("reading user file: %w", err)}
+					return
 				}
-				for _, u := range users {
-					userCh <- u
-				}
+				userCh <- result{users, nil}
 			} else {
-				userCh <- user
+				userCh <- result{[]string{user}, nil}
 			}
 		} else {
-			var users []string = GetUsersFromDefaultWordlist(version, h.Service)
-			for _, u := range users {
-				userCh <- u
-			}
+			users, err := GetUsersFromDefaultWordlist(version, h.Service)
+			userCh <- result{users, err}
 		}
 	}()
 
 	go func() {
-		defer close(passCh)
 		if password != "" {
 			if IsFile(password) {
 				passwords, err := ReadPasswordsFromFile(password)
 				if err != nil {
-					fmt.Println("Error reading password file:", err)
-					os.Exit(1)
+					passCh <- result{nil, fmt.Errorf("reading password file: %w", err)}
+					return
 				}
-				for _, p := range passwords {
-					passCh <- p
-				}
+				passCh <- result{passwords, nil}
 			} else {
-				passCh <- password
+				passCh <- result{[]string{password}, nil}
 			}
 		} else {
 			if UseEmptyPassword {
-				// Use a single empty password as explicitly requested
-				passCh <- ""
+				passCh <- result{[]string{""}, nil}
 			} else {
-				var passwords []string = GetPasswordsFromDefaultWordlist(version, h.Service)
-				for _, p := range passwords {
-					passCh <- p
-				}
+				passwords, err := GetPasswordsFromDefaultWordlist(version, h.Service)
+				passCh <- result{passwords, err}
 			}
 		}
 	}()
 
-	userSlice := []string{}
-	for u := range userCh {
-		userSlice = append(userSlice, u)
+	userResult := <-userCh
+	if userResult.err != nil {
+		return nil, nil, userResult.err
 	}
 
-	passwordSlice := []string{}
-	for p := range passCh {
-		passwordSlice = append(passwordSlice, p)
+	passResult := <-passCh
+	if passResult.err != nil {
+		return nil, nil, passResult.err
 	}
 
-	return userSlice, passwordSlice
+	return userResult.words, passResult.words, nil
 }
 
 func CalcCombinations(userCh []string, passCh []string) int {

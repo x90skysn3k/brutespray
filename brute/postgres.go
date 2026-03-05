@@ -1,72 +1,56 @@
 package brute
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"net"
 	"time"
 
-	_ "github.com/lib/pq"
+	"github.com/lib/pq"
 	"github.com/x90skysn3k/brutespray/modules"
 )
 
+// pqDialer wraps a ConnectionManager to implement the pq.Dialer
+// interface so connections go through SOCKS5/interface binding.
+type pqDialer struct {
+	cm *modules.ConnectionManager
+}
+
+func (d *pqDialer) Dial(network, address string) (net.Conn, error) {
+	return d.cm.Dial(network, address)
+}
+
+func (d *pqDialer) DialTimeout(network, address string, timeout time.Duration) (net.Conn, error) {
+	conn, err := d.cm.Dial(network, address)
+	if err != nil {
+		return nil, err
+	}
+	_ = conn.SetDeadline(time.Now().Add(timeout))
+	return conn, nil
+}
+
 func BrutePostgres(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) (bool, bool) {
-	timer := time.NewTimer(timeout)
-	defer timer.Stop()
+	connStr := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=postgres sslmode=disable", host, port, user, password)
 
-	type result struct {
-		client *sql.DB
-		err    error
+	connector, err := pq.NewConnector(connStr)
+	if err != nil {
+		return false, false
 	}
-	done := make(chan result, 1)
+	connector.Dialer(&pqDialer{cm: cm})
 
-	// Keep a reference to conn so we can force-close it on timeout
-	var conn net.Conn
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
 
-	go func() {
-		var err error
-		conn, err = cm.Dial("tcp", fmt.Sprintf("%s:%d", host, port))
-		if err != nil {
-			done <- result{nil, err}
-			return
-		}
-		defer conn.Close()
+	db := sql.OpenDB(connector)
+	defer db.Close()
 
-		connStr := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=postgres sslmode=disable", host, port, user, password)
-
-		db, err := sql.Open("postgres", connStr)
-		if err != nil {
-			done <- result{nil, err}
-			return
+	err = db.PingContext(ctx)
+	if err != nil {
+		if ctx.Err() != nil {
+			return false, false // timeout = connection issue
 		}
-		defer db.Close()
-
-		err = db.Ping()
-		done <- result{db, err}
-	}()
-
-	select {
-	case <-timer.C:
-		// Force the blocked goroutine to exit
-		if conn != nil {
-			_ = conn.SetDeadline(time.Now())
-		}
-		select {
-		case result := <-done:
-			if result.err != nil {
-				return false, true
-			}
-			return true, true
-		default:
-			return false, false
-		}
-	case result := <-done:
-		if result.client != nil {
-			_ = result.client
-		}
-		if result.err != nil {
-			return false, true
-		}
-		return true, true
+		return false, true
 	}
+	return true, true
 }
