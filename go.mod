@@ -20,6 +20,7 @@ require (
 	go.mongodb.org/mongo-driver v1.17.9
 	golang.org/x/crypto v0.48.0
 	golang.org/x/net v0.51.0
+	gopkg.in/yaml.v3 v3.0.1
 	gosrc.io/xmpp v0.5.1
 )
 
