@@ -10,12 +10,12 @@ import (
 	"github.com/x90skysn3k/brutespray/modules"
 )
 
-func BruteLDAP(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) (bool, bool) {
+func BruteLDAP(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) *BruteResult {
 	addr := fmt.Sprintf("%s:%d", host, port)
 
 	conn, err := cm.Dial("tcp", addr)
 	if err != nil {
-		return false, false
+		return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
 	}
 
 	_ = conn.SetDeadline(time.Now().Add(timeout))
@@ -29,7 +29,7 @@ func BruteLDAP(host string, port int, user, password string, timeout time.Durati
 		})
 		if err := tlsConn.Handshake(); err != nil {
 			conn.Close()
-			return false, false
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
 		}
 		l = ldap.NewConn(tlsConn, true)
 	} else {
@@ -41,16 +41,16 @@ func BruteLDAP(host string, port int, user, password string, timeout time.Durati
 	err = l.Bind(user, password)
 	if err != nil {
 		if ldap.IsErrorWithCode(err, ldap.LDAPResultInvalidCredentials) {
-			return false, true
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: err}
 		}
 		// Check if it's a network error
 		if _, ok := err.(*net.OpError); ok {
-			return false, false
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
 		}
-		return false, true
+		return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: err}
 	}
 
-	return true, true
+	return &BruteResult{AuthSuccess: true, ConnectionSuccess: true}
 }
 
 func init() {

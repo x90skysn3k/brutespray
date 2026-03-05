@@ -28,7 +28,7 @@ func (d *mssqlDialer) DialContext(ctx context.Context, network, addr string) (ne
 	return conn, nil
 }
 
-func BruteMSSQL(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) (bool, bool) {
+func BruteMSSQL(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) *BruteResult {
 	connString := fmt.Sprintf("server=%s;port=%d;user id=%s;password=%s", host, port, user, password)
 
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
@@ -36,7 +36,7 @@ func BruteMSSQL(host string, port int, user, password string, timeout time.Durat
 
 	connector, err := mssql.NewConnector(connString)
 	if err != nil {
-		return false, false
+		return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
 	}
 	connector.Dialer = &mssqlDialer{cm: cm}
 
@@ -46,12 +46,12 @@ func BruteMSSQL(host string, port int, user, password string, timeout time.Durat
 	err = db.PingContext(ctx)
 	if err != nil {
 		if ctx.Err() != nil {
-			return false, false // timeout = likely connection issue
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err} // timeout = likely connection issue
 		}
-		return false, true
+		return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: err}
 	}
 
-	return true, true
+	return &BruteResult{AuthSuccess: true, ConnectionSuccess: true}
 }
 
 func init() { Register("mssql", BruteMSSQL) }

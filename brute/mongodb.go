@@ -29,7 +29,7 @@ func (cdw *ContextDialerWrapper) DialContext(ctx context.Context, network, addre
 	return conn, nil
 }
 
-func BruteMongoDB(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) (bool, bool) {
+func BruteMongoDB(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) *BruteResult {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
@@ -40,7 +40,7 @@ func BruteMongoDB(host string, port int, user, password string, timeout time.Dur
 		SetDialer(dialer)
 	client, err := mongo.Connect(ctx, clientOptions)
 	if err != nil {
-		return false, false
+		return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
 	}
 	defer func() {
 		if err := client.Disconnect(ctx); err != nil {
@@ -51,15 +51,15 @@ func BruteMongoDB(host string, port int, user, password string, timeout time.Dur
 	err = client.Database("admin").RunCommand(ctx, map[string]interface{}{"ping": 1}).Err()
 	if err != nil {
 		if mongo.IsTimeout(err) {
-			return false, false
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
 		}
 		if isAuthError(err) {
-			return false, true
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: err}
 		}
-		return false, true
+		return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: err}
 	}
 
-	return true, true
+	return &BruteResult{AuthSuccess: true, ConnectionSuccess: true}
 }
 
 func isAuthError(err error) bool {

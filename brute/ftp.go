@@ -9,7 +9,7 @@ import (
 	"github.com/x90skysn3k/brutespray/modules"
 )
 
-func BruteFTP(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) (bool, bool) {
+func BruteFTP(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) *BruteResult {
 	timer := time.NewTimer(timeout)
 	defer timer.Stop()
 
@@ -22,7 +22,7 @@ func BruteFTP(host string, port int, user, password string, timeout time.Duratio
 	// Dial outside the goroutine to avoid a data race on conn.
 	conn, err := cm.Dial("tcp", fmt.Sprintf("%s:%d", host, port))
 	if err != nil {
-		return false, false
+		return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
 	}
 
 	go func() {
@@ -52,12 +52,12 @@ func BruteFTP(host string, port int, user, password string, timeout time.Duratio
 				_ = result.client.Quit()
 			}
 			if result.err != nil {
-				return false, true
+				return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: result.err}
 			}
-			return true, true
+			return &BruteResult{AuthSuccess: true, ConnectionSuccess: true}
 		default:
 			conn.Close()
-			return false, false
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: nil}
 		}
 	case result := <-done:
 		conn.Close()
@@ -65,9 +65,9 @@ func BruteFTP(host string, port int, user, password string, timeout time.Duratio
 			_ = result.client.Quit()
 		}
 		if result.err != nil {
-			return false, true
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: result.err}
 		}
-		return true, true
+		return &BruteResult{AuthSuccess: true, ConnectionSuccess: true}
 	}
 }
 

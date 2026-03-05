@@ -9,12 +9,12 @@ import (
 	"github.com/x90skysn3k/brutespray/modules"
 )
 
-func BruteAsterisk(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) (bool, bool) {
+func BruteAsterisk(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) *BruteResult {
 	addr := fmt.Sprintf("%s:%d", host, port)
 
 	conn, err := cm.Dial("tcp", addr)
 	if err != nil {
-		return false, false
+		return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
 	}
 	defer conn.Close()
 
@@ -26,21 +26,21 @@ func BruteAsterisk(host string, port int, user, password string, timeout time.Du
 	// Read AMI banner (e.g., "Asterisk Call Manager/...")
 	banner, err := r.ReadString('\n')
 	if err != nil || !strings.Contains(banner, "Asterisk") {
-		return false, false
+		return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
 	}
 
 	// Send Login action
 	loginCmd := fmt.Sprintf("Action: Login\r\nUsername: %s\r\nSecret: %s\r\n\r\n", user, password)
 	_, err = conn.Write([]byte(loginCmd))
 	if err != nil {
-		return false, false
+		return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
 	}
 
 	// Read response lines until we find Response: or hit blank line
 	for {
 		line, err := r.ReadString('\n')
 		if err != nil {
-			return false, false
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
 		}
 		line = strings.TrimSpace(line)
 
@@ -48,14 +48,14 @@ func BruteAsterisk(host string, port int, user, password string, timeout time.Du
 			if strings.Contains(line, "Success") {
 				// Send Logoff
 				_, _ = conn.Write([]byte("Action: Logoff\r\n\r\n"))
-				return true, true
+				return &BruteResult{AuthSuccess: true, ConnectionSuccess: true}
 			}
-			return false, true
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: nil}
 		}
 
 		// Empty line marks end of response block
 		if line == "" {
-			return false, true
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: nil}
 		}
 	}
 }

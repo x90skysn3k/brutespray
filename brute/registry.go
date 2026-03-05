@@ -8,13 +8,13 @@ import (
 )
 
 // BruteFunc is the standard signature for a brute-force module.
-type BruteFunc func(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) (authSuccess bool, connSuccess bool)
+type BruteFunc func(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) *BruteResult
 
 // BruteFuncWithDomain is for modules that require a domain parameter (SMB, RDP).
-type BruteFuncWithDomain func(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager, domain string) (authSuccess bool, connSuccess bool)
+type BruteFuncWithDomain func(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager, domain string) *BruteResult
 
 // BruteFuncHTTP is for the HTTP module that needs the useHTTPS flag.
-type BruteFuncHTTP func(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager, useHTTPS bool) (authSuccess bool, connSuccess bool)
+type BruteFuncHTTP func(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager, useHTTPS bool) *BruteResult
 
 type moduleEntry struct {
 	standard   BruteFunc

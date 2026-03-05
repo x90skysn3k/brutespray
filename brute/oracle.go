@@ -28,13 +28,13 @@ func (d *oracleDialer) DialContext(ctx context.Context, network, address string)
 	return conn, nil
 }
 
-func BruteOracle(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) (bool, bool) {
+func BruteOracle(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) *BruteResult {
 	connString := fmt.Sprintf("oracle://%s:%s@%s:%d/", user, password, host, port)
 
 	connector := go_ora.NewConnector(connString)
 	oraConn, ok := connector.(*go_ora.OracleConnector)
 	if !ok {
-		return false, false
+		return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: nil}
 	}
 	oraConn.Dialer(&oracleDialer{cm: cm})
 
@@ -47,11 +47,11 @@ func BruteOracle(host string, port int, user, password string, timeout time.Dura
 	err := db.PingContext(ctx)
 	if err != nil {
 		if ctx.Err() != nil {
-			return false, false // timeout = connection issue
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err} // timeout = connection issue
 		}
-		return false, true
+		return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: err}
 	}
-	return true, true
+	return &BruteResult{AuthSuccess: true, ConnectionSuccess: true}
 }
 
 func init() { Register("oracle", BruteOracle) }

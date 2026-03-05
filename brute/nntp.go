@@ -8,7 +8,7 @@ import (
 	"github.com/x90skysn3k/brutespray/modules"
 )
 
-func BruteNNTP(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) (bool, bool) {
+func BruteNNTP(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) *BruteResult {
 	timer := time.NewTimer(timeout)
 	defer timer.Stop()
 
@@ -65,20 +65,20 @@ func BruteNNTP(host string, port int, user, password string, timeout time.Durati
 				r.client.Close()
 			}
 			if r.err != nil {
-				return false, true
+				return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: r.err}
 			}
-			return true, true
+			return &BruteResult{AuthSuccess: true, ConnectionSuccess: true}
 		default:
-			return false, false
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: nil}
 		}
 	case r := <-done:
 		if r.client != nil {
 			defer r.client.Close()
 		}
 		if r.err != nil {
-			return false, true
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: r.err}
 		}
-		return true, true
+		return &BruteResult{AuthSuccess: true, ConnectionSuccess: true}
 	}
 }
 
