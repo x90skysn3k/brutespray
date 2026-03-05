@@ -16,7 +16,7 @@ require (
 	github.com/mitchellh/go-vnc v0.0.0-20150629162542-723ed9867aed
 	github.com/pterm/pterm v0.12.83
 	github.com/sijms/go-ora/v2 v2.9.0
-	github.com/x90skysn3k/grdp v1.0.0
+	github.com/x90skysn3k/grdp v1.0.1
 	go.mongodb.org/mongo-driver v1.17.9
 	golang.org/x/crypto v0.48.0
 	golang.org/x/net v0.51.0
@@ -51,8 +51,6 @@ require (
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/hashicorp/go-uuid v1.0.3 // indirect
-	github.com/huin/asn1ber v0.0.0-20120622192748-af09f62e6358 // indirect
-	github.com/icodeface/tls v0.0.0-20230910023335-34df9250cd12 // indirect
 	github.com/jcmturner/aescts/v2 v2.0.0 // indirect
 	github.com/jcmturner/dnsutils/v2 v2.0.0 // indirect
 	github.com/jcmturner/gofork v1.7.6 // indirect
