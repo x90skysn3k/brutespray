@@ -5,34 +5,62 @@ import (
 	"time"
 
 	"github.com/emersion/go-imap/client"
-	"github.com/x90skysn3k/brutespray/modules"
+	"github.com/x90skysn3k/brutespray/v2/modules"
 )
 
-func BruteIMAP(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) (bool, bool) {
+func BruteIMAP(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) *BruteResult {
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+
+	type result struct {
+		authSuccess bool
+		connSuccess bool
+	}
+	done := make(chan result, 1)
+
 	conn, err := cm.Dial("tcp", fmt.Sprintf("%s:%d", host, port))
 	if err != nil {
-		// modules.PrintSocksError("imap", fmt.Sprintf("%v", err))
-		return false, false
-	}
-	// Client takes ownership of conn? No, we usually need to close it or client.Logout()
-	if err := conn.SetDeadline(time.Now().Add(timeout)); err != nil {
-		conn.Close()
-		return false, false
+		return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
 	}
 
-	c, err := client.New(conn)
-	if err != nil {
-		conn.Close()
-		return false, true
-	}
-	defer func() {
-		_ = c.Logout()
+	go func() {
+		defer conn.Close()
+
+		if err := conn.SetDeadline(time.Now().Add(timeout)); err != nil {
+			done <- result{false, false}
+			return
+		}
+
+		c, err := client.New(conn)
+		if err != nil {
+			done <- result{false, true}
+			return
+		}
+		defer func() {
+			_ = c.Logout()
+		}()
+
+		err = c.Login(user, password)
+		if err != nil {
+			done <- result{false, true}
+			return
+		}
+
+		done <- result{true, true}
 	}()
 
-	err = c.Login(user, password)
-	if err != nil {
-		return false, true
+	select {
+	case <-timer.C:
+		_ = conn.SetDeadline(time.Now())
+		select {
+		case r := <-done:
+			return &BruteResult{AuthSuccess: r.authSuccess, ConnectionSuccess: r.connSuccess}
+		default:
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: nil}
+		}
+	case r := <-done:
+		return &BruteResult{AuthSuccess: r.authSuccess, ConnectionSuccess: r.connSuccess}
 	}
-
-	return true, true
 }
+
+func init() { Register("imap", BruteIMAP) }

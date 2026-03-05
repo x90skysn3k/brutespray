@@ -8,10 +8,10 @@ import (
 	"time"
 
 	"github.com/go-redis/redis/v8"
-	"github.com/x90skysn3k/brutespray/modules"
+	"github.com/x90skysn3k/brutespray/v2/modules"
 )
 
-func BruteRedis(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) (bool, bool) {
+func BruteRedis(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) *BruteResult {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
@@ -36,12 +36,14 @@ func BruteRedis(host string, port int, user, password string, timeout time.Durat
 			strings.Contains(msg, "NOAUTH") ||
 			strings.Contains(msg, "ERR invalid password") ||
 			strings.Contains(msg, "invalid username-password pair") {
-			return false, true
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: err}
 		}
 		// If it's not an explicit auth error, assume connection failure
 		// (timeout, connection refused, etc.)
-		return false, false
+		return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
 	}
 
-	return true, true
+	return &BruteResult{AuthSuccess: true, ConnectionSuccess: true}
 }
+
+func init() { Register("redis", BruteRedis) }

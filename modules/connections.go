@@ -13,8 +13,15 @@ import (
 	"golang.org/x/net/proxy"
 )
 
-// InsecureTLS controls whether HTTPS/TLS verification is disabled for HTTP(S) modules
-var InsecureTLS bool
+// maxConnAge is the maximum age of a pooled connection before it is discarded.
+const maxConnAge = 30 * time.Second
+
+// timedConn wraps a net.Conn and records when it was created so the pool can
+// discard connections that have been idle for too long.
+type timedConn struct {
+	net.Conn
+	created time.Time
+}
 
 type ConnectionManager struct {
 	Socks5           string
@@ -109,7 +116,7 @@ func NewConnectionManager(socks5 string, timeout time.Duration, iface ...string)
 		TLSHandshakeTimeout:   timeout,
 		ResponseHeaderTimeout: timeout,
 		ExpectContinueTimeout: 1 * time.Second,
-		TLSClientConfig:       &tls.Config{InsecureSkipVerify: InsecureTLS},
+		TLSClientConfig:       &tls.Config{InsecureSkipVerify: true},
 		MaxIdleConns:          1000,
 		MaxIdleConnsPerHost:   100,
 		IdleConnTimeout:       90 * time.Second,
@@ -126,6 +133,29 @@ func NewConnectionManager(socks5 string, timeout time.Duration, iface ...string)
 	return cm, nil
 }
 
+// isConnAlive performs a non-destructive liveness check that works for any
+// net.Conn implementation (including SOCKS5 proxy connections). It sets a
+// very short read deadline; a timeout error means the connection is still
+// alive (nothing to read but not closed), while any other error means it is
+// dead.
+func isConnAlive(conn net.Conn) bool {
+	_ = conn.SetReadDeadline(time.Now().Add(1 * time.Millisecond))
+	buf := make([]byte, 1)
+	_, err := conn.Read(buf)
+	// Reset deadline regardless of outcome
+	_ = conn.SetReadDeadline(time.Time{})
+	if err == nil {
+		// Got data unexpectedly — connection may be in a weird state, treat as dead
+		return false
+	}
+	if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+		// Timeout means no data and not closed — connection is alive
+		return true
+	}
+	// EOF or other error — connection is dead
+	return false
+}
+
 func (cm *ConnectionManager) Dial(network, address string) (net.Conn, error) {
 	key := fmt.Sprintf("%s:%s", network, address)
 
@@ -135,10 +165,15 @@ func (cm *ConnectionManager) Dial(network, address string) (net.Conn, error) {
 		select {
 		case conn := <-pool:
 			if conn != nil {
-				if tcpConn, ok := conn.(*net.TCPConn); ok {
-					if _, err := tcpConn.Write([]byte{}); err == nil {
-						return conn, nil
+				// Check TTL — discard connections older than maxConnAge
+				if tc, ok := conn.(*timedConn); ok {
+					if time.Since(tc.created) > maxConnAge {
+						conn.Close()
+						break
 					}
+				}
+				if isConnAlive(conn) {
+					return conn, nil
 				}
 				conn.Close()
 			}
@@ -148,17 +183,22 @@ func (cm *ConnectionManager) Dial(network, address string) (net.Conn, error) {
 		cm.PoolMutex.RUnlock()
 	}
 
-	conn, err := cm.DialFunc(network, address)
+	raw, err := cm.DialFunc(network, address)
 	if err != nil {
 		return nil, err
 	}
 
-	return conn, nil
+	return &timedConn{Conn: raw, created: time.Now()}, nil
 }
 
 func (cm *ConnectionManager) Release(conn net.Conn) {
 	if conn == nil {
 		return
+	}
+
+	// Ensure the connection is wrapped with timing metadata for TTL checks.
+	if _, ok := conn.(*timedConn); !ok {
+		conn = &timedConn{Conn: conn, created: time.Now()}
 	}
 
 	key := fmt.Sprintf("%s:%s", conn.RemoteAddr().Network(), conn.RemoteAddr().String())
@@ -242,64 +282,3 @@ func GetIPv4Address(ifaceName string) (net.IP, error) {
 	return nil, fmt.Errorf("no IPv4 address found for interface %s", ifaceName)
 }
 
-func getDefaultInterface() (string, error) {
-	conn, err := net.Dial("udp", "8.8.8.8:80")
-	if err != nil {
-		return "", fmt.Errorf("failed to determine default interface: %v", err)
-	}
-	defer conn.Close()
-
-	localAddr := conn.LocalAddr().(*net.UDPAddr)
-
-	ifaces, err := net.Interfaces()
-	if err != nil {
-		return "", fmt.Errorf("failed to list interfaces: %v", err)
-	}
-
-	for _, iface := range ifaces {
-		addrs, err := iface.Addrs()
-		if err != nil {
-			continue
-		}
-
-		for _, addr := range addrs {
-			ipNet, ok := addr.(*net.IPNet)
-			if !ok || !ipNet.IP.Equal(localAddr.IP) {
-				continue
-			}
-			return iface.Name, nil
-		}
-	}
-
-	return "", fmt.Errorf("no matching interface found for IP %s", localAddr.IP)
-}
-
-func ValidateNetworkInterface(iface string) (string, error) {
-	ifaceName := iface
-	if ifaceName == "" {
-		defaultIface, err := getDefaultInterface()
-		if err != nil {
-			return "", fmt.Errorf("failed to determine default interface: %v", err)
-		}
-		ifaceName = defaultIface
-	}
-
-	ifaces, err := net.Interfaces()
-	if err != nil {
-		return "", fmt.Errorf("error getting network interfaces: %v", err)
-	}
-
-	found := false
-	for _, iface := range ifaces {
-		if iface.Name == ifaceName {
-			found = true
-			break
-		}
-	}
-
-	if !found {
-		return "", fmt.Errorf("network interface %s not found or not available", ifaceName)
-	}
-
-	return ifaceName, nil
-}

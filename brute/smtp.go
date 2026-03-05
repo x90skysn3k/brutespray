@@ -7,7 +7,7 @@ import (
 	"net/smtp"
 	"time"
 
-	"github.com/x90skysn3k/brutespray/modules"
+	"github.com/x90skysn3k/brutespray/v2/modules"
 )
 
 type plainAuth struct {
@@ -26,62 +26,74 @@ func (a *plainAuth) Start(server *smtp.ServerInfo) (string, []byte, error) {
 
 func (a *plainAuth) Next(fromServer []byte, more bool) ([]byte, error) {
 	if more {
-		// We've already sent everything.
 		return nil, errors.New("unexpected server challenge")
 	}
 	return nil, nil
 }
 
-func BruteSMTP(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) (bool, bool) {
+func BruteSMTP(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) *BruteResult {
 	auth := PlainAuth("", user, password, host)
+
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+
+	type result struct {
+		authSuccess bool
+		connSuccess bool
+	}
+	done := make(chan result, 1)
 
 	conn, err := cm.Dial("tcp", fmt.Sprintf("%s:%d", host, port))
 	if err != nil {
-		return false, false
-	}
-	// Do not close here, we pass it to NewClient
-	if err := conn.SetDeadline(time.Now().Add(timeout)); err != nil {
-		conn.Close()
-		return false, false
+		return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
 	}
 
-	smtpClient, err := smtp.NewClient(conn, host)
-	if err != nil {
-		conn.Close()
-		return false, true
-	}
+	go func() {
+		defer conn.Close()
 
-	defer func() {
-		if err := smtpClient.Quit(); err != nil {
-			// Connection might be closed by Quit
-			conn.Close()
+		if err := conn.SetDeadline(time.Now().Add(timeout)); err != nil {
+			done <- result{false, false}
+			return
 		}
-	}()
 
-	// Note: original code had a separate TLS dialer path which bypassed cm.
-	// We should try to use cm for TLS too if possible, or at least use the cm for the base connection.
-	// The original code logic was bit complex with a separate TLS attempt.
-	// For simplicity and correctness with cm, we stick to the first attempt using cm.
-	// If strict TLS is needed, we should wrap the cm connection.
+		smtpClient, err := smtp.NewClient(conn, host)
+		if err != nil {
+			done <- result{false, true}
+			return
+		}
+		defer smtpClient.Quit() //nolint:errcheck
 
-	// For now, we preserve the original logic structure but use cm where possible.
-	// The original code attempted plain connection, then a separate TLS connection.
+		if err := smtpClient.Auth(auth); err == nil {
+			done <- result{true, true}
+			return
+		}
 
-	if err := smtpClient.Auth(auth); err == nil {
-		return true, false
-	}
-
-	// If plain auth failed, try TLS (STARTTLS or direct)
-	// The original code created a NEW tls connection.
-	// We can try to STARTTLS on the existing client if supported.
-	if ok, _ := smtpClient.Extension("STARTTLS"); ok {
-		config := &tls.Config{ServerName: host, InsecureSkipVerify: true}
-		if err := smtpClient.StartTLS(config); err == nil {
-			if err := smtpClient.Auth(auth); err == nil {
-				return true, false
+		// If plain auth failed, try STARTTLS if supported
+		if ok, _ := smtpClient.Extension("STARTTLS"); ok {
+			config := &tls.Config{ServerName: host, InsecureSkipVerify: true}
+			if err := smtpClient.StartTLS(config); err == nil {
+				if err := smtpClient.Auth(auth); err == nil {
+					done <- result{true, true}
+					return
+				}
 			}
 		}
-	}
 
-	return false, true
+		done <- result{false, true}
+	}()
+
+	select {
+	case <-timer.C:
+		_ = conn.SetDeadline(time.Now())
+		select {
+		case r := <-done:
+			return &BruteResult{AuthSuccess: r.authSuccess, ConnectionSuccess: r.connSuccess}
+		default:
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: nil}
+		}
+	case r := <-done:
+		return &BruteResult{AuthSuccess: r.authSuccess, ConnectionSuccess: r.connSuccess}
+	}
 }
+
+func init() { Register("smtp", BruteSMTP) }

@@ -1,62 +1,57 @@
 package brute
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
+	"net"
 	"time"
 
-	_ "github.com/sijms/go-ora/v2"
-	"github.com/x90skysn3k/brutespray/modules"
+	go_ora "github.com/sijms/go-ora/v2"
+	"github.com/x90skysn3k/brutespray/v2/modules"
 )
 
-func BruteOracle(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) (bool, bool) {
-
-	connectionString := fmt.Sprintf("%s:%s@%s:%d", user, password, host, port)
-
-	conn, err := cm.Dial("tcp", fmt.Sprintf("%s:%d", host, port))
-	if err != nil {
-		_ = err
-		//fmt.Println("Connection Error:", err)
-		return false, false
-	}
-	defer conn.Close()
-
-	timer := time.NewTimer(timeout)
-	defer timer.Stop()
-
-	type result struct {
-		db  *sql.DB
-		err error
-	}
-
-	done := make(chan result, 1)
-	go func() {
-		db, err := sql.Open("oracle", connectionString)
-		if err != nil {
-			done <- result{nil, err}
-			return
-		}
-		err = db.Ping()
-		done <- result{db, err}
-	}()
-
-	select {
-	case <-timer.C:
-		select {
-		case res := <-done:
-			if res.err != nil {
-				return false, true
-			}
-			defer res.db.Close()
-			return true, true
-		default:
-			return false, false
-		}
-	case res := <-done:
-		if res.err != nil {
-			return false, true
-		}
-		defer res.db.Close()
-		return true, true
-	}
+// oracleDialer wraps a ConnectionManager to implement the go-ora
+// DialerContext interface so connections go through SOCKS5/interface binding.
+type oracleDialer struct {
+	cm *modules.ConnectionManager
 }
+
+func (d *oracleDialer) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
+	conn, err := d.cm.Dial(network, address)
+	if err != nil {
+		return nil, err
+	}
+	if deadline, ok := ctx.Deadline(); ok {
+		_ = conn.SetDeadline(deadline)
+	}
+	return conn, nil
+}
+
+func BruteOracle(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) *BruteResult {
+	connString := fmt.Sprintf("oracle://%s:%s@%s:%d/", user, password, host, port)
+
+	connector := go_ora.NewConnector(connString)
+	oraConn, ok := connector.(*go_ora.OracleConnector)
+	if !ok {
+		return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: nil}
+	}
+	oraConn.Dialer(&oracleDialer{cm: cm})
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	db := sql.OpenDB(connector)
+	defer db.Close()
+
+	err := db.PingContext(ctx)
+	if err != nil {
+		if ctx.Err() != nil {
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err} // timeout = connection issue
+		}
+		return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: err}
+	}
+	return &BruteResult{AuthSuccess: true, ConnectionSuccess: true}
+}
+
+func init() { Register("oracle", BruteOracle) }

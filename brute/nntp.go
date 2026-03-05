@@ -5,10 +5,10 @@ import (
 	"net/textproto"
 	"time"
 
-	"github.com/x90skysn3k/brutespray/modules"
+	"github.com/x90skysn3k/brutespray/v2/modules"
 )
 
-func BruteNNTP(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) (bool, bool) {
+func BruteNNTP(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) *BruteResult {
 	timer := time.NewTimer(timeout)
 	defer timer.Stop()
 
@@ -60,20 +60,26 @@ func BruteNNTP(host string, port int, user, password string, timeout time.Durati
 	select {
 	case <-timer.C:
 		select {
-		case result := <-done:
-			if result.err != nil {
-				return false, true
+		case r := <-done:
+			if r.client != nil {
+				r.client.Close()
 			}
-			result.client.Close()
-			return true, true
+			if r.err != nil {
+				return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: r.err}
+			}
+			return &BruteResult{AuthSuccess: true, ConnectionSuccess: true}
 		default:
-			return false, false
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: nil}
 		}
-	case result := <-done:
-		if result.err != nil {
-			return false, true
+	case r := <-done:
+		if r.client != nil {
+			defer r.client.Close()
 		}
-		result.client.Close()
-		return true, true
+		if r.err != nil {
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: r.err}
+		}
+		return &BruteResult{AuthSuccess: true, ConnectionSuccess: true}
 	}
 }
+
+func init() { Register("nntp", BruteNNTP) }

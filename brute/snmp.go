@@ -1,87 +1,73 @@
 package brute
 
 import (
+	"context"
 	"crypto/md5"
 	"encoding/hex"
 	"fmt"
 	"time"
 
 	"github.com/gosnmp/gosnmp"
-	"github.com/x90skysn3k/brutespray/modules"
+	"github.com/x90skysn3k/brutespray/v2/modules"
 )
 
-func BruteSNMP(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) (bool, bool) {
-	timer := time.NewTimer(timeout)
-	defer timer.Stop()
-
+func BruteSNMP(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) *BruteResult {
 	hasher := md5.New()
 	hasher.Write([]byte(password))
 	md5Password := hex.EncodeToString(hasher.Sum(nil))
 
 	communityStrings := []string{user, md5Password}
 
-	type result struct {
-		success bool
-		err     error
+	// Pre-dial to check connectivity (UDP proxy not supported)
+	udpConn, err := cm.DialUDP("udp", fmt.Sprintf("%s:%d", host, port))
+	if err != nil {
+		return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
 	}
-	done := make(chan result, len(communityStrings))
+	udpConn.Close()
 
-	// Create a handler just to get the default port if needed, but we have port.
+	return RunWithTimeout(timeout, func(ctx context.Context) *BruteResult {
+		type result struct {
+			success bool
+		}
+		done := make(chan result, len(communityStrings))
 
-	for _, communityString := range communityStrings {
-		go func(communityString string) {
-
-			gs := &gosnmp.GoSNMP{
-				Target:    host,
-				Port:      uint16(port),
-				Community: communityString,
-				Version:   gosnmp.Version2c, // Usually v1 or v2c for brute forcing community strings
-				Timeout:   timeout,
-			}
-
-			// Pre-dial to check connectivity/proxy (UDP proxy not supported usually but cm handles it)
-			conn, err := cm.DialUDP("udp", fmt.Sprintf("%s:%d", host, port))
-			if err != nil {
-				done <- result{false, err}
-				return
-			}
-
-			conn.Close() // Close our check connection
-
-			err = gs.Connect()
-			if err != nil {
-				done <- result{false, err}
-				return
-			}
-			defer gs.Conn.Close()
-
-			// Try a get to verify community string
-			_, err = gs.Get([]string{".1.3.6.1.2.1.1.1.0"}) // sysDescr
-			if err == nil {
-				done <- result{true, nil}
-			} else {
-				done <- result{false, err}
-			}
-		}(communityString)
-	}
-
-	for i := 0; i < len(communityStrings); i++ {
-		select {
-		case <-timer.C:
-			select {
-			case result := <-done:
-				if result.success {
-					return true, true
+		for _, communityString := range communityStrings {
+			go func(cs string) {
+				gs := &gosnmp.GoSNMP{
+					Target:    host,
+					Port:      uint16(port),
+					Community: cs,
+					Version:   gosnmp.Version2c,
+					Timeout:   timeout / 2, // inner timeout shorter than outer
 				}
-			default:
-				return false, false
-			}
-		case result := <-done:
-			if result.success {
-				return true, true
+
+				err := gs.Connect()
+				if err != nil {
+					done <- result{false}
+					return
+				}
+				defer gs.Conn.Close()
+
+				_, err = gs.Get([]string{".1.3.6.1.2.1.1.1.0"}) // sysDescr
+				done <- result{err == nil}
+			}(communityString)
+		}
+
+		received := 0
+		for received < len(communityStrings) {
+			select {
+			case <-ctx.Done():
+				return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: ctx.Err()}
+			case r := <-done:
+				received++
+				if r.success {
+					return &BruteResult{AuthSuccess: true, ConnectionSuccess: true}
+				}
 			}
 		}
-	}
 
-	return false, true
+		return &BruteResult{AuthSuccess: false, ConnectionSuccess: true}
+	})
 }
+
+func init() { Register("snmp", BruteSNMP) }

@@ -6,10 +6,10 @@ import (
 	"time"
 
 	"github.com/jlaffaye/ftp"
-	"github.com/x90skysn3k/brutespray/modules"
+	"github.com/x90skysn3k/brutespray/v2/modules"
 )
 
-func BruteFTP(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) (bool, bool) {
+func BruteFTP(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) *BruteResult {
 	timer := time.NewTimer(timeout)
 	defer timer.Stop()
 
@@ -19,14 +19,13 @@ func BruteFTP(host string, port int, user, password string, timeout time.Duratio
 	}
 	done := make(chan result, 1)
 
-	go func() {
-		conn, err := cm.Dial("tcp", fmt.Sprintf("%s:%d", host, port))
-		if err != nil {
-			done <- result{nil, err}
-			return
-		}
-		defer conn.Close()
+	// Dial outside the goroutine to avoid a data race on conn.
+	conn, err := cm.Dial("tcp", fmt.Sprintf("%s:%d", host, port))
+	if err != nil {
+		return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
+	}
 
+	go func() {
 		// Set deadline to ensure the goroutine terminates if FTP negotiation hangs
 		if err := conn.SetDeadline(time.Now().Add(timeout)); err != nil {
 			done <- result{nil, err}
@@ -44,25 +43,32 @@ func BruteFTP(host string, port int, user, password string, timeout time.Duratio
 
 	select {
 	case <-timer.C:
+		// Force the blocked goroutine to exit by killing the connection
+		_ = conn.SetDeadline(time.Now())
 		select {
 		case result := <-done:
+			conn.Close()
 			if result.client != nil {
 				_ = result.client.Quit()
 			}
 			if result.err != nil {
-				return false, true
+				return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: result.err}
 			}
-			return true, true
+			return &BruteResult{AuthSuccess: true, ConnectionSuccess: true}
 		default:
-			return false, false
+			conn.Close()
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: nil}
 		}
 	case result := <-done:
+		conn.Close()
 		if result.client != nil {
 			_ = result.client.Quit()
 		}
 		if result.err != nil {
-			return false, true
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: result.err}
 		}
-		return true, true
+		return &BruteResult{AuthSuccess: true, ConnectionSuccess: true}
 	}
 }
+
+func init() { Register("ftp", BruteFTP) }

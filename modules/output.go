@@ -87,8 +87,14 @@ var globalStats = &OutputStats{
 	ConnectionErrorHosts: make(map[string]int),
 }
 
+// OutputMu serializes all terminal writes so the progress bar and result
+// messages don't interleave and produce visual artifacts.
+var OutputMu sync.Mutex
+
 // PrintlnColored prints a colored message with newline
 func PrintlnColored(color pterm.Color, msg string) {
+	OutputMu.Lock()
+	defer OutputMu.Unlock()
 	if NoColorMode {
 		fmt.Println(msg)
 	} else {
@@ -99,6 +105,8 @@ func PrintlnColored(color pterm.Color, msg string) {
 // PrintfColored prints a formatted colored message
 func PrintfColored(color pterm.Color, format string, args ...interface{}) {
 	msg := fmt.Sprintf(format, args...)
+	OutputMu.Lock()
+	defer OutputMu.Unlock()
 	if NoColorMode {
 		fmt.Print(msg)
 	} else {
@@ -122,12 +130,7 @@ func getConResultString(con_result bool, retrying bool, delayTime time.Duration)
 
 // WriteToFile writes success results to individual service files (legacy format)
 func WriteToFile(service string, content string, port int, output string) error {
-	var dir string
-	if output != "brutespray-output" {
-		dir = output
-	} else {
-		dir = output
-	}
+	dir := output
 
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
 		if err := os.MkdirAll(dir, 0755); err != nil {
@@ -295,7 +298,8 @@ func PrintResult(service string, host string, port int, user string, pass string
 			content := fmt.Sprintf("[%s] %s:%d - Password '%s' - %s\n", service, host, port, pass, "SUCCESS")
 			err := WriteToFile(service, content, port, output)
 			if err != nil {
-				fmt.Println("write file error:", err)
+				PrintfColored(pterm.FgRed, "\n[!] WRITE ERROR: could not save credential to file: %v\n", err)
+				PrintfColored(pterm.FgYellow, "[!] CREDENTIAL: %s", content)
 			}
 		} else {
 			msg = fmt.Sprintf("[%s] %s:%d - User '%s' - Pass '%s' - %s", service, host, port, user, pass, "SUCCESS")
@@ -303,7 +307,8 @@ func PrintResult(service string, host string, port int, user string, pass string
 			content := fmt.Sprintf("[%s] %s:%d - User '%s' - Pass '%s' - %s\n", service, host, port, user, pass, "SUCCESS")
 			err := WriteToFile(service, content, port, output)
 			if err != nil {
-				fmt.Println("write file error:", err)
+				PrintfColored(pterm.FgRed, "\n[!] WRITE ERROR: could not save credential to file: %v\n", err)
+				PrintfColored(pterm.FgYellow, "[!] CREDENTIAL: %s", content)
 			}
 		}
 	} else if !result && con_result {
@@ -335,24 +340,54 @@ func PrintResult(service string, host string, port int, user string, pass string
 		}
 	}
 	if shouldPrint {
-		pterm.Println(pterm.NewStyle(color).Sprint(msg))
+		OutputMu.Lock()
+		if NoColorMode {
+			fmt.Println(msg)
+		} else {
+			pterm.Println(pterm.NewStyle(color).Sprint(msg))
+		}
+		OutputMu.Unlock()
 	}
 }
 
 // PrintWarningBeta prints beta service warnings
 func PrintWarningBeta(service string) {
-	pterm.Println(pterm.NewStyle(pterm.BgYellow).Sprint(fmt.Sprintf("[!] Warning: %s module is in Beta - results may be inaccurate", service)))
+	msg := fmt.Sprintf("[!] Warning: %s module is in Beta - results may be inaccurate", service)
+	if NoColorMode {
+		fmt.Println(msg)
+	} else {
+		pterm.Println(pterm.NewStyle(pterm.BgYellow).Sprint(msg))
+	}
+}
+
+// PrintProxyWarning prints a warning when SOCKS5 proxy is not supported by a module's underlying library.
+func PrintProxyWarning(service string) {
+	msg := fmt.Sprintf("[!] Warning: SOCKS5 proxy not supported for %s — connection will be direct", service)
+	if NoColorMode {
+		fmt.Println(msg)
+	} else {
+		pterm.Println(pterm.NewStyle(pterm.BgYellow).Sprint(msg))
+	}
 }
 
 // PrintSocksError prints SOCKS proxy errors
 func PrintSocksError(service string, err string) {
-	// Keep message but ensure it is concise
-	pterm.Println(pterm.NewStyle(pterm.FgRed).Sprint(fmt.Sprintf("[!] %s: SOCKS5 connection failed - %s", service, err)))
+	msg := fmt.Sprintf("[!] %s: SOCKS5 connection failed - %s", service, err)
+	if NoColorMode {
+		fmt.Println(msg)
+	} else {
+		pterm.Println(pterm.NewStyle(pterm.FgRed).Sprint(msg))
+	}
 }
 
 // PrintSkipping prints host skipping messages
 func PrintSkipping(host string, service string, retries int, maxRetries int) {
-	pterm.Println(pterm.NewStyle(pterm.FgRed).Sprint(fmt.Sprintf("[!] Warning: Skipping %s on %s - max retries (%d/%d) reached", service, host, retries, maxRetries)))
+	msg := fmt.Sprintf("[!] Warning: Skipping %s on %s - max retries (%d/%d) reached", service, host, retries, maxRetries)
+	if NoColorMode {
+		fmt.Println(msg)
+	} else {
+		pterm.Println(pterm.NewStyle(pterm.FgRed).Sprint(msg))
+	}
 }
 
 // PrintComprehensiveSummary prints a comprehensive summary report
@@ -378,6 +413,10 @@ func PrintComprehensiveSummary(outputDir string) {
 
 	// Write human-readable summary
 	writeHumanReadableSummary(&stats, outputDir)
+
+	// Write tool integration files (only if there are successful results)
+	writeMSFResourceScript(&stats, outputDir)
+	writeNetExecCommands(&stats, outputDir)
 }
 
 // printSummaryToConsole prints the summary to console
@@ -600,4 +639,111 @@ func writeHumanReadableSummary(stats *OutputStatsCopy, outputDir string) {
 	fmt.Fprintf(file, "%s\n", strings.Repeat("=", 60))
 
 	fmt.Printf("Human-readable summary written to: %s\n", filename)
+}
+
+// writeMSFResourceScript generates a Metasploit resource script (.rc) from found credentials.
+func writeMSFResourceScript(stats *OutputStatsCopy, outputDir string) {
+	if len(stats.SuccessfulResults) == 0 {
+		return
+	}
+
+	filename := filepath.Join(outputDir, "brutespray-msf.rc")
+	file, err := os.Create(filename)
+	if err != nil {
+		fmt.Printf("Error creating MSF resource script: %v\n", err)
+		return
+	}
+	defer file.Close()
+
+	// Map service names to MSF auxiliary modules
+	msfModules := map[string]string{
+		"ssh":       "auxiliary/scanner/ssh/ssh_login",
+		"ftp":       "auxiliary/scanner/ftp/ftp_login",
+		"telnet":    "auxiliary/scanner/telnet/telnet_login",
+		"mysql":     "auxiliary/scanner/mysql/mysql_login",
+		"postgres":  "auxiliary/scanner/postgres/postgres_login",
+		"mssql":     "auxiliary/scanner/mssql/mssql_login",
+		"smb":       "auxiliary/scanner/smb/smb_login",
+		"smbnt":     "auxiliary/scanner/smb/smb_login",
+		"smtp":      "auxiliary/scanner/smtp/smtp_enum",
+		"vnc":       "auxiliary/scanner/vnc/vnc_login",
+		"rdp":       "auxiliary/scanner/rdp/rdp_scanner",
+		"redis":     "auxiliary/scanner/redis/redis_login",
+		"mongodb":   "auxiliary/scanner/mongodb/mongodb_login",
+		"pop3":      "auxiliary/scanner/pop3/pop3_login",
+		"imap":      "auxiliary/scanner/imap/imap_login",
+		"http":      "auxiliary/scanner/http/http_login",
+		"https":     "auxiliary/scanner/http/http_login",
+	}
+
+	fmt.Fprintf(file, "# Brutespray Metasploit Resource Script\n")
+	fmt.Fprintf(file, "# Generated: %s\n", time.Now().Format("2006-01-02 15:04:05"))
+	fmt.Fprintf(file, "# Found credentials: %d\n\n", len(stats.SuccessfulResults))
+
+	for _, result := range stats.SuccessfulResults {
+		module, ok := msfModules[result.Service]
+		if !ok {
+			fmt.Fprintf(file, "# No MSF module mapping for service: %s (%s:%d)\n", result.Service, result.Host, result.Port)
+			continue
+		}
+		fmt.Fprintf(file, "use %s\n", module)
+		fmt.Fprintf(file, "set RHOSTS %s\n", result.Host)
+		fmt.Fprintf(file, "set RPORT %d\n", result.Port)
+		if result.User != "" {
+			fmt.Fprintf(file, "set USERNAME %s\n", result.User)
+		}
+		fmt.Fprintf(file, "set PASSWORD %s\n", result.Password)
+		if result.Service == "https" {
+			fmt.Fprintf(file, "set SSL true\n")
+		}
+		fmt.Fprintf(file, "run\n\n")
+	}
+
+	fmt.Printf("Metasploit resource script written to: %s\n", filename)
+}
+
+// writeNetExecCommands generates NetExec (formerly CrackMapExec) commands from found credentials.
+func writeNetExecCommands(stats *OutputStatsCopy, outputDir string) {
+	if len(stats.SuccessfulResults) == 0 {
+		return
+	}
+
+	filename := filepath.Join(outputDir, "brutespray-nxc.sh")
+	file, err := os.Create(filename)
+	if err != nil {
+		fmt.Printf("Error creating NetExec commands file: %v\n", err)
+		return
+	}
+	defer file.Close()
+
+	// Map service names to nxc protocol names
+	nxcProtocols := map[string]string{
+		"ssh":    "ssh",
+		"smbnt":  "smb",
+		"rdp":    "rdp",
+		"mssql":  "mssql",
+		"ftp":    "ftp",
+		"winrm":  "winrm",
+		"ldap":   "ldap",
+	}
+
+	fmt.Fprintf(file, "#!/bin/bash\n")
+	fmt.Fprintf(file, "# Brutespray NetExec Commands\n")
+	fmt.Fprintf(file, "# Generated: %s\n", time.Now().Format("2006-01-02 15:04:05"))
+	fmt.Fprintf(file, "# Found credentials: %d\n\n", len(stats.SuccessfulResults))
+
+	for _, result := range stats.SuccessfulResults {
+		proto, ok := nxcProtocols[result.Service]
+		if !ok {
+			fmt.Fprintf(file, "# No nxc protocol for service: %s (%s:%d user:%s)\n", result.Service, result.Host, result.Port, result.User)
+			continue
+		}
+		if result.User != "" {
+			fmt.Fprintf(file, "nxc %s %s -u '%s' -p '%s' --port %d\n", proto, result.Host, result.User, result.Password, result.Port)
+		} else {
+			fmt.Fprintf(file, "nxc %s %s -p '%s' --port %d\n", proto, result.Host, result.Password, result.Port)
+		}
+	}
+
+	fmt.Printf("NetExec commands written to: %s\n", filename)
 }

@@ -5,11 +5,11 @@ import (
 	"net"
 	"time"
 
-	"github.com/x90skysn3k/brutespray/modules"
+	"github.com/x90skysn3k/brutespray/v2/modules"
 	"golang.org/x/crypto/ssh"
 )
 
-func BruteSSH(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) (bool, bool) {
+func BruteSSH(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) *BruteResult {
 	config := &ssh.ClientConfig{
 		User: user,
 		Auth: []ssh.AuthMethod{
@@ -31,9 +31,8 @@ func BruteSSH(host string, port int, user, password string, timeout time.Duratio
 
 	conn, err = cm.Dial("tcp", fmt.Sprintf("%s:%d", host, port))
 	if err != nil {
-		return false, false
+		return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
 	}
-	defer conn.Close()
 
 	go func() {
 		clientConn, clientChannels, clientRequests, err := ssh.NewClientConn(conn, fmt.Sprintf("%s:%d", host, port), config)
@@ -47,24 +46,27 @@ func BruteSSH(host string, port int, user, password string, timeout time.Duratio
 
 	select {
 	case <-timer.C:
-		// Timeout fired, but the auth goroutine may have just succeeded.
-		// Prefer any available result over reporting timeout (avoids missing
-		// valid credentials under high concurrency when both channels are ready).
+		_ = conn.SetDeadline(time.Now())
 		select {
 		case result := <-done:
+			conn.Close()
 			if result.err != nil {
-				return false, true
+				return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: result.err}
 			}
 			result.client.Close()
-			return true, true
+			return &BruteResult{AuthSuccess: true, ConnectionSuccess: true}
 		default:
-			return false, false
+			conn.Close()
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: fmt.Errorf("timeout")}
 		}
 	case result := <-done:
+		conn.Close()
 		if result.err != nil {
-			return false, true
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: result.err}
 		}
 		result.client.Close()
-		return true, true
+		return &BruteResult{AuthSuccess: true, ConnectionSuccess: true}
 	}
 }
+
+func init() { Register("ssh", BruteSSH) }

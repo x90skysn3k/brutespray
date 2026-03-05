@@ -103,6 +103,9 @@ var NAME_MAP = map[string]string{
 	"textui":         "teamspeak",
 	"xmpp-client":    "xmpp",
 	"ms-wbt-server":  "rdp",
+	"ldaps":          "ldaps",
+	"wsman":          "winrm",
+	"wsmans":         "winrm",
 }
 
 func MapService(service string) string {
@@ -116,7 +119,7 @@ func ParseGNMAP(filename string) (map[Host]int, error) {
 	supported := []string{"ssh", "ftp", "postgres", "telnet", "mysql", "ms-sql-s", "shell",
 		"vnc", "imap", "imaps", "nntp", "pcanywheredata", "pop3", "pop3s",
 		"exec", "login", "microsoft-ds", "smtp", "smtps", "submission",
-		"svn", "iss-realsecure", "snmptrap", "snmp", "ms-wbt-server", "mongod", "nntp", "oracle", "textui", "xmpp-client", "redis"}
+		"svn", "iss-realsecure", "snmptrap", "snmp", "ms-wbt-server", "mongod", "nntp", "oracle", "textui", "xmpp-client", "redis", "ldap", "ldaps", "wsman", "wsmans"}
 
 	hosts := make(map[Host]int)
 
@@ -326,7 +329,7 @@ func ParseNessus(filename string) (map[Host]int, error) {
 	return hosts, nil
 }
 func ParseList(filename string) (map[Host]int, error) {
-	supportedServices := []string{"ssh", "ftp", "smtp", "mssql", "telnet", "smbnt", "postgres", "imap", "pop3", "snmp", "mysql", "vmauthd", "asterisk", "vnc", "mongod", "nntp", "oracle", "teamspeak", "xmpp", "rdp", "http", "https", "redis"}
+	supportedServices := []string{"ssh", "ftp", "smtp", "mssql", "telnet", "smbnt", "postgres", "imap", "pop3", "snmp", "mysql", "vmauthd", "asterisk", "vnc", "mongod", "nntp", "oracle", "teamspeak", "xmpp", "rdp", "http", "https", "redis", "ldap", "ldaps", "winrm"}
 	file, err := os.Open(filename)
 	if err != nil {
 		return nil, err
@@ -398,6 +401,9 @@ func (h *Host) Parse(host string) ([]Host, error) {
 		"http":      80,
 		"https":     443,
 		"redis":     6379,
+		"ldap":      389,
+		"ldaps":     636,
+		"winrm":     5985,
 	}
 
 	parts := strings.Split(host, "://")

@@ -6,10 +6,10 @@ import (
 	"time"
 
 	"github.com/hirochachacha/go-smb2"
-	"github.com/x90skysn3k/brutespray/modules"
+	"github.com/x90skysn3k/brutespray/v2/modules"
 )
 
-func BruteSMB(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager, domain string) (bool, bool) {
+func BruteSMB(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager, domain string) *BruteResult {
 	timer := time.NewTimer(timeout)
 	defer timer.Stop()
 
@@ -44,41 +44,33 @@ func BruteSMB(host string, port int, user, password string, timeout time.Duratio
 		done <- result{session, conn, err}
 	}()
 
+	handleResult := func(r result) *BruteResult {
+		if r.err != nil {
+			if r.conn != nil {
+				r.conn.Close()
+			}
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: r.err}
+		}
+		_, err := r.session.ListSharenames()
+		_ = r.session.Logoff()
+		r.conn.Close()
+		if err != nil {
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: err}
+		}
+		return &BruteResult{AuthSuccess: true, ConnectionSuccess: true}
+	}
+
 	select {
 	case <-timer.C:
 		select {
-		case result := <-done:
-			if result.err != nil {
-				if result.conn != nil {
-					result.conn.Close()
-				}
-				return false, true
-			}
-			_, err := result.session.ListSharenames()
-			if err != nil {
-				result.conn.Close()
-				return false, true
-			}
-			result.conn.Close()
-			return true, true
+		case r := <-done:
+			return handleResult(r)
 		default:
-			return false, false
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: false}
 		}
-	case result := <-done:
-		if result.err != nil {
-			if result.conn != nil {
-				result.conn.Close()
-			}
-			return false, true
-		}
-
-		_, err := result.session.ListSharenames()
-		if err != nil {
-			result.conn.Close()
-			return false, true
-		}
-
-		result.conn.Close()
-		return true, true
+	case r := <-done:
+		return handleResult(r)
 	}
 }
+
+func init() { RegisterWithDomain("smbnt", BruteSMB) }

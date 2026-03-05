@@ -9,22 +9,27 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
-	"github.com/x90skysn3k/brutespray/modules"
+	"github.com/x90skysn3k/brutespray/v2/modules"
 )
 
 type ContextDialerWrapper struct {
 	CM *modules.ConnectionManager
 }
 
+// DialContext dials using the ConnectionManager and propagates the context
+// deadline to the connection so that MongoDB operations respect timeouts (3.5 fix).
 func (cdw *ContextDialerWrapper) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
-	if _, ok := ctx.Deadline(); ok {
-
-		return cdw.CM.DialFunc(network, address)
+	conn, err := cdw.CM.DialFunc(network, address)
+	if err != nil {
+		return nil, err
 	}
-	return cdw.CM.DialFunc(network, address)
+	if deadline, ok := ctx.Deadline(); ok {
+		_ = conn.SetDeadline(deadline)
+	}
+	return conn, nil
 }
 
-func BruteMongoDB(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) (bool, bool) {
+func BruteMongoDB(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) *BruteResult {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
@@ -35,32 +40,26 @@ func BruteMongoDB(host string, port int, user, password string, timeout time.Dur
 		SetDialer(dialer)
 	client, err := mongo.Connect(ctx, clientOptions)
 	if err != nil {
-		//fmt.Printf("Failed to connect: %v\n", err)
-		return false, false
+		return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
 	}
 	defer func() {
 		if err := client.Disconnect(ctx); err != nil {
 			_ = err
-			//fmt.Printf("Failed to disconnect: %v\n", err)
 		}
 	}()
 
 	err = client.Database("admin").RunCommand(ctx, map[string]interface{}{"ping": 1}).Err()
 	if err != nil {
 		if mongo.IsTimeout(err) {
-			//fmt.Printf("Connection timeout: %v\n", err)
-			return false, false
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
 		}
 		if isAuthError(err) {
-			//fmt.Printf("Authentication failed: %v\n", err)
-			return false, true
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: err}
 		}
-		//fmt.Printf("Other error during ping: %v\n", err)
-		return false, true
+		return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: err}
 	}
 
-	//fmt.Println("Authentication successful.")
-	return true, true
+	return &BruteResult{AuthSuccess: true, ConnectionSuccess: true}
 }
 
 func isAuthError(err error) bool {
@@ -81,3 +80,5 @@ func isAuthError(err error) bool {
 	}
 	return false
 }
+
+func init() { Register("mongodb", BruteMongoDB) }
