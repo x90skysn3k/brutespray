@@ -9,7 +9,7 @@ func TestAllModulesRegistered(t *testing.T) {
 		"ssh", "ftp", "smtp", "mssql", "telnet", "smbnt", "postgres",
 		"imap", "pop3", "snmp", "mysql", "vmauthd", "asterisk", "vnc",
 		"mongodb", "nntp", "oracle", "teamspeak", "xmpp", "rdp", "redis",
-		"http", "https",
+		"http", "https", "ldap", "ldaps", "winrm",
 	}
 
 	for _, svc := range expected {

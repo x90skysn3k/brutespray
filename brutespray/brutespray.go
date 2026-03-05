@@ -20,7 +20,7 @@ import (
 
 var masterServiceList = brute.Services()
 
-var BetaServiceList = []string{"asterisk", "nntp", "oracle", "xmpp", "rdp"}
+var BetaServiceList = []string{"asterisk", "nntp", "oracle", "xmpp", "rdp", "ldap", "ldaps", "winrm"}
 
 var version = "v2.5.1"
 var NoColorMode bool
