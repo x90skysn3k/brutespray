@@ -87,8 +87,14 @@ var globalStats = &OutputStats{
 	ConnectionErrorHosts: make(map[string]int),
 }
 
+// OutputMu serializes all terminal writes so the progress bar and result
+// messages don't interleave and produce visual artifacts.
+var OutputMu sync.Mutex
+
 // PrintlnColored prints a colored message with newline
 func PrintlnColored(color pterm.Color, msg string) {
+	OutputMu.Lock()
+	defer OutputMu.Unlock()
 	if NoColorMode {
 		fmt.Println(msg)
 	} else {
@@ -99,6 +105,8 @@ func PrintlnColored(color pterm.Color, msg string) {
 // PrintfColored prints a formatted colored message
 func PrintfColored(color pterm.Color, format string, args ...interface{}) {
 	msg := fmt.Sprintf(format, args...)
+	OutputMu.Lock()
+	defer OutputMu.Unlock()
 	if NoColorMode {
 		fmt.Print(msg)
 	} else {
@@ -332,11 +340,13 @@ func PrintResult(service string, host string, port int, user string, pass string
 		}
 	}
 	if shouldPrint {
+		OutputMu.Lock()
 		if NoColorMode {
 			fmt.Println(msg)
 		} else {
 			pterm.Println(pterm.NewStyle(color).Sprint(msg))
 		}
+		OutputMu.Unlock()
 	}
 }
 

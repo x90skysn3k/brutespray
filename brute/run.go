@@ -26,6 +26,7 @@ type CircuitBreaker struct {
 	consecutiveFails  map[string]*int64 // host:port -> consecutive failure count
 	tripped           map[string]bool   // host:port -> tripped
 	threshold         int64             // consecutive failures before tripping
+	disabled          bool              // when true, never trips
 }
 
 // DefaultCircuitBreakerThreshold is the number of consecutive connection
@@ -44,10 +45,21 @@ func GetCircuitBreaker() *CircuitBreaker {
 	return globalCircuitBreaker
 }
 
+// SetDisabled controls whether the circuit breaker is active.
+func (cb *CircuitBreaker) SetDisabled(disabled bool) {
+	cb.mu.Lock()
+	cb.disabled = disabled
+	cb.mu.Unlock()
+}
+
 // IsTripped returns true if the host has been marked unreachable.
+// Always returns false when the circuit breaker is disabled.
 func (cb *CircuitBreaker) IsTripped(hostKey string) bool {
 	cb.mu.RLock()
 	defer cb.mu.RUnlock()
+	if cb.disabled {
+		return false
+	}
 	return cb.tripped[hostKey]
 }
 
@@ -55,6 +67,10 @@ func (cb *CircuitBreaker) IsTripped(hostKey string) bool {
 // trips the breaker if the threshold is reached. Returns true if tripped.
 func (cb *CircuitBreaker) RecordFailure(hostKey string) bool {
 	cb.mu.Lock()
+	if cb.disabled {
+		cb.mu.Unlock()
+		return false
+	}
 	counter, ok := cb.consecutiveFails[hostKey]
 	if !ok {
 		var c int64

@@ -7,6 +7,7 @@ import (
 	"os/signal"
 	"strconv"
 	"strings"
+	"math/rand"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -60,6 +61,8 @@ type HostWorkerPool struct {
 	foundSuccess  int32 // atomic flag
 	// Per-host rate limiting (nil = unlimited)
 	rateTicker *time.Ticker
+	// Adaptive backoff: consecutive connection failures trigger increasing delays
+	consecutiveConnFails int64 // atomic
 	// Performance tracking for dynamic adjustment
 	avgResponseTime time.Duration
 	successRate     float64
@@ -133,12 +136,21 @@ func NewWorkerPool(threadsPerHost int, progressCh chan int, hostParallelism int,
 	}
 }
 
-// Start starts the host-specific worker pool
+// Start starts the host-specific worker pool with staggered first attempts so
+// workers don't all hit the target at the same instant (avoids chunked output).
 func (hwp *HostWorkerPool) Start(timeout time.Duration, retry int, output string, cm *modules.ConnectionManager, domain string, noStats bool) {
+	stagger := time.Duration(0)
+	if hwp.workers > 1 {
+		stagger = timeout / time.Duration(hwp.workers)
+		if stagger > time.Second {
+			stagger = time.Second
+		}
+	}
 	for i := 0; i < hwp.workers; i++ {
 		hwp.wg.Add(1)
 		atomic.AddInt32(&hwp.currentWorkers, 1)
-		go hwp.worker(timeout, retry, output, cm, domain, noStats)
+		initialDelay := time.Duration(i) * stagger
+		go hwp.worker(timeout, retry, output, cm, domain, noStats, initialDelay)
 	}
 }
 
@@ -155,7 +167,7 @@ func (hwp *HostWorkerPool) scaleTo(newTarget int, timeout time.Duration, retry i
 	for int(atomic.LoadInt32(&hwp.currentWorkers)) < newTarget {
 		hwp.wg.Add(1)
 		atomic.AddInt32(&hwp.currentWorkers, 1)
-		go hwp.worker(timeout, retry, output, cm, domain, noStats)
+		go hwp.worker(timeout, retry, output, cm, domain, noStats, 0)
 	}
 }
 
@@ -248,8 +260,18 @@ func (wp *WorkerPool) Stop() {
 }
 
 // worker is the main worker goroutine for host-specific worker pool
-func (hwp *HostWorkerPool) worker(timeout time.Duration, retry int, output string, cm *modules.ConnectionManager, domain string, noStats bool) {
+func (hwp *HostWorkerPool) worker(timeout time.Duration, retry int, output string, cm *modules.ConnectionManager, domain string, noStats bool, initialDelay time.Duration) {
 	defer hwp.wg.Done()
+
+	// Stagger the first attempt so workers don't all hit the target at once
+	if initialDelay > 0 {
+		select {
+		case <-time.After(initialDelay):
+		case <-hwp.stopChan:
+			atomic.AddInt32(&hwp.currentWorkers, -1)
+			return
+		}
+	}
 
 	for {
 		// If scaling down and queue appears empty, allow this worker to exit
@@ -295,6 +317,35 @@ func (hwp *HostWorkerPool) worker(timeout time.Duration, retry int, output strin
 }
 
 func (hwp *HostWorkerPool) processCredential(cred Credential, timeout time.Duration, retry int, output string, cm *modules.ConnectionManager, domain string, noStats bool) {
+	// Random jitter to prevent workers from re-synchronizing after completing
+	// jobs with similar response times. Scale jitter with timeout.
+	maxJitter := timeout / 10
+	if maxJitter > 500*time.Millisecond {
+		maxJitter = 500 * time.Millisecond
+	}
+	if maxJitter > 0 {
+		time.Sleep(time.Duration(rand.Int63n(int64(maxJitter))))
+	}
+
+	// Adaptive backoff: when a host has many consecutive connection failures,
+	// back off before trying again. Escalates: 2s, 4s, 8s, 16s, capped at 30s.
+	fails := atomic.LoadInt64(&hwp.consecutiveConnFails)
+	if fails > 0 {
+		backoff := time.Duration(1<<uint(fails)) * time.Second
+		if backoff > 30*time.Second {
+			backoff = 30 * time.Second
+		}
+		if fails >= 3 {
+			hostKey := fmt.Sprintf("%s:%d", cred.Host.Host, cred.Host.Port)
+			modules.PrintfColored(pterm.FgYellow, "[*] %s — backing off %v (%d consecutive connection failures)\n", hostKey, backoff, fails)
+		}
+		select {
+		case <-time.After(backoff):
+		case <-hwp.stopChan:
+			return
+		}
+	}
+
 	// Rate limiting: wait for ticker before proceeding
 	if hwp.rateTicker != nil {
 		select {
@@ -318,6 +369,13 @@ func (hwp *HostWorkerPool) processCredential(cred Credential, timeout time.Durat
 		}
 	}
 
+	// Update adaptive backoff counter
+	if result.ConnectionSuccess {
+		atomic.StoreInt64(&hwp.consecutiveConnFails, 0)
+	} else {
+		atomic.AddInt64(&hwp.consecutiveConnFails, 1)
+	}
+
 	// Stop-on-success: signal host pool to stop processing remaining credentials
 	if result.AuthSuccess && hwp.stopOnSuccess {
 		if atomic.CompareAndSwapInt32(&hwp.foundSuccess, 0, 1) {
@@ -331,7 +389,11 @@ func (hwp *HostWorkerPool) processCredential(cred Credential, timeout time.Durat
 
 	// Update performance metrics
 	hwp.updatePerformanceMetrics(result.AuthSuccess, duration)
-	hwp.progressCh <- 1
+	// progressCh may be closed during shutdown; recover from the panic.
+	func() {
+		defer func() { recover() }()
+		hwp.progressCh <- 1
+	}()
 }
 
 // updatePerformanceMetrics updates the performance metrics for the host
@@ -939,6 +1001,10 @@ func Execute() {
 	workerPool.sprayMode = *sprayMode
 	workerPool.sprayDelay = *sprayDelay
 
+	// Only enable the circuit breaker in spray mode where skipping unreachable
+	// hosts is useful. In normal mode, keep trying — connection hiccups are common.
+	brute.GetCircuitBreaker().SetDisabled(!*sprayMode)
+
 	// Initialize checkpoint for resume capability
 	if *resumeFile != "" {
 		cp, err := modules.LoadCheckpoint(*resumeFile)
@@ -1060,6 +1126,7 @@ func Execute() {
 		for range progressCh {
 			counterMutex.Lock()
 			currentCounter++
+			modules.OutputMu.Lock()
 			if NoColorMode {
 				// Update progress periodically. Avoid modulo by zero when threads is small.
 				step := (*threads) / 2
@@ -1072,6 +1139,7 @@ func Execute() {
 			} else {
 				bar.Increment()
 			}
+			modules.OutputMu.Unlock()
 			counterMutex.Unlock()
 		}
 	}()
