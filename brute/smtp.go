@@ -7,7 +7,7 @@ import (
 	"net/smtp"
 	"time"
 
-	"github.com/x90skysn3k/brutespray/modules"
+	"github.com/x90skysn3k/brutespray/v2/modules"
 )
 
 type plainAuth struct {

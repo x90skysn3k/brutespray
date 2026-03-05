@@ -7,7 +7,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/x90skysn3k/brutespray/modules"
+	"github.com/x90skysn3k/brutespray/v2/modules"
 	"github.com/x90skysn3k/grdp/client"
 	"github.com/x90skysn3k/grdp/glog"
 	"github.com/x90skysn3k/grdp/protocol/pdu"

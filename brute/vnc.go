@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/mitchellh/go-vnc"
-	"github.com/x90skysn3k/brutespray/modules"
+	"github.com/x90skysn3k/brutespray/v2/modules"
 )
 
 func BruteVNC(host string, port int, user string, password string, timeout time.Duration, cm *modules.ConnectionManager) *BruteResult {

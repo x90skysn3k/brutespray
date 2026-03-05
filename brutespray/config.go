@@ -4,21 +4,31 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"runtime/debug"
 	"strings"
 	"time"
 
 	"github.com/pterm/pterm"
-	"github.com/x90skysn3k/brutespray/banner"
-	"github.com/x90skysn3k/brutespray/brute"
-	"github.com/x90skysn3k/brutespray/modules"
+	"github.com/x90skysn3k/brutespray/v2/banner"
+	"github.com/x90skysn3k/brutespray/v2/brute"
+	"github.com/x90skysn3k/brutespray/v2/modules"
 )
 
 var masterServiceList = brute.Services()
 
 var BetaServiceList = []string{"asterisk", "nntp", "oracle", "xmpp", "rdp", "ldap", "ldaps", "winrm"}
 
-var version = "v2.5.1"
+var version = "dev"
 var NoColorMode bool
+
+func init() {
+	if version != "dev" {
+		return
+	}
+	if info, ok := debug.ReadBuildInfo(); ok && info.Main.Version != "" && info.Main.Version != "(devel)" {
+		version = info.Main.Version
+	}
+}
 
 // hostListFlag collects multiple -H targets
 type hostListFlag []string

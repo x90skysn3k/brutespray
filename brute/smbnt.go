@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/hirochachacha/go-smb2"
-	"github.com/x90skysn3k/brutespray/modules"
+	"github.com/x90skysn3k/brutespray/v2/modules"
 )
 
 func BruteSMB(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager, domain string) *BruteResult {

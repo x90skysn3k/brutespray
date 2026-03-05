@@ -8,7 +8,7 @@ import (
 	"time"
 
 	go_ora "github.com/sijms/go-ora/v2"
-	"github.com/x90skysn3k/brutespray/modules"
+	"github.com/x90skysn3k/brutespray/v2/modules"
 )
 
 // oracleDialer wraps a ConnectionManager to implement the go-ora
