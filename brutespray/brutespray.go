@@ -697,8 +697,91 @@ func Execute() {
 	sprayDelay := flag.Duration("spray-delay", 30*time.Minute, "Delay between password rounds in spray mode")
 	resumeFile := flag.String("resume", "", "Resume from a checkpoint file (saved automatically on interrupt)")
 	checkpointFile := flag.String("checkpoint", "brutespray-checkpoint.json", "Checkpoint file path for resume capability")
+	configFile := flag.String("config", "", "YAML config file (CLI flags override config values)")
 
 	flag.Parse()
+
+	// Load config file and apply defaults (CLI flags override)
+	if *configFile != "" {
+		cfg, err := modules.LoadConfig(*configFile)
+		if err != nil {
+			fmt.Printf("Error loading config: %v\n", err)
+			os.Exit(1)
+		}
+		// Track which flags were explicitly set on CLI
+		setFlags := make(map[string]bool)
+		flag.Visit(func(f *flag.Flag) { setFlags[f.Name] = true })
+
+		// Apply config values only for flags not explicitly set
+		if !setFlags["u"] && cfg.User != "" {
+			*user = cfg.User
+		}
+		if !setFlags["p"] && cfg.Password != "" {
+			*password = cfg.Password
+		}
+		if !setFlags["C"] && cfg.Combo != "" {
+			*combo = cfg.Combo
+		}
+		if !setFlags["o"] && cfg.Output != "" {
+			*output = cfg.Output
+		}
+		if !setFlags["t"] && cfg.Threads > 0 {
+			*threads = cfg.Threads
+		}
+		if !setFlags["T"] && cfg.HostParallelism > 0 {
+			*hostParallelism = cfg.HostParallelism
+		}
+		if !setFlags["w"] && cfg.Timeout > 0 {
+			*timeout = cfg.Timeout
+		}
+		if !setFlags["r"] && cfg.Retry > 0 {
+			*retry = cfg.Retry
+		}
+		if !setFlags["s"] && cfg.Service != "" {
+			*serviceType = cfg.Service
+		}
+		if !setFlags["socks5"] && cfg.Socks5 != "" {
+			*socksProxy = cfg.Socks5
+		}
+		if !setFlags["iface"] && cfg.Interface != "" {
+			*netInterface = cfg.Interface
+		}
+		if !setFlags["d"] && cfg.Domain != "" {
+			*domain = cfg.Domain
+		}
+		if !setFlags["rate"] && cfg.RateLimit > 0 {
+			*rateLimit = cfg.RateLimit
+		}
+		if !setFlags["stop-on-success"] && cfg.StopOnSuccess {
+			*stopOnSuccess = true
+		}
+		if !setFlags["silent"] && cfg.Silent {
+			*silent = true
+		}
+		if !setFlags["log-every"] && cfg.LogEvery > 0 {
+			*logEvery = cfg.LogEvery
+		}
+		if !setFlags["summary"] && cfg.Summary {
+			*summary = true
+		}
+		if !setFlags["nc"] && cfg.NoColor {
+			*noColor = true
+		}
+		if !setFlags["spray"] && cfg.Spray {
+			*sprayMode = true
+		}
+		if !setFlags["spray-delay"] && cfg.SprayDelay > 0 {
+			*sprayDelay = cfg.SprayDelay
+		}
+		if !setFlags["f"] && cfg.File != "" {
+			*file = cfg.File
+		}
+		if len(cfg.Hosts) > 0 && len(hostArgs) == 0 {
+			for _, h := range cfg.Hosts {
+				hostArgs = append(hostArgs, h)
+			}
+		}
+	}
 
 	NoColorMode = *noColor
 	modules.NoColorMode = *noColor
