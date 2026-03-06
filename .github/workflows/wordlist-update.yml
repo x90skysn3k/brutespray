@@ -34,7 +34,7 @@ jobs:
         run: go run . wordlist validate
 
       - name: Create PR
-        uses: peter-evans/create-pull-request@v6
+        uses: peter-evans/create-pull-request@v8
         with:
           branch: wordlist-update
           title: "chore: monthly wordlist update"
