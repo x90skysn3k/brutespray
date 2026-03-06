@@ -31,6 +31,7 @@ type HostWorkerPool struct {
 	eventSink      tui.EventSink
 	wg             sync.WaitGroup
 	stopChan       chan struct{}
+	stopOnce       sync.Once
 	// Stop-on-success: close stopChan when first credential succeeds
 	stopOnSuccess bool
 	foundSuccess  int32 // atomic flag
@@ -47,6 +48,8 @@ type HostWorkerPool struct {
 	pauseCh chan struct{}
 	paused  bool
 	pauseMu sync.Mutex
+	// Session log for resume replay
+	sessionLog *modules.SessionLog
 }
 
 // WorkerPool manages the worker goroutines for brute force attempts with per-host allocation
@@ -57,6 +60,7 @@ type WorkerPool struct {
 	hostPoolsMutex  sync.RWMutex
 	eventSink       tui.EventSink
 	globalStopChan  chan struct{}
+	globalStopOnce  sync.Once
 	hostParallelism int
 	hostSem         chan struct{}
 	// Dynamic thread allocation
@@ -64,8 +68,9 @@ type WorkerPool struct {
 	minThreadsPerHost int
 	maxThreadsPerHost int
 	// Statistics control
-	noStats    bool
-	scalerStop chan struct{}
+	noStats        bool
+	scalerStop     chan struct{}
+	scalerStopOnce sync.Once
 	// Stop-on-success: skip remaining credentials for a host after first success
 	stopOnSuccess bool
 	// Per-host rate limiting (attempts per second; 0 = unlimited)
@@ -75,6 +80,8 @@ type WorkerPool struct {
 	sprayDelay time.Duration
 	// Checkpoint for resume capability
 	checkpoint *modules.Checkpoint
+	// Session log for resume replay
+	sessionLog *modules.SessionLog
 }
 
 // NewHostWorkerPool creates a new host-specific worker pool
@@ -141,7 +148,7 @@ func (hwp *HostWorkerPool) scaleTo(newTarget int, timeout time.Duration, retry i
 	}
 	hwp.mutex.Lock()
 	hwp.targetWorkers = newTarget
-	hwp.mutex.Unlock()
+	hwp.mutex.Unlock() // safe: no panicking code between lock/unlock
 	// Add workers if below target
 	for int(atomic.LoadInt32(&hwp.currentWorkers)) < newTarget {
 		hwp.wg.Add(1)
@@ -179,13 +186,7 @@ func (wp *WorkerPool) Start(timeout time.Duration, retry int, output string, cm 
 
 // Stop stops the host-specific worker pool
 func (hwp *HostWorkerPool) Stop() {
-	select {
-	case <-hwp.stopChan:
-		// Already stopped
-		return
-	default:
-		close(hwp.stopChan)
-	}
+	hwp.stopOnce.Do(func() { close(hwp.stopChan) })
 	hwp.wg.Wait()
 	if hwp.rateTicker != nil {
 		hwp.rateTicker.Stop()
@@ -194,21 +195,17 @@ func (hwp *HostWorkerPool) Stop() {
 
 // Stop stops all host worker pools immediately
 func (wp *WorkerPool) Stop() {
-	// Close global stop channel first to signal all operations to stop
-	select {
-	case <-wp.globalStopChan:
-		// Already stopped
-		return
-	default:
+	alreadyStopped := true
+	wp.globalStopOnce.Do(func() {
+		alreadyStopped = false
 		close(wp.globalStopChan)
+	})
+	if alreadyStopped {
+		return
 	}
 
 	// Stop scaler
-	select {
-	case <-wp.scalerStop:
-	default:
-		close(wp.scalerStop)
-	}
+	wp.scalerStopOnce.Do(func() { close(wp.scalerStop) })
 
 	// Stop all host pools concurrently for faster shutdown
 	wp.hostPoolsMutex.RLock()
@@ -280,37 +277,37 @@ func (hwp *HostWorkerPool) waitIfPaused() bool {
 // PauseHost pauses workers for a specific host.
 func (wp *WorkerPool) PauseHost(hostKey string) {
 	wp.hostPoolsMutex.RLock()
+	defer wp.hostPoolsMutex.RUnlock()
 	if hp, ok := wp.hostPools[hostKey]; ok {
 		hp.Pause()
 	}
-	wp.hostPoolsMutex.RUnlock()
 }
 
 // ResumeHost resumes workers for a specific host.
 func (wp *WorkerPool) ResumeHost(hostKey string) {
 	wp.hostPoolsMutex.RLock()
+	defer wp.hostPoolsMutex.RUnlock()
 	if hp, ok := wp.hostPools[hostKey]; ok {
 		hp.Resume()
 	}
-	wp.hostPoolsMutex.RUnlock()
 }
 
 // PauseAll pauses all host worker pools.
 func (wp *WorkerPool) PauseAll() {
 	wp.hostPoolsMutex.RLock()
+	defer wp.hostPoolsMutex.RUnlock()
 	for _, hp := range wp.hostPools {
 		hp.Pause()
 	}
-	wp.hostPoolsMutex.RUnlock()
 }
 
 // ResumeAll resumes all host worker pools.
 func (wp *WorkerPool) ResumeAll() {
 	wp.hostPoolsMutex.RLock()
+	defer wp.hostPoolsMutex.RUnlock()
 	for _, hp := range wp.hostPools {
 		hp.Resume()
 	}
-	wp.hostPoolsMutex.RUnlock()
 }
 
 // SetThreadsPerHost updates the threads-per-host setting. Existing pools
@@ -429,6 +426,34 @@ func (hwp *HostWorkerPool) worker(timeout time.Duration, retry int, output strin
 	}
 }
 
+// applyAdaptiveBackoff waits with exponential backoff when a host has
+// consecutive connection failures. Returns true if the host pool was stopped
+// during the wait (caller should return).
+func (hwp *HostWorkerPool) applyAdaptiveBackoff(cred Credential) bool {
+	fails := atomic.LoadInt64(&hwp.consecutiveConnFails)
+	if fails <= 0 {
+		return false
+	}
+	backoff := time.Duration(1<<uint(fails)) * time.Second
+	if backoff > 30*time.Second {
+		backoff = 30 * time.Second
+	}
+	if fails >= 3 {
+		hostKey := fmt.Sprintf("%s:%d", cred.Host.Host, cred.Host.Port)
+		if modules.TUIMode {
+			modules.TUIError("[*] %s — backing off %v (%d consecutive connection failures)\n", hostKey, backoff, fails)
+		} else {
+			modules.PrintfColored(pterm.FgYellow, "[*] %s — backing off %v (%d consecutive connection failures)\n", hostKey, backoff, fails)
+		}
+	}
+	select {
+	case <-time.After(backoff):
+		return false
+	case <-hwp.stopChan:
+		return true
+	}
+}
+
 func (hwp *HostWorkerPool) processCredential(cred Credential, timeout time.Duration, retry int, output string, cm *modules.ConnectionManager, domain string, noStats bool) {
 	// Random jitter to prevent workers from re-synchronizing after completing
 	// jobs with similar response times. Scale jitter with timeout.
@@ -440,27 +465,8 @@ func (hwp *HostWorkerPool) processCredential(cred Credential, timeout time.Durat
 		time.Sleep(time.Duration(rand.Int63n(int64(maxJitter))))
 	}
 
-	// Adaptive backoff: when a host has many consecutive connection failures,
-	// back off before trying again. Escalates: 2s, 4s, 8s, 16s, capped at 30s.
-	fails := atomic.LoadInt64(&hwp.consecutiveConnFails)
-	if fails > 0 {
-		backoff := time.Duration(1<<uint(fails)) * time.Second
-		if backoff > 30*time.Second {
-			backoff = 30 * time.Second
-		}
-		if fails >= 3 {
-			hostKey := fmt.Sprintf("%s:%d", cred.Host.Host, cred.Host.Port)
-			if modules.TUIMode {
-				modules.TUIError("[*] %s — backing off %v (%d consecutive connection failures)\n", hostKey, backoff, fails)
-			} else {
-				modules.PrintfColored(pterm.FgYellow, "[*] %s — backing off %v (%d consecutive connection failures)\n", hostKey, backoff, fails)
-			}
-		}
-		select {
-		case <-time.After(backoff):
-		case <-hwp.stopChan:
-			return
-		}
+	if hwp.applyAdaptiveBackoff(cred) {
+		return
 	}
 
 	// Rate limiting: wait for ticker before proceeding
@@ -496,11 +502,7 @@ func (hwp *HostWorkerPool) processCredential(cred Credential, timeout time.Durat
 	// Stop-on-success: signal host pool to stop processing remaining credentials
 	if result.AuthSuccess && hwp.stopOnSuccess {
 		if atomic.CompareAndSwapInt32(&hwp.foundSuccess, 0, 1) {
-			select {
-			case <-hwp.stopChan:
-			default:
-				close(hwp.stopChan)
-			}
+			hwp.stopOnce.Do(func() { close(hwp.stopChan) })
 		}
 	}
 
@@ -520,6 +522,22 @@ func (hwp *HostWorkerPool) processCredential(cred Credential, timeout time.Durat
 		Duration:  duration,
 		Timestamp: startTime,
 	})
+
+	// Write to session log for resume replay
+	if hwp.sessionLog != nil {
+		hwp.sessionLog.Write(modules.SessionEntry{
+			Type:      "attempt",
+			Host:      cred.Host.Host,
+			Port:      cred.Host.Port,
+			Service:   cred.Service,
+			User:      cred.User,
+			Password:  cred.Password,
+			Success:   result.AuthSuccess,
+			Connected: result.ConnectionSuccess,
+			Duration:  duration,
+			Timestamp: startTime,
+		})
+	}
 }
 
 // updatePerformanceMetrics updates the performance metrics for the host
@@ -584,6 +602,7 @@ func (wp *WorkerPool) getOrCreateHostPool(host modules.Host) *HostWorkerPool {
 			}
 
 			hostPool = NewHostWorkerPool(host, threadsForHost, wp.eventSink, wp.stopOnSuccess, wp.rateLimit)
+			hostPool.sessionLog = wp.sessionLog
 			wp.hostPools[hostKey] = hostPool
 		}
 		wp.hostPoolsMutex.Unlock()

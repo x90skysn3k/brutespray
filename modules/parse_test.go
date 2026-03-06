@@ -91,12 +91,12 @@ func TestParseList(t *testing.T) {
 
 func TestMapService(t *testing.T) {
 	tests := map[string]string{
-		"ms-sql-s":       "mssql",
-		"microsoft-ds":   "smbnt",
-		"postgresql":     "postgres",
-		"smtps":          "smtp",
-		"ssh":            "ssh",
-		"unknown":        "unknown",
+		"ms-sql-s":     "mssql",
+		"microsoft-ds": "smbnt",
+		"postgresql":   "postgres",
+		"smtps":        "smtp",
+		"ssh":          "ssh",
+		"unknown":      "unknown",
 	}
 
 	for input, want := range tests {

@@ -281,4 +281,3 @@ func GetIPv4Address(ifaceName string) (net.IP, error) {
 
 	return nil, fmt.Errorf("no IPv4 address found for interface %s", ifaceName)
 }
-

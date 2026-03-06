@@ -23,71 +23,76 @@ func IsFile(fileName string) bool {
 	return false
 }
 
-func ParseFile(filename string) (map[Host]int, error) {
-	in_format := ""
+// detectFileFormat reads the first lines of a file to determine its format.
+func detectFileFormat(filename string) (string, error) {
 	file, err := os.Open(filename)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 	defer file.Close()
 
 	scanner := bufio.NewScanner(file)
 	if !scanner.Scan() {
-		return nil, scanner.Err()
+		return "", scanner.Err()
 	}
 	line := scanner.Text()
 
+	if len(line) == 0 {
+		return "list", nil
+	}
 	if line[0] == '{' {
-		in_format = "json"
-	} else if strings.HasPrefix(line, "# Nmap") {
+		return "json", nil
+	}
+	if strings.HasPrefix(line, "# Nmap") {
 		if !scanner.Scan() {
-			return nil, scanner.Err()
+			return "", scanner.Err()
 		}
-		line = scanner.Text()
-		if !strings.HasPrefix(line[1:], "Nmap") {
-			in_format = "gnmap"
+		nextLine := scanner.Text()
+		if len(nextLine) > 1 && !strings.HasPrefix(nextLine[1:], "Nmap") {
+			return "gnmap", nil
 		}
-	} else if strings.HasPrefix(line, "<NexposeReport ") {
-		in_format = "xml_nexpose"
-	} else if strings.Contains(line, "<?xml ") {
+		return "", fmt.Errorf("file is not a supported format")
+	}
+	if strings.HasPrefix(line, "<NexposeReport ") {
+		return "xml_nexpose", nil
+	}
+	if strings.Contains(line, "<?xml ") {
 		if !scanner.Scan() {
-			return nil, scanner.Err()
+			return "", scanner.Err()
 		}
 		line = scanner.Text()
 		if strings.Contains(line, "nmaprun") {
-			in_format = "xml"
-
-		} else if strings.HasPrefix(line, "<NessusClientData") {
-			in_format = "xml_nessus"
+			return "xml", nil
 		}
-	} else {
-		in_format = "list"
+		if strings.HasPrefix(line, "<NessusClientData") {
+			return "xml_nessus", nil
+		}
+		return "", fmt.Errorf("file is not a supported format")
+	}
+	return "list", nil
+}
+
+// ParseFile detects the format of the input file and parses it.
+func ParseFile(filename string) (map[Host]int, error) {
+	format, err := detectFileFormat(filename)
+	if err != nil {
+		return nil, err
 	}
 
-	if in_format == "" {
-		return nil, fmt.Errorf("file is not a supported format")
-	}
-
-	switch in_format {
+	switch format {
 	case "gnmap":
-		hosts, err := ParseGNMAP(filename)
-		return hosts, err
+		return ParseGNMAP(filename)
 	case "json":
-		hosts, err := ParseJSON(filename)
-		return hosts, err
+		return ParseJSON(filename)
 	case "xml":
-		hosts, err := ParseXML(filename)
-		return hosts, err
+		return ParseXML(filename)
 	case "xml_nexpose":
-		hosts, err := ParseNexpose(filename)
-		return hosts, err
+		return ParseNexpose(filename)
 	case "xml_nessus":
-		hosts, err := ParseNessus(filename)
-		return hosts, err
+		return ParseNessus(filename)
 	case "list":
-		hosts, err := ParseList(filename)
-		return hosts, err
+		return ParseList(filename)
 	default:
-		return nil, fmt.Errorf("unsupported file type: %s", in_format)
+		return nil, fmt.Errorf("unsupported file type: %s", format)
 	}
 }

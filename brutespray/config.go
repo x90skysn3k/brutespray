@@ -225,7 +225,12 @@ func ParseConfig() *Config {
 	cfg.RateLimit = *rateLimit
 	cfg.SprayMode = *sprayMode
 	cfg.SprayDelay = *sprayDelay
-	cfg.ResumeFile = *resumeFile
+	// If user passed the .jsonl session log, resolve to the .json checkpoint
+	resume := *resumeFile
+	if strings.HasSuffix(resume, ".jsonl") {
+		resume = strings.TrimSuffix(resume, ".jsonl") + ".json"
+	}
+	cfg.ResumeFile = resume
 	cfg.CheckpointFile = *checkpointFile
 	cfg.ConfigFile = *configFile
 	// TUI is default for interactive terminals; --no-tui or --nc disables it

@@ -10,10 +10,10 @@ import (
 
 // ServiceView renders attempts grouped by service.
 type ServiceView struct {
-	services    []string
-	serviceSet  map[string]bool
-	selectedIdx int
-	attempts    map[string][]string
+	services      []string
+	serviceSet    map[string]bool
+	selectedIdx   int
+	attempts      map[string][]string
 	width, height int
 }
 
@@ -39,7 +39,15 @@ func (v *ServiceView) AddAttempt(msg AttemptResultMsg, scheme *ColorScheme) {
 
 	style, status := scheme.AttemptStyle(msg.Success, msg.Connected, msg.Retrying)
 
-	line := fmt.Sprintf("  %s:%d  %s:%-15s  %s", msg.Host, msg.Port, msg.User, msg.Password, status)
+	hostPort := fmt.Sprintf("%s:%d", msg.Host, msg.Port)
+	creds := fmt.Sprintf("%s:%s", msg.User, msg.Password)
+	if msg.User == "" {
+		creds = fmt.Sprintf("pass:%s", msg.Password)
+	}
+	line := fmt.Sprintf("  %-*s  %-*s  %-*s",
+		colWidthHostPort, hostPort,
+		colWidthCreds, creds,
+		colWidthStatus, status)
 	v.attempts[svc] = append(v.attempts[svc], style.Render(line))
 	if len(v.attempts[svc]) > 2000 {
 		v.attempts[svc] = v.attempts[svc][len(v.attempts[svc])-2000:]

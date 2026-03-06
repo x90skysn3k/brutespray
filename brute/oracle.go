@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"net"
+	"net/url"
 	"time"
 
 	go_ora "github.com/sijms/go-ora/v2"
@@ -29,7 +30,7 @@ func (d *oracleDialer) DialContext(ctx context.Context, network, address string)
 }
 
 func BruteOracle(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) *BruteResult {
-	connString := fmt.Sprintf("oracle://%s:%s@%s:%d/", user, password, host, port)
+	connString := fmt.Sprintf("oracle://%s:%s@%s:%d/", url.QueryEscape(user), url.QueryEscape(password), host, port)
 
 	connector := go_ora.NewConnector(connString)
 	oraConn, ok := connector.(*go_ora.OracleConnector)

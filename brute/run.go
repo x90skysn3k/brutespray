@@ -11,6 +11,12 @@ import (
 	"github.com/x90skysn3k/brutespray/v2/modules"
 )
 
+// sanitizeCred strips CR/LF and null bytes from a credential string to prevent
+// protocol injection in text-based services (AMI, TeamSpeak, VMAuthd, NNTP, etc.).
+func sanitizeCred(s string) string {
+	return strings.NewReplacer("\r", "", "\n", "", "\x00", "").Replace(s)
+}
+
 // BruteResult captures the outcome of a single credential attempt including
 // whether the connection itself succeeded (to distinguish auth failures from
 // network failures).
@@ -24,11 +30,11 @@ type BruteResult struct {
 // CircuitBreaker tracks consecutive connection failures per host and trips
 // (skips further attempts) after a threshold is reached.
 type CircuitBreaker struct {
-	mu                sync.RWMutex
-	consecutiveFails  map[string]*int64 // host:port -> consecutive failure count
-	tripped           map[string]bool   // host:port -> tripped
-	threshold         int64             // consecutive failures before tripping
-	disabled          bool              // when true, never trips
+	mu               sync.RWMutex
+	consecutiveFails map[string]*int64 // host:port -> consecutive failure count
+	tripped          map[string]bool   // host:port -> tripped
+	threshold        int64             // consecutive failures before tripping
+	disabled         bool              // when true, never trips
 }
 
 // DefaultCircuitBreakerThreshold is the number of consecutive connection
@@ -110,7 +116,6 @@ func (cb *CircuitBreaker) Reset(hostKey string) {
 	delete(cb.tripped, hostKey)
 	cb.mu.Unlock()
 }
-
 
 // baseRetryDelay is used for backoff calculations, decoupled from the
 // connection timeout so that retry delays stay short.
@@ -242,4 +247,3 @@ func RunBrute(h modules.Host, u string, p string, timeout time.Duration, maxRetr
 	modules.PrintResult(service, h.Host, h.Port, u, p, modResult.AuthSuccess, modResult.ConnectionSuccess, false, output, 0)
 	return BruteResult{AuthSuccess: modResult.AuthSuccess, ConnectionSuccess: modResult.ConnectionSuccess}
 }
-

@@ -8,6 +8,15 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+// Column width constants for aligned TUI output.
+const (
+	colWidthService  = 10 // longest: "teamspeak" (9 chars)
+	colWidthHostPort = 21 // max: "255.255.255.255:65535"
+	colWidthCreds    = 36 // user:password combined
+	colWidthStatus   = 8  // "CONN ERR" = 8
+	colWidthDuration = 10 // right-aligned
+)
+
 // ColorScheme holds the dynamic color theme for the TUI.
 type ColorScheme struct {
 	Primary   lipgloss.Color

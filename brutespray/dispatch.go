@@ -51,13 +51,29 @@ func (wp *WorkerPool) ProcessHost(host modules.Host, service string, combo strin
 		Threads: hostPool.workers,
 	})
 
+	// Write host start to session log for resume replay
+	if wp.sessionLog != nil {
+		wp.sessionLog.Write(modules.SessionEntry{
+			Type:      "host_started",
+			Host:      host.Host,
+			Port:      host.Port,
+			Service:   host.Service,
+			Threads:   hostPool.workers,
+			Timestamp: time.Now(),
+		})
+	}
+
 	// Debug output to show host processing
 	modules.PrintfColored(pterm.FgLightGreen, "[*] Processing host: %s:%d (%s) with %d threads\n", host.Host, host.Port, host.Service, hostPool.workers)
 
 	// Generate and queue all credentials for this host
 	if combo != "" {
 		users, passwords := modules.GetUsersAndPasswordsCombo(&host, combo, version)
-		for i := range users {
+		n := len(users)
+		if len(passwords) < n {
+			n = len(passwords)
+		}
+		for i := 0; i < n; i++ {
 			// Check if we should stop before processing each credential
 			select {
 			case <-wp.globalStopChan:
@@ -221,6 +237,20 @@ func (wp *WorkerPool) ProcessHost(host modules.Host, service string, combo strin
 		SuccessRate:   successRate,
 		AvgResponseMs: float64(avgResponseTime.Milliseconds()),
 	})
+
+	// Write host completion to session log for resume replay
+	if wp.sessionLog != nil {
+		wp.sessionLog.Write(modules.SessionEntry{
+			Type:          "host_completed",
+			Host:          host.Host,
+			Port:          host.Port,
+			Service:       host.Service,
+			TotalAttempts: totalAttempts,
+			SuccessRate:   successRate,
+			AvgResponseMs: float64(avgResponseTime.Milliseconds()),
+			Timestamp:     time.Now(),
+		})
+	}
 
 	modules.PrintfColored(pterm.FgLightGreen, "[*] Completed host: %s:%d (%s) - %d attempts, %.1f%% success, avg %.2fs\n",
 		host.Host, host.Port, host.Service, totalAttempts, successRate*100, avgResponseTime.Seconds())

@@ -10,10 +10,10 @@ import (
 
 // HostView renders attempts grouped by host with a host selector.
 type HostView struct {
-	hosts        []string          // sorted host keys
-	hostSet      map[string]bool   // for dedup
-	selectedIdx  int
-	attempts     map[string][]string // hostKey -> rendered lines
+	hosts         []string        // sorted host keys
+	hostSet       map[string]bool // for dedup
+	selectedIdx   int
+	attempts      map[string][]string // hostKey -> rendered lines
 	width, height int
 }
 
@@ -39,7 +39,14 @@ func (v *HostView) AddAttempt(msg AttemptResultMsg, scheme *ColorScheme) {
 
 	style, status := scheme.AttemptStyle(msg.Success, msg.Connected, msg.Retrying)
 
-	line := fmt.Sprintf("  %s:%-15s  %s  %s", msg.User, msg.Password, status, msg.Duration.Round(1e6))
+	creds := fmt.Sprintf("%s:%s", msg.User, msg.Password)
+	if msg.User == "" {
+		creds = fmt.Sprintf("pass:%s", msg.Password)
+	}
+	line := fmt.Sprintf("  %-*s  %-*s  %*s",
+		colWidthCreds, creds,
+		colWidthStatus, status,
+		colWidthDuration, msg.Duration.Round(1e6))
 	v.attempts[hostKey] = append(v.attempts[hostKey], style.Render(line))
 
 	// Cap per host

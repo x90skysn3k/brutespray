@@ -7,6 +7,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/x90skysn3k/brutespray/v2/modules"
 )
 
 // SendError sends an error message to the TUI for display.
@@ -109,8 +110,16 @@ func (eb *EventBus) Close() {
 }
 
 // Run starts the interactive TUI. It blocks until the user exits.
-func Run(pool WorkerPoolController, totalCombinations int, eventBus *EventBus, version string) error {
-	model := NewModel(pool, totalCombinations, version)
+// If replayEntries is non-empty, historical session data is replayed into the TUI.
+func Run(pool WorkerPoolController, totalCombinations int, eventBus *EventBus, version string, replayEntries []modules.SessionEntry) error {
+	resumedProgress := 0
+	for _, e := range replayEntries {
+		if e.Type == "attempt" {
+			resumedProgress++
+		}
+	}
+
+	model := NewModel(pool, totalCombinations, version, resumedProgress)
 
 	p := tea.NewProgram(
 		model,
@@ -120,6 +129,11 @@ func Run(pool WorkerPoolController, totalCombinations int, eventBus *EventBus, v
 
 	eventBus.SetProgram(p)
 
+	// Replay historical entries so the TUI shows the previous session
+	if len(replayEntries) > 0 {
+		go ReplaySession(eventBus, replayEntries)
+	}
+
 	finalModel, err := p.Run()
 	if err != nil {
 		return fmt.Errorf("TUI error: %w", err)
@@ -127,6 +141,43 @@ func Run(pool WorkerPoolController, totalCombinations int, eventBus *EventBus, v
 
 	_ = finalModel
 	return nil
+}
+
+// ReplaySession sends historical session entries to the TUI via the EventBus.
+func ReplaySession(eventBus *EventBus, entries []modules.SessionEntry) {
+	for _, e := range entries {
+		switch e.Type {
+		case "host_started":
+			eventBus.Send(HostStartedMsg{
+				Host:    e.Host,
+				Port:    e.Port,
+				Service: e.Service,
+				Threads: e.Threads,
+			})
+		case "attempt":
+			eventBus.Send(AttemptResultMsg{
+				Host:      e.Host,
+				Port:      e.Port,
+				Service:   e.Service,
+				User:      e.User,
+				Password:  e.Password,
+				Success:   e.Success,
+				Connected: e.Connected,
+				Retrying:  e.Retrying,
+				Duration:  e.Duration,
+				Timestamp: e.Timestamp,
+			})
+		case "host_completed":
+			eventBus.Send(HostCompletedMsg{
+				Host:          e.Host,
+				Port:          e.Port,
+				Service:       e.Service,
+				TotalAttempts: e.TotalAttempts,
+				SuccessRate:   e.SuccessRate,
+				AvgResponseMs: e.AvgResponseMs,
+			})
+		}
+	}
 }
 
 // SendDone signals the TUI that all work is complete.
