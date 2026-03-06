@@ -4,3 +4,9 @@ oracle
 sysadmin
 SYS
 SYSTEM
+sys
+system
+HR
+oda-admin
+recovery_admin
+scott

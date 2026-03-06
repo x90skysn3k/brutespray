@@ -13,3 +13,10 @@ wampp
 newuser
 xampp-dav-unsecure
 vagrant
+pi
+password
+default
+Administrator
+guest
+vnc
+test

@@ -27,3 +27,9 @@ system
 default
 public
 anonymous
+spadmin
+pamadmin
+eiamadmin
+ServiceDesk
+superuser
+uapmadmin
