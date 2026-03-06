@@ -10,10 +10,10 @@ import (
 
 // HostView renders attempts grouped by host with a host selector.
 type HostView struct {
-	hosts        []string          // sorted host keys
-	hostSet      map[string]bool   // for dedup
-	selectedIdx  int
-	attempts     map[string][]string // hostKey -> rendered lines
+	hosts         []string        // sorted host keys
+	hostSet       map[string]bool // for dedup
+	selectedIdx   int
+	attempts      map[string][]string // hostKey -> rendered lines
 	width, height int
 }
 

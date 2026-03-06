@@ -433,6 +433,34 @@ func (hwp *HostWorkerPool) worker(timeout time.Duration, retry int, output strin
 	}
 }
 
+// applyAdaptiveBackoff waits with exponential backoff when a host has
+// consecutive connection failures. Returns true if the host pool was stopped
+// during the wait (caller should return).
+func (hwp *HostWorkerPool) applyAdaptiveBackoff(cred Credential) bool {
+	fails := atomic.LoadInt64(&hwp.consecutiveConnFails)
+	if fails <= 0 {
+		return false
+	}
+	backoff := time.Duration(1<<uint(fails)) * time.Second
+	if backoff > 30*time.Second {
+		backoff = 30 * time.Second
+	}
+	if fails >= 3 {
+		hostKey := fmt.Sprintf("%s:%d", cred.Host.Host, cred.Host.Port)
+		if modules.TUIMode {
+			modules.TUIError("[*] %s — backing off %v (%d consecutive connection failures)\n", hostKey, backoff, fails)
+		} else {
+			modules.PrintfColored(pterm.FgYellow, "[*] %s — backing off %v (%d consecutive connection failures)\n", hostKey, backoff, fails)
+		}
+	}
+	select {
+	case <-time.After(backoff):
+		return false
+	case <-hwp.stopChan:
+		return true
+	}
+}
+
 func (hwp *HostWorkerPool) processCredential(cred Credential, timeout time.Duration, retry int, output string, cm *modules.ConnectionManager, domain string, noStats bool) {
 	// Random jitter to prevent workers from re-synchronizing after completing
 	// jobs with similar response times. Scale jitter with timeout.
@@ -444,27 +472,8 @@ func (hwp *HostWorkerPool) processCredential(cred Credential, timeout time.Durat
 		time.Sleep(time.Duration(rand.Int63n(int64(maxJitter))))
 	}
 
-	// Adaptive backoff: when a host has many consecutive connection failures,
-	// back off before trying again. Escalates: 2s, 4s, 8s, 16s, capped at 30s.
-	fails := atomic.LoadInt64(&hwp.consecutiveConnFails)
-	if fails > 0 {
-		backoff := time.Duration(1<<uint(fails)) * time.Second
-		if backoff > 30*time.Second {
-			backoff = 30 * time.Second
-		}
-		if fails >= 3 {
-			hostKey := fmt.Sprintf("%s:%d", cred.Host.Host, cred.Host.Port)
-			if modules.TUIMode {
-				modules.TUIError("[*] %s — backing off %v (%d consecutive connection failures)\n", hostKey, backoff, fails)
-			} else {
-				modules.PrintfColored(pterm.FgYellow, "[*] %s — backing off %v (%d consecutive connection failures)\n", hostKey, backoff, fails)
-			}
-		}
-		select {
-		case <-time.After(backoff):
-		case <-hwp.stopChan:
-			return
-		}
+	if hwp.applyAdaptiveBackoff(cred) {
+		return
 	}
 
 	// Rate limiting: wait for ticker before proceeding

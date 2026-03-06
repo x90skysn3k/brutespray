@@ -12,7 +12,7 @@ import (
 
 // SessionEntry represents a single event recorded to the session log.
 type SessionEntry struct {
-	Type      string        `json:"type"`                // "attempt", "host_started", "host_completed"
+	Type      string        `json:"type"` // "attempt", "host_started", "host_completed"
 	Host      string        `json:"host"`
 	Port      int           `json:"port"`
 	Service   string        `json:"service"`

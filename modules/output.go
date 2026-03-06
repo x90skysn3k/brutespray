@@ -310,49 +310,36 @@ func CalculateFinalStats() OutputStatsCopy {
 	return stats
 }
 
+// formatCredentialMsg formats a credential attempt message for display/logging.
+func formatCredentialMsg(service, host string, port int, user, pass, status string) string {
+	if service == "vnc" || service == "snmp" {
+		return fmt.Sprintf("[%s] %s:%d - Password '%s' - %s", service, host, port, pass, status)
+	}
+	return fmt.Sprintf("[%s] %s:%d - User '%s' - Pass '%s' - %s", service, host, port, user, pass, status)
+}
+
 // PrintResult prints individual results (legacy format for compatibility)
 func PrintResult(service string, host string, port int, user string, pass string, result bool, con_result bool, retrying bool, output string, delayTime time.Duration) {
-	// Always write successes to file, but gate console noise via Silent/LogEvery
 	var msg string
 	var color pterm.Color
 
-	if result && con_result {
-		if service == "vnc" {
-			msg = fmt.Sprintf("[%s] %s:%d - Password '%s' - %s", service, host, port, pass, "SUCCESS")
-			color = pterm.BgGreen
-			content := fmt.Sprintf("[%s] %s:%d - Password '%s' - %s\n", service, host, port, pass, "SUCCESS")
-			err := WriteToFile(service, content, port, output)
-			if err != nil {
-				PrintfColored(pterm.FgRed, "\n[!] WRITE ERROR: could not save credential to file: %v\n", err)
-				PrintfColored(pterm.FgYellow, "[!] CREDENTIAL: %s", content)
-			}
-		} else {
-			msg = fmt.Sprintf("[%s] %s:%d - User '%s' - Pass '%s' - %s", service, host, port, user, pass, "SUCCESS")
-			color = pterm.BgGreen
-			content := fmt.Sprintf("[%s] %s:%d - User '%s' - Pass '%s' - %s\n", service, host, port, user, pass, "SUCCESS")
-			err := WriteToFile(service, content, port, output)
-			if err != nil {
-				PrintfColored(pterm.FgRed, "\n[!] WRITE ERROR: could not save credential to file: %v\n", err)
-				PrintfColored(pterm.FgYellow, "[!] CREDENTIAL: %s", content)
-			}
+	switch {
+	case result && con_result:
+		msg = formatCredentialMsg(service, host, port, user, pass, "SUCCESS")
+		color = pterm.BgGreen
+		content := msg + "\n"
+		if err := WriteToFile(service, content, port, output); err != nil {
+			PrintfColored(pterm.FgRed, "\n[!] WRITE ERROR: could not save credential to file: %v\n", err)
+			PrintfColored(pterm.FgYellow, "[!] CREDENTIAL: %s", content)
 		}
-	} else if !result && con_result {
-		if service == "vnc" {
-			msg = fmt.Sprintf("[%s] %s:%d - Password '%s' - %s", service, host, port, pass, "FAILED")
-			color = pterm.FgLightRed
-		} else {
-			msg = fmt.Sprintf("[%s] %s:%d - User '%s' - Pass '%s' - %s", service, host, port, user, pass, "FAILED")
-			color = pterm.FgLightRed
-		}
-	} else if !result && !con_result {
-		if service == "vnc" {
-			msg = fmt.Sprintf("[%s] %s:%d - Password '%s' - %s", service, host, port, pass, getConResultString(con_result, retrying, delayTime))
-			color = pterm.FgRed
-		} else {
-			msg = fmt.Sprintf("[%s] %s:%d - User '%s' - Pass '%s' - %s", service, host, port, user, pass, getConResultString(con_result, retrying, delayTime))
-			color = pterm.FgRed
-		}
+	case !result && con_result:
+		msg = formatCredentialMsg(service, host, port, user, pass, "FAILED")
+		color = pterm.FgLightRed
+	case !result && !con_result:
+		msg = formatCredentialMsg(service, host, port, user, pass, getConResultString(con_result, retrying, delayTime))
+		color = pterm.FgRed
 	}
+
 	// Determine if we should print this attempt
 	shouldPrint := !TUIMode
 	if shouldPrint && Silent && !(result && con_result) {
@@ -694,23 +681,23 @@ func writeMSFResourceScript(stats *OutputStatsCopy, outputDir string) {
 
 	// Map service names to MSF auxiliary modules
 	msfModules := map[string]string{
-		"ssh":       "auxiliary/scanner/ssh/ssh_login",
-		"ftp":       "auxiliary/scanner/ftp/ftp_login",
-		"telnet":    "auxiliary/scanner/telnet/telnet_login",
-		"mysql":     "auxiliary/scanner/mysql/mysql_login",
-		"postgres":  "auxiliary/scanner/postgres/postgres_login",
-		"mssql":     "auxiliary/scanner/mssql/mssql_login",
-		"smb":       "auxiliary/scanner/smb/smb_login",
-		"smbnt":     "auxiliary/scanner/smb/smb_login",
-		"smtp":      "auxiliary/scanner/smtp/smtp_enum",
-		"vnc":       "auxiliary/scanner/vnc/vnc_login",
-		"rdp":       "auxiliary/scanner/rdp/rdp_scanner",
-		"redis":     "auxiliary/scanner/redis/redis_login",
-		"mongodb":   "auxiliary/scanner/mongodb/mongodb_login",
-		"pop3":      "auxiliary/scanner/pop3/pop3_login",
-		"imap":      "auxiliary/scanner/imap/imap_login",
-		"http":      "auxiliary/scanner/http/http_login",
-		"https":     "auxiliary/scanner/http/http_login",
+		"ssh":      "auxiliary/scanner/ssh/ssh_login",
+		"ftp":      "auxiliary/scanner/ftp/ftp_login",
+		"telnet":   "auxiliary/scanner/telnet/telnet_login",
+		"mysql":    "auxiliary/scanner/mysql/mysql_login",
+		"postgres": "auxiliary/scanner/postgres/postgres_login",
+		"mssql":    "auxiliary/scanner/mssql/mssql_login",
+		"smb":      "auxiliary/scanner/smb/smb_login",
+		"smbnt":    "auxiliary/scanner/smb/smb_login",
+		"smtp":     "auxiliary/scanner/smtp/smtp_enum",
+		"vnc":      "auxiliary/scanner/vnc/vnc_login",
+		"rdp":      "auxiliary/scanner/rdp/rdp_scanner",
+		"redis":    "auxiliary/scanner/redis/redis_login",
+		"mongodb":  "auxiliary/scanner/mongodb/mongodb_login",
+		"pop3":     "auxiliary/scanner/pop3/pop3_login",
+		"imap":     "auxiliary/scanner/imap/imap_login",
+		"http":     "auxiliary/scanner/http/http_login",
+		"https":    "auxiliary/scanner/http/http_login",
 	}
 
 	fmt.Fprintf(file, "# Brutespray Metasploit Resource Script\n")
@@ -755,13 +742,13 @@ func writeNetExecCommands(stats *OutputStatsCopy, outputDir string) {
 
 	// Map service names to nxc protocol names
 	nxcProtocols := map[string]string{
-		"ssh":    "ssh",
-		"smbnt":  "smb",
-		"rdp":    "rdp",
-		"mssql":  "mssql",
-		"ftp":    "ftp",
-		"winrm":  "winrm",
-		"ldap":   "ldap",
+		"ssh":   "ssh",
+		"smbnt": "smb",
+		"rdp":   "rdp",
+		"mssql": "mssql",
+		"ftp":   "ftp",
+		"winrm": "winrm",
+		"ldap":  "ldap",
 	}
 
 	fmt.Fprintf(file, "#!/bin/bash\n")
