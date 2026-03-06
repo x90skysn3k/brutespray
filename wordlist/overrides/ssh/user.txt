@@ -1,0 +1,12 @@
+cisco
+admin
+ubnt
+root
+postgres
+sys
+sap*
+aws-iot
+sa
+pi
+ubuntu
+arduino
