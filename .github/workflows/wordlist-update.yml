@@ -1,0 +1,46 @@
+name: Update Wordlists
+
+on:
+  schedule:
+    - cron: '0 6 1 * *'
+  workflow_dispatch:
+
+jobs:
+  update:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: dev
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Regenerate seasonal passwords
+        run: go run . wordlist seasonal
+
+      - name: Research default credentials
+        run: go run . wordlist research
+        env:
+          OLLAMA_MODEL: qwen3:14b
+          OLLAMA_URL: http://localhost:11434
+
+      - name: Merge candidates into wordlists
+        run: go run . wordlist merge
+
+      - name: Validate wordlists
+        run: go run . wordlist validate
+
+      - name: Create PR
+        uses: peter-evans/create-pull-request@v6
+        with:
+          branch: wordlist-update
+          title: "chore: monthly wordlist update"
+          body: |
+            Automated monthly wordlist update:
+            - Regenerated seasonal passwords
+            - AI-researched default credentials (Qwen 14B)
+            - Priority-ordered by likelihood
+          commit-message: "chore: monthly wordlist update"
+          base: dev
