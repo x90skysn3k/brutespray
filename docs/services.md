@@ -18,7 +18,7 @@ Brutespray supports 24 protocols. Services marked as **beta** may have edge case
 | vnc | 5900 | Stable | Password-only auth (no username) |
 | snmp | 161 | Stable | Community string as password |
 | smbnt | 445 | Stable | Use `-d DOMAIN` for domain auth |
-| rdp | 3389 | Beta | Use `-d DOMAIN` for domain auth |
+| rdp | 3389 | Stable | Use `-d DOMAIN` for domain auth |
 | http | 80 | Stable | Basic auth only, manual targeting (`-H`) |
 | https | 443 | Stable | Basic auth only, manual targeting (`-H`) |
 | vmauthd | 902 | Stable | VMware authentication daemon |
