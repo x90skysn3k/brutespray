@@ -10,10 +10,10 @@ import (
 
 // ServiceView renders attempts grouped by service.
 type ServiceView struct {
-	services    []string
-	serviceSet  map[string]bool
-	selectedIdx int
-	attempts    map[string][]string
+	services      []string
+	serviceSet    map[string]bool
+	selectedIdx   int
+	attempts      map[string][]string
 	width, height int
 }
 

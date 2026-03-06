@@ -92,10 +92,10 @@ func TestCalculateBackoff(t *testing.T) {
 		minMs int
 		maxMs int
 	}{
-		{0, 375, 625},     // 500ms ± 25%
-		{1, 750, 1250},    // 1000ms ± 25%
-		{2, 1500, 2500},   // 2000ms ± 25%
-		{10, 3750, 6250},  // capped at 5s ± 25%
+		{0, 375, 625},    // 500ms ± 25%
+		{1, 750, 1250},   // 1000ms ± 25%
+		{2, 1500, 2500},  // 2000ms ± 25%
+		{10, 3750, 6250}, // capped at 5s ± 25%
 	}
 
 	for _, tt := range tests {
