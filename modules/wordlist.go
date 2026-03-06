@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"io/fs"
 	"net/http"
 	"os"
 	"os/user"
@@ -12,6 +13,7 @@ import (
 	"sync"
 
 	"github.com/pterm/pterm"
+	"github.com/x90skysn3k/brutespray/v2/wordlist"
 )
 
 // WordlistCache provides thread-safe caching of wordlists
@@ -57,7 +59,6 @@ func downloadFileFromGithub(url, localPath string) error {
 	}
 	defer file.Close()
 
-	// Use larger buffer for better performance
 	buf := make([]byte, 8192)
 	var downloaded int
 	for {
@@ -90,16 +91,14 @@ func readFileLines(filename string) ([]string, error) {
 	}
 	defer file.Close()
 
-	// Use larger buffer for better performance
 	scanner := bufio.NewScanner(file)
-	scanner.Buffer(make([]byte, 64*1024), 1024*1024) // 64KB buffer, 1MB max line length
+	scanner.Buffer(make([]byte, 64*1024), 1024*1024)
 
-	// Pre-allocate slice with reasonable capacity
 	lines := make([]string, 0, 1000)
 
 	for scanner.Scan() {
 		line := scanner.Text()
-		if line != "" { // Skip empty lines
+		if line != "" {
 			lines = append(lines, line)
 		}
 	}
@@ -119,14 +118,88 @@ func ReadPasswordsFromFile(filename string) ([]string, error) {
 	return readFileLines(filename)
 }
 
+// tryManifestFromFS loads a wordlist for a service from a manifest in an fs.FS.
+func tryManifestFromFS(fsys fs.FS, serviceType, kind string) ([]string, error) {
+	m, err := LoadManifestFS(fsys, "manifest.yaml")
+	if err != nil {
+		return nil, err
+	}
+	resolved, err := m.ResolveService(serviceType)
+	if err != nil {
+		return nil, err
+	}
+	var refs []string
+	if kind == "users" {
+		refs = resolved.Users
+	} else {
+		refs = resolved.Passwords
+	}
+	if len(refs) == 0 {
+		return []string{}, nil
+	}
+	return m.LoadWordlistFS(refs, fsys)
+}
+
+// tryLocalManifest loads a wordlist from a local manifest.yaml on disk.
+func tryLocalManifest(serviceType, kind string) ([]string, error) {
+	candidates := []string{
+		filepath.Join("wordlist", "manifest.yaml"),
+		filepath.Join("/usr/share/brutespray/wordlist", "manifest.yaml"),
+	}
+	if runtime.GOOS == "windows" {
+		if u, _ := user.Current(); u != nil {
+			candidates = append(candidates,
+				filepath.Join(u.HomeDir, "AppData", "Roaming", "brutespray", "wordlist", "manifest.yaml"))
+		}
+	}
+
+	for _, c := range candidates {
+		if _, err := os.Stat(c); err != nil {
+			continue
+		}
+		m, err := LoadManifest(c)
+		if err != nil {
+			continue
+		}
+		resolved, err := m.ResolveService(serviceType)
+		if err != nil {
+			continue
+		}
+		var refs []string
+		if kind == "users" {
+			refs = resolved.Users
+		} else {
+			refs = resolved.Passwords
+		}
+		if len(refs) == 0 {
+			return []string{}, nil
+		}
+		wordlistDir := filepath.Dir(c)
+		return m.LoadWordlist(refs, wordlistDir)
+	}
+	return nil, fmt.Errorf("no local manifest found")
+}
+
 func GetUsersFromDefaultWordlist(version string, serviceType string) ([]string, error) {
 	cacheKey := fmt.Sprintf("users_%s_%s", version, serviceType)
 
-	// Check cache first
 	if cached, exists := wordlistCache.Get(cacheKey); exists {
 		return cached, nil
 	}
 
+	// Try local manifest first
+	if users, err := tryLocalManifest(serviceType, "users"); err == nil {
+		wordlistCache.Set(cacheKey, users)
+		return users, nil
+	}
+
+	// Try embedded manifest
+	if users, err := tryManifestFromFS(wordlist.FS, serviceType, "users"); err == nil {
+		wordlistCache.Set(cacheKey, users)
+		return users, nil
+	}
+
+	// Fallback: flat file / GitHub download
 	wordlistPath := filepath.Join("wordlist", serviceType, "user")
 	url := fmt.Sprintf("https://raw.githubusercontent.com/x90skysn3k/brutespray/%s/wordlist/%s/user", version, serviceType)
 
@@ -160,7 +233,6 @@ func GetUsersFromDefaultWordlist(version string, serviceType string) ([]string, 
 		return nil, fmt.Errorf("reading user wordlist: %w", err)
 	}
 
-	// Cache the result
 	wordlistCache.Set(cacheKey, users)
 
 	return users, nil
@@ -169,11 +241,23 @@ func GetUsersFromDefaultWordlist(version string, serviceType string) ([]string, 
 func GetPasswordsFromDefaultWordlist(version string, serviceType string) ([]string, error) {
 	cacheKey := fmt.Sprintf("passwords_%s_%s", version, serviceType)
 
-	// Check cache first
 	if cached, exists := wordlistCache.Get(cacheKey); exists {
 		return cached, nil
 	}
 
+	// Try local manifest first
+	if passwords, err := tryLocalManifest(serviceType, "passwords"); err == nil {
+		wordlistCache.Set(cacheKey, passwords)
+		return passwords, nil
+	}
+
+	// Try embedded manifest
+	if passwords, err := tryManifestFromFS(wordlist.FS, serviceType, "passwords"); err == nil {
+		wordlistCache.Set(cacheKey, passwords)
+		return passwords, nil
+	}
+
+	// Fallback: flat file / GitHub download
 	wordlistPath := filepath.Join("wordlist", serviceType, "password")
 	url := fmt.Sprintf("https://raw.githubusercontent.com/x90skysn3k/brutespray/%s/wordlist/%s/password", version, serviceType)
 
@@ -207,7 +291,6 @@ func GetPasswordsFromDefaultWordlist(version string, serviceType string) ([]stri
 		return nil, fmt.Errorf("reading password wordlist: %w", err)
 	}
 
-	// Cache the result
 	wordlistCache.Set(cacheKey, passwords)
 
 	return passwords, nil

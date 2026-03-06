@@ -1,0 +1,17 @@
+root
+admin
+administrator
+user
+test
+guest
+system
+manager
+cisco
+security
+vagrant
+apc
+pass
+sys
+wampp
+newuser
+xampp-dav-unsecure

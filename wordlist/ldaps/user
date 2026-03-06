@@ -1,7 +1,0 @@
-cn=admin,dc=example,dc=com
-cn=Manager,dc=example,dc=com
-cn=Directory Manager
-cn=admin
-administrator
-admin
-ldapadmin
