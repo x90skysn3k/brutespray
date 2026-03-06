@@ -10,6 +10,7 @@ import (
 	"github.com/pterm/pterm"
 	"github.com/x90skysn3k/brutespray/v2/brute"
 	"github.com/x90skysn3k/brutespray/v2/modules"
+	"github.com/x90skysn3k/brutespray/v2/tui"
 )
 
 // Credential represents a single credential attempt
@@ -27,7 +28,7 @@ type HostWorkerPool struct {
 	targetWorkers  int
 	currentWorkers int32
 	jobQueue       chan Credential
-	progressCh     chan int
+	eventSink      tui.EventSink
 	wg             sync.WaitGroup
 	stopChan       chan struct{}
 	// Stop-on-success: close stopChan when first credential succeeds
@@ -42,6 +43,10 @@ type HostWorkerPool struct {
 	successRate     float64
 	totalAttempts   int64
 	mutex           sync.RWMutex
+	// Pause/resume support
+	pauseCh chan struct{}
+	paused  bool
+	pauseMu sync.Mutex
 }
 
 // WorkerPool manages the worker goroutines for brute force attempts with per-host allocation
@@ -50,7 +55,7 @@ type WorkerPool struct {
 	threadsPerHost  int
 	hostPools       map[string]*HostWorkerPool
 	hostPoolsMutex  sync.RWMutex
-	progressCh      chan int
+	eventSink       tui.EventSink
 	globalStopChan  chan struct{}
 	hostParallelism int
 	hostSem         chan struct{}
@@ -73,13 +78,13 @@ type WorkerPool struct {
 }
 
 // NewHostWorkerPool creates a new host-specific worker pool
-func NewHostWorkerPool(host modules.Host, workers int, progressCh chan int, stopOnSuccess bool, rateLimit float64) *HostWorkerPool {
+func NewHostWorkerPool(host modules.Host, workers int, eventSink tui.EventSink, stopOnSuccess bool, rateLimit float64) *HostWorkerPool {
 	hwp := &HostWorkerPool{
 		host:          host,
 		workers:       workers,
 		targetWorkers: workers,
 		jobQueue:      make(chan Credential, workers*10), // Smaller buffer per host
-		progressCh:    progressCh,
+		eventSink:     eventSink,
 		stopChan:      make(chan struct{}),
 		stopOnSuccess: stopOnSuccess,
 	}
@@ -91,7 +96,7 @@ func NewHostWorkerPool(host modules.Host, workers int, progressCh chan int, stop
 }
 
 // NewWorkerPool creates a new worker pool with per-host thread allocation
-func NewWorkerPool(threadsPerHost int, progressCh chan int, hostParallelism int, hostCount int) *WorkerPool {
+func NewWorkerPool(threadsPerHost int, eventSink tui.EventSink, hostParallelism int, hostCount int) *WorkerPool {
 	// Calculate total workers across all hosts (no capping)
 	totalWorkers := threadsPerHost * hostCount
 
@@ -99,7 +104,7 @@ func NewWorkerPool(threadsPerHost int, progressCh chan int, hostParallelism int,
 		globalWorkers:     totalWorkers,
 		threadsPerHost:    threadsPerHost,
 		hostPools:         make(map[string]*HostWorkerPool),
-		progressCh:        progressCh,
+		eventSink:         eventSink,
 		globalStopChan:    make(chan struct{}),
 		hostParallelism:   hostParallelism,
 		hostSem:           make(chan struct{}, hostParallelism),
@@ -229,8 +234,136 @@ func (wp *WorkerPool) Stop() {
 		// All stopped cleanly
 	case <-time.After(2 * time.Second):
 		// Force exit after timeout
-		fmt.Println("[!] Force stopping after timeout")
+		modules.TUIError("[!] Force stopping after timeout\n")
 	}
+}
+
+// Pause pauses all workers for this host. Workers block until Resume is called.
+func (hwp *HostWorkerPool) Pause() {
+	hwp.pauseMu.Lock()
+	defer hwp.pauseMu.Unlock()
+	if !hwp.paused {
+		hwp.paused = true
+		hwp.pauseCh = make(chan struct{})
+	}
+}
+
+// Resume unblocks all paused workers for this host.
+func (hwp *HostWorkerPool) Resume() {
+	hwp.pauseMu.Lock()
+	defer hwp.pauseMu.Unlock()
+	if hwp.paused {
+		hwp.paused = false
+		close(hwp.pauseCh)
+	}
+}
+
+// waitIfPaused blocks the caller until the host is resumed or stopped.
+// Returns true if the host was stopped while paused (caller should exit).
+func (hwp *HostWorkerPool) waitIfPaused() bool {
+	hwp.pauseMu.Lock()
+	if !hwp.paused {
+		hwp.pauseMu.Unlock()
+		return false
+	}
+	ch := hwp.pauseCh
+	hwp.pauseMu.Unlock()
+
+	select {
+	case <-ch: // resumed
+		return false
+	case <-hwp.stopChan: // stopped while paused
+		return true
+	}
+}
+
+// PauseHost pauses workers for a specific host.
+func (wp *WorkerPool) PauseHost(hostKey string) {
+	wp.hostPoolsMutex.RLock()
+	if hp, ok := wp.hostPools[hostKey]; ok {
+		hp.Pause()
+	}
+	wp.hostPoolsMutex.RUnlock()
+}
+
+// ResumeHost resumes workers for a specific host.
+func (wp *WorkerPool) ResumeHost(hostKey string) {
+	wp.hostPoolsMutex.RLock()
+	if hp, ok := wp.hostPools[hostKey]; ok {
+		hp.Resume()
+	}
+	wp.hostPoolsMutex.RUnlock()
+}
+
+// PauseAll pauses all host worker pools.
+func (wp *WorkerPool) PauseAll() {
+	wp.hostPoolsMutex.RLock()
+	for _, hp := range wp.hostPools {
+		hp.Pause()
+	}
+	wp.hostPoolsMutex.RUnlock()
+}
+
+// ResumeAll resumes all host worker pools.
+func (wp *WorkerPool) ResumeAll() {
+	wp.hostPoolsMutex.RLock()
+	for _, hp := range wp.hostPools {
+		hp.Resume()
+	}
+	wp.hostPoolsMutex.RUnlock()
+}
+
+// SetThreadsPerHost updates the threads-per-host setting. Existing pools
+// will rescale on the next scaler tick.
+func (wp *WorkerPool) SetThreadsPerHost(n int) {
+	if n < 1 {
+		n = 1
+	}
+	wp.hostPoolsMutex.Lock()
+	wp.threadsPerHost = n
+	wp.maxThreadsPerHost = n * 2
+	wp.hostPoolsMutex.Unlock()
+}
+
+// SetHostParallelism updates the host parallelism (semaphore size).
+func (wp *WorkerPool) SetHostParallelism(n int) {
+	if n < 1 {
+		n = 1
+	}
+	wp.hostPoolsMutex.Lock()
+	wp.hostParallelism = n
+	// Replace the semaphore channel with new capacity
+	newSem := make(chan struct{}, n)
+	// Transfer existing tokens (up to new capacity)
+	for {
+		select {
+		case tok := <-wp.hostSem:
+			select {
+			case newSem <- tok:
+			default:
+				// New capacity is smaller; drop excess tokens
+			}
+		default:
+			goto done
+		}
+	}
+done:
+	wp.hostSem = newSem
+	wp.hostPoolsMutex.Unlock()
+}
+
+// GetThreadsPerHost returns the current threads-per-host setting.
+func (wp *WorkerPool) GetThreadsPerHost() int {
+	wp.hostPoolsMutex.RLock()
+	defer wp.hostPoolsMutex.RUnlock()
+	return wp.threadsPerHost
+}
+
+// GetHostParallelism returns the current host parallelism setting.
+func (wp *WorkerPool) GetHostParallelism() int {
+	wp.hostPoolsMutex.RLock()
+	defer wp.hostPoolsMutex.RUnlock()
+	return wp.hostParallelism
 }
 
 // worker is the main worker goroutine for host-specific worker pool
@@ -248,6 +381,12 @@ func (hwp *HostWorkerPool) worker(timeout time.Duration, retry int, output strin
 	}
 
 	for {
+		// Block if host is paused
+		if hwp.waitIfPaused() {
+			atomic.AddInt32(&hwp.currentWorkers, -1)
+			return
+		}
+
 		// If scaling down and queue appears empty, allow this worker to exit
 		hwp.mutex.RLock()
 		target := hwp.targetWorkers
@@ -311,7 +450,11 @@ func (hwp *HostWorkerPool) processCredential(cred Credential, timeout time.Durat
 		}
 		if fails >= 3 {
 			hostKey := fmt.Sprintf("%s:%d", cred.Host.Host, cred.Host.Port)
-			modules.PrintfColored(pterm.FgYellow, "[*] %s — backing off %v (%d consecutive connection failures)\n", hostKey, backoff, fails)
+			if modules.TUIMode {
+				modules.TUIError("[*] %s — backing off %v (%d consecutive connection failures)\n", hostKey, backoff, fails)
+			} else {
+				modules.PrintfColored(pterm.FgYellow, "[*] %s — backing off %v (%d consecutive connection failures)\n", hostKey, backoff, fails)
+			}
 		}
 		select {
 		case <-time.After(backoff):
@@ -333,7 +476,7 @@ func (hwp *HostWorkerPool) processCredential(cred Credential, timeout time.Durat
 	startTime := time.Now()
 
 	// Execute the brute force attempt
-	result := brute.RunBrute(cred.Host, cred.User, cred.Password, hwp.progressCh, timeout, retry, output, "", "", domain, cm)
+	result := brute.RunBrute(cred.Host, cred.User, cred.Password, timeout, retry, output, "", "", domain, cm)
 
 	// Record statistics (if enabled) — only count connection errors, not auth failures
 	duration := time.Since(startTime)
@@ -363,11 +506,20 @@ func (hwp *HostWorkerPool) processCredential(cred Credential, timeout time.Durat
 
 	// Update performance metrics
 	hwp.updatePerformanceMetrics(result.AuthSuccess, duration)
-	// progressCh may be closed during shutdown; recover from the panic.
-	func() {
-		defer func() { _ = recover() }()
-		hwp.progressCh <- 1
-	}()
+
+	// Send structured event to the UI layer
+	hwp.eventSink.Send(tui.AttemptResultMsg{
+		Host:      cred.Host.Host,
+		Port:      cred.Host.Port,
+		Service:   cred.Service,
+		User:      cred.User,
+		Password:  cred.Password,
+		Success:   result.AuthSuccess,
+		Connected: result.ConnectionSuccess,
+		Error:     result.Error,
+		Duration:  duration,
+		Timestamp: startTime,
+	})
 }
 
 // updatePerformanceMetrics updates the performance metrics for the host
@@ -431,7 +583,7 @@ func (wp *WorkerPool) getOrCreateHostPool(host modules.Host) *HostWorkerPool {
 				threadsForHost = wp.calculateOptimalThreadsForHost(host)
 			}
 
-			hostPool = NewHostWorkerPool(host, threadsForHost, wp.progressCh, wp.stopOnSuccess, wp.rateLimit)
+			hostPool = NewHostWorkerPool(host, threadsForHost, wp.eventSink, wp.stopOnSuccess, wp.rateLimit)
 			wp.hostPools[hostKey] = hostPool
 		}
 		wp.hostPoolsMutex.Unlock()
