@@ -12,6 +12,7 @@ import (
 	"github.com/x90skysn3k/brutespray/v2/banner"
 	"github.com/x90skysn3k/brutespray/v2/brute"
 	"github.com/x90skysn3k/brutespray/v2/modules"
+	"golang.org/x/term"
 )
 
 var masterServiceList = brute.Services()
@@ -72,6 +73,7 @@ type Config struct {
 	ResumeFile        string
 	CheckpointFile    string
 	ConfigFile        string
+	TUI               bool
 	Hosts             []modules.Host
 	SupportedServices []string
 	TotalCombinations int
@@ -112,6 +114,7 @@ func ParseConfig() *Config {
 	resumeFile := flag.String("resume", "", "Resume from a checkpoint file (saved automatically on interrupt)")
 	checkpointFile := flag.String("checkpoint", "brutespray-checkpoint.json", "Checkpoint file path for resume capability")
 	configFile := flag.String("config", "", "YAML config file (CLI flags override config values)")
+	noTUI := flag.Bool("no-tui", false, "Disable interactive terminal UI, use legacy output mode")
 
 	flag.Parse()
 
@@ -225,6 +228,8 @@ func ParseConfig() *Config {
 	cfg.ResumeFile = *resumeFile
 	cfg.CheckpointFile = *checkpointFile
 	cfg.ConfigFile = *configFile
+	// TUI is default for interactive terminals; --no-tui or --nc disables it
+	cfg.TUI = !*noTUI && !cfg.NoColor && term.IsTerminal(int(os.Stdout.Fd()))
 
 	// Apply global settings
 	NoColorMode = cfg.NoColor

@@ -46,10 +46,15 @@ func downloadFileFromGithub(url, localPath string) error {
 	}
 	defer resp.Body.Close()
 
-	spinner, _ := pterm.DefaultSpinner.Start("Downloading wordlist...")
+	var spinner *pterm.SpinnerPrinter
+	if !TUIMode {
+		spinner, _ = pterm.DefaultSpinner.Start("Downloading wordlist...")
+	}
 
 	if resp.StatusCode == 404 {
-		spinner.Fail("Wordlist not found")
+		if spinner != nil {
+			spinner.Fail("Wordlist not found")
+		}
 		return fmt.Errorf("wordlist not found at %s (HTTP 404)", url)
 	}
 
@@ -60,25 +65,24 @@ func downloadFileFromGithub(url, localPath string) error {
 	defer file.Close()
 
 	buf := make([]byte, 8192)
-	var downloaded int
 	for {
-		n, err := resp.Body.Read(buf)
+		n, readErr := resp.Body.Read(buf)
 		if n > 0 {
-			_, err := file.Write(buf[:n])
-			if err != nil {
-				return err
+			if _, writeErr := file.Write(buf[:n]); writeErr != nil {
+				return writeErr
 			}
-			downloaded += n
 		}
-		if err != nil {
-			if err == io.EOF {
+		if readErr != nil {
+			if readErr == io.EOF {
 				break
 			}
-			return err
+			return readErr
 		}
 	}
 
-	spinner.Success()
+	if spinner != nil {
+		spinner.Success()
+	}
 
 	return nil
 }

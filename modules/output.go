@@ -21,6 +21,25 @@ var NoColorMode bool
 // Silent controls whether to suppress per-attempt logs (successes still printed)
 var Silent bool
 
+// TUIMode suppresses all console output when the interactive TUI is active.
+// File writes (success logs, reports) still happen.
+var TUIMode bool
+
+// ErrorSink routes error messages to the TUI when in TUI mode.
+// Set by brutespray.executeTUI() to eventBus.SendError.
+var ErrorSink func(string)
+
+// TUIError formats and routes an error message. In TUI mode it sends
+// through ErrorSink; otherwise it prints to stderr.
+func TUIError(format string, args ...interface{}) {
+	msg := fmt.Sprintf(format, args...)
+	if TUIMode && ErrorSink != nil {
+		ErrorSink(msg)
+		return
+	}
+	fmt.Fprint(os.Stderr, msg)
+}
+
 // LogEvery controls attempt logging frequency; 1 = log every attempt
 var LogEvery int64 = 1
 var attemptCounter int64
@@ -93,6 +112,9 @@ var OutputMu sync.Mutex
 
 // PrintlnColored prints a colored message with newline
 func PrintlnColored(color pterm.Color, msg string) {
+	if TUIMode {
+		return
+	}
 	OutputMu.Lock()
 	defer OutputMu.Unlock()
 	if NoColorMode {
@@ -104,6 +126,9 @@ func PrintlnColored(color pterm.Color, msg string) {
 
 // PrintfColored prints a formatted colored message
 func PrintfColored(color pterm.Color, format string, args ...interface{}) {
+	if TUIMode {
+		return
+	}
 	msg := fmt.Sprintf(format, args...)
 	OutputMu.Lock()
 	defer OutputMu.Unlock()
@@ -286,7 +311,7 @@ func CalculateFinalStats() OutputStatsCopy {
 }
 
 // PrintResult prints individual results (legacy format for compatibility)
-func PrintResult(service string, host string, port int, user string, pass string, result bool, con_result bool, progressCh chan<- int, retrying bool, output string, delayTime time.Duration) {
+func PrintResult(service string, host string, port int, user string, pass string, result bool, con_result bool, retrying bool, output string, delayTime time.Duration) {
 	// Always write successes to file, but gate console noise via Silent/LogEvery
 	var msg string
 	var color pterm.Color
@@ -329,11 +354,11 @@ func PrintResult(service string, host string, port int, user string, pass string
 		}
 	}
 	// Determine if we should print this attempt
-	shouldPrint := true
-	if Silent && !(result && con_result) {
+	shouldPrint := !TUIMode
+	if shouldPrint && Silent && !(result && con_result) {
 		shouldPrint = false
 	}
-	if !Silent && !(result && con_result) && LogEvery > 1 {
+	if shouldPrint && !Silent && !(result && con_result) && LogEvery > 1 {
 		n := atomic.AddInt64(&attemptCounter, 1)
 		if n%LogEvery != 0 {
 			shouldPrint = false
@@ -352,6 +377,9 @@ func PrintResult(service string, host string, port int, user string, pass string
 
 // PrintWarningBeta prints beta service warnings
 func PrintWarningBeta(service string) {
+	if TUIMode {
+		return
+	}
 	msg := fmt.Sprintf("[!] Warning: %s module is in Beta - results may be inaccurate", service)
 	if NoColorMode {
 		fmt.Println(msg)
@@ -362,6 +390,9 @@ func PrintWarningBeta(service string) {
 
 // PrintProxyWarning prints a warning when SOCKS5 proxy is not supported by a module's underlying library.
 func PrintProxyWarning(service string) {
+	if TUIMode {
+		return
+	}
 	msg := fmt.Sprintf("[!] Warning: SOCKS5 proxy not supported for %s — connection will be direct", service)
 	if NoColorMode {
 		fmt.Println(msg)
@@ -372,6 +403,9 @@ func PrintProxyWarning(service string) {
 
 // PrintSocksError prints SOCKS proxy errors
 func PrintSocksError(service string, err string) {
+	if TUIMode {
+		return
+	}
 	msg := fmt.Sprintf("[!] %s: SOCKS5 connection failed - %s", service, err)
 	if NoColorMode {
 		fmt.Println(msg)
@@ -382,6 +416,9 @@ func PrintSocksError(service string, err string) {
 
 // PrintSkipping prints host skipping messages
 func PrintSkipping(host string, service string, retries int, maxRetries int) {
+	if TUIMode {
+		return
+	}
 	msg := fmt.Sprintf("[!] Warning: Skipping %s on %s - max retries (%d/%d) reached", service, host, retries, maxRetries)
 	if NoColorMode {
 		fmt.Println(msg)

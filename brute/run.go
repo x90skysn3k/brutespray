@@ -138,7 +138,7 @@ func calculateBackoff(retryCount int) time.Duration {
 	return backoff
 }
 
-func RunBrute(h modules.Host, u string, p string, progressCh chan<- int, timeout time.Duration, maxRetries int, output string, socks5 string, netInterface string, domain string, cm *modules.ConnectionManager) BruteResult {
+func RunBrute(h modules.Host, u string, p string, timeout time.Duration, maxRetries int, output string, socks5 string, netInterface string, domain string, cm *modules.ConnectionManager) BruteResult {
 	service := h.Service
 
 	// Start performance monitoring
@@ -226,7 +226,7 @@ func RunBrute(h modules.Host, u string, p string, progressCh chan<- int, timeout
 			// Record connection error
 			metrics.RecordError(true)
 
-			modules.PrintResult(service, h.Host, h.Port, u, p, result, con_result, progressCh, willRetry, output, delayTime)
+			modules.PrintResult(service, h.Host, h.Port, u, p, result, con_result, willRetry, output, delayTime)
 
 			if willRetry {
 				time.Sleep(delayTime)
@@ -239,7 +239,7 @@ func RunBrute(h modules.Host, u string, p string, progressCh chan<- int, timeout
 		}
 	}
 
-	modules.PrintResult(service, h.Host, h.Port, u, p, modResult.AuthSuccess, modResult.ConnectionSuccess, progressCh, false, output, 0)
+	modules.PrintResult(service, h.Host, h.Port, u, p, modResult.AuthSuccess, modResult.ConnectionSuccess, false, output, 0)
 	return BruteResult{AuthSuccess: modResult.AuthSuccess, ConnectionSuccess: modResult.ConnectionSuccess}
 }
 
