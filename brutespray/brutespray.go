@@ -119,6 +119,8 @@ func executeTUI(cfg *Config, cm *modules.ConnectionManager, totalHosts int) {
 	close(checkpointStop)
 	if err := workerPool.checkpoint.Save(); err != nil {
 		fmt.Printf("[!] Final checkpoint save error: %v\n", err)
+	} else {
+		fmt.Printf("\n[*] Session saved. Resume with: brutespray -resume %s ...\n", workerPool.checkpoint.FilePath)
 	}
 
 	modules.SetTotalHostsAndServices(totalHosts, len(cfg.SupportedServices))
@@ -228,7 +230,7 @@ func executeLegacy(cfg *Config, cm *modules.ConnectionManager, totalHosts int) {
 			if err := workerPool.checkpoint.Save(); err != nil {
 				fmt.Printf("[!] Final checkpoint save error: %v\n", err)
 			} else {
-				modules.PrintfColored(pterm.FgLightYellow, "[*] Checkpoint saved to %s\n", workerPool.checkpoint.FilePath)
+				modules.PrintfColored(pterm.FgLightYellow, "[*] Session saved. Resume with: brutespray -resume %s ...\n", workerPool.checkpoint.FilePath)
 			}
 
 			if !NoColorMode && bar != nil {
