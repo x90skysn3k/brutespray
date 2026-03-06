@@ -1,0 +1,90 @@
+generated: "2026-03-05T00:00:00Z"
+seasonal_range: [2023, 2027]
+
+bases:
+  common_passwords: "_base/passwords-common.txt"
+  seasonal_passwords: "_base/passwords-seasonal.txt"
+  sysadmin_users: "_base/users-sysadmin.txt"
+  email_users: "_base/users-email.txt"
+
+layers:
+  os_infra: "_layers/passwords-os-infra.txt"
+  network: "_layers/passwords-network.txt"
+  web: "_layers/passwords-web.txt"
+  sql: "_layers/passwords-sql.txt"
+
+services:
+  ssh:
+    users: [sysadmin_users]
+    passwords: [common_passwords, seasonal_passwords, os_infra]
+  ftp:
+    users: ["overrides/ftp/user.txt"]
+    passwords: [common_passwords, seasonal_passwords, network]
+  telnet:
+    users: ["overrides/telnet/user.txt"]
+    passwords: [common_passwords, seasonal_passwords, network]
+  http:
+    users: ["overrides/http/user.txt"]
+    passwords: [common_passwords, web]
+  https:
+    alias: http
+  imap:
+    users: [email_users]
+    passwords: [common_passwords, seasonal_passwords]
+  pop3:
+    alias: imap
+  smtp:
+    users: [email_users]
+    passwords: [common_passwords, seasonal_passwords]
+  nntp:
+    alias: smtp
+  mssql:
+    users: ["overrides/mssql/user.txt"]
+    passwords: [common_passwords, sql]
+  mysql:
+    users: ["overrides/mysql/user.txt"]
+    passwords: ["overrides/mysql/password.txt"]
+  postgres:
+    users: ["overrides/postgres/user.txt"]
+    passwords: [common_passwords, seasonal_passwords]
+  oracle:
+    users: ["overrides/oracle/user.txt"]
+    passwords: [common_passwords, seasonal_passwords, sql]
+  mongodb:
+    users: ["overrides/mongodb/user.txt"]
+    passwords: ["overrides/mongodb/password.txt"]
+  redis:
+    users: []
+    passwords: [common_passwords]
+  smbnt:
+    users: ["overrides/smbnt/user.txt"]
+    passwords: [common_passwords, seasonal_passwords]
+  vnc:
+    users: ["overrides/vnc/user.txt"]
+    passwords: [common_passwords, network]
+  vmauthd:
+    users: [email_users]
+    passwords: [common_passwords, network]
+  snmp:
+    users: []
+    passwords: ["snmp/community.txt"]
+  ldap:
+    users: ["overrides/ldap/user.txt"]
+    passwords: ["overrides/ldap/password.txt"]
+  ldaps:
+    alias: ldap
+  winrm:
+    users: ["overrides/winrm/user.txt"]
+    passwords: ["overrides/winrm/password.txt"]
+  asterisk:
+    users: [sysadmin_users]
+    passwords: [common_passwords, seasonal_passwords, os_infra]
+  teamspeak:
+    users: ["overrides/teamspeak/user.txt"]
+    passwords: [common_passwords, seasonal_passwords, os_infra]
+  xmpp:
+    users: ["overrides/xmpp/user.txt"]
+    passwords: [common_passwords, seasonal_passwords, os_infra]
+  rdp:
+    users: [sysadmin_users]
+    passwords: [common_passwords, seasonal_passwords, os_infra]
