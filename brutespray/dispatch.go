@@ -1,11 +1,11 @@
 package brutespray
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/pterm/pterm"
 	"github.com/x90skysn3k/brutespray/v2/modules"
+	"github.com/x90skysn3k/brutespray/v2/tui"
 )
 
 // ProcessHost processes a single host with all its credentials using dedicated host worker pool
@@ -43,12 +43,16 @@ func (wp *WorkerPool) ProcessHost(host modules.Host, service string, combo strin
 	// Start the host worker pool
 	hostPool.Start(timeout, retry, output, cm, domain, wp.noStats)
 
+	// Notify TUI of host start
+	wp.eventSink.Send(tui.HostStartedMsg{
+		Host:    host.Host,
+		Port:    host.Port,
+		Service: host.Service,
+		Threads: hostPool.workers,
+	})
+
 	// Debug output to show host processing
-	if !NoColorMode {
-		modules.PrintfColored(pterm.FgLightGreen, "[*] Processing host: %s:%d (%s) with %d threads\n", host.Host, host.Port, host.Service, hostPool.workers)
-	} else {
-		fmt.Printf("[*] Processing host: %s:%d (%s) with %d threads\n", host.Host, host.Port, host.Service, hostPool.workers)
-	}
+	modules.PrintfColored(pterm.FgLightGreen, "[*] Processing host: %s:%d (%s) with %d threads\n", host.Host, host.Port, host.Service, hostPool.workers)
 
 	// Generate and queue all credentials for this host
 	if combo != "" {
@@ -81,7 +85,7 @@ func (wp *WorkerPool) ProcessHost(host modules.Host, service string, combo strin
 		if service == "vnc" || service == "snmp" {
 			_, passwords, err := modules.GetUsersAndPasswords(&host, user, password, version)
 			if err != nil {
-				fmt.Printf("Error loading wordlist for %s: %v\n", service, err)
+				modules.TUIError("Error loading wordlist for %s: %v\n", service, err)
 				return
 			}
 			for _, p := range passwords {
@@ -111,7 +115,7 @@ func (wp *WorkerPool) ProcessHost(host modules.Host, service string, combo strin
 		} else {
 			users, passwords, err := modules.GetUsersAndPasswords(&host, user, password, version)
 			if err != nil {
-				fmt.Printf("Error loading wordlist for %s: %v\n", service, err)
+				modules.TUIError("Error loading wordlist for %s: %v\n", service, err)
 				return
 			}
 
@@ -208,13 +212,18 @@ func (wp *WorkerPool) ProcessHost(host modules.Host, service string, combo strin
 	totalAttempts := hostPool.totalAttempts
 	hostPool.mutex.RUnlock()
 
-	if !NoColorMode {
-		modules.PrintfColored(pterm.FgLightGreen, "[*] Completed host: %s:%d (%s) - %d attempts, %.1f%% success, avg %.2fs\n",
-			host.Host, host.Port, host.Service, totalAttempts, successRate*100, avgResponseTime.Seconds())
-	} else {
-		fmt.Printf("[*] Completed host: %s:%d (%s) - %d attempts, %.1f%% success, avg %.2fs\n",
-			host.Host, host.Port, host.Service, totalAttempts, successRate*100, avgResponseTime.Seconds())
-	}
+	// Notify TUI of host completion
+	wp.eventSink.Send(tui.HostCompletedMsg{
+		Host:          host.Host,
+		Port:          host.Port,
+		Service:       host.Service,
+		TotalAttempts: totalAttempts,
+		SuccessRate:   successRate,
+		AvgResponseMs: float64(avgResponseTime.Milliseconds()),
+	})
+
+	modules.PrintfColored(pterm.FgLightGreen, "[*] Completed host: %s:%d (%s) - %d attempts, %.1f%% success, avg %.2fs\n",
+		host.Host, host.Port, host.Service, totalAttempts, successRate*100, avgResponseTime.Seconds())
 
 	// Mark host as completed in checkpoint
 	if wp.checkpoint != nil {

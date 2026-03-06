@@ -11,6 +11,7 @@ import (
 	"github.com/pterm/pterm"
 	"github.com/x90skysn3k/brutespray/v2/brute"
 	"github.com/x90skysn3k/brutespray/v2/modules"
+	"github.com/x90skysn3k/brutespray/v2/tui"
 )
 
 func Execute() {
@@ -18,7 +19,98 @@ func Execute() {
 
 	totalHosts := len(cfg.Hosts)
 
-	// Create optimized worker pool with per-host thread allocation
+	// Only enable the circuit breaker in spray mode where skipping unreachable
+	// hosts is useful. In normal mode, keep trying — connection hiccups are common.
+	brute.GetCircuitBreaker().SetDisabled(!cfg.SprayMode)
+
+	// Initialize Connection Manager once
+	cm, err := modules.NewConnectionManager(cfg.SocksProxy, cfg.Timeout, cfg.NetInterface)
+	if err != nil {
+		fmt.Printf("Error creating connection manager: %v\n", err)
+		os.Exit(1)
+	}
+
+	if cfg.TUI {
+		executeTUI(cfg, cm, totalHosts)
+	} else {
+		executeLegacy(cfg, cm, totalHosts)
+	}
+}
+
+// executeTUI runs the interactive Bubble Tea TUI.
+func executeTUI(cfg *Config, cm *modules.ConnectionManager, totalHosts int) {
+	// Suppress all direct stdout writes — the TUI handles display
+	modules.TUIMode = true
+
+	eventBus := tui.NewEventBus()
+	modules.ErrorSink = eventBus.SendError
+	workerPool := NewWorkerPool(cfg.Threads, eventBus, cfg.HostParallelism, totalHosts)
+	workerPool.stopOnSuccess = cfg.StopOnSuccess
+	workerPool.rateLimit = cfg.RateLimit
+	workerPool.sprayMode = cfg.SprayMode
+	workerPool.sprayDelay = cfg.SprayDelay
+
+	// Initialize checkpoint
+	if cfg.ResumeFile != "" {
+		cp, err := modules.LoadCheckpoint(cfg.ResumeFile)
+		if err != nil {
+			fmt.Printf("Error loading checkpoint: %v\n", err)
+			os.Exit(1)
+		}
+		workerPool.checkpoint = cp
+	} else {
+		workerPool.checkpoint = modules.NewCheckpoint(cfg.CheckpointFile)
+	}
+
+	checkpointStop := make(chan struct{})
+	workerPool.checkpoint.StartPeriodicSave(30*time.Second, checkpointStop)
+
+	// Start worker pool
+	workerPool.Start(cfg.Timeout, cfg.Retry, cfg.Output, cm, cfg.Domain, cfg.NoStats)
+
+	// Launch host processing goroutines
+	var hostWg sync.WaitGroup
+	for _, h := range cfg.Hosts {
+		hostWg.Add(1)
+		go func(host modules.Host) {
+			defer hostWg.Done()
+			select {
+			case <-workerPool.globalStopChan:
+				return
+			default:
+				workerPool.ProcessHost(host, host.Service, cfg.Combo, cfg.User, cfg.Password, version, cfg.Timeout, cfg.Retry, cfg.Output, cm, cfg.Domain)
+			}
+		}(h)
+	}
+
+	// Signal TUI when all hosts complete
+	go func() {
+		hostWg.Wait()
+		tui.SendDone(eventBus)
+	}()
+
+	// Run the TUI (blocks until user exits)
+	if err := tui.Run(workerPool, cfg.TotalCombinations, eventBus, version); err != nil {
+		fmt.Printf("TUI error: %v\n", err)
+	}
+
+	// Cleanup
+	workerPool.Stop()
+	close(checkpointStop)
+	if err := workerPool.checkpoint.Save(); err != nil {
+		fmt.Printf("[!] Final checkpoint save error: %v\n", err)
+	}
+
+	modules.SetTotalHostsAndServices(totalHosts, len(cfg.SupportedServices))
+	if cfg.Summary {
+		modules.PrintComprehensiveSummary(cfg.Output)
+	}
+	cm.ClearPool()
+	eventBus.Close()
+}
+
+// executeLegacy runs the original pterm-based output mode.
+func executeLegacy(cfg *Config, cm *modules.ConnectionManager, totalHosts int) {
 	totalThreadEstimate := cfg.Threads * totalHosts * 10
 	if totalThreadEstimate < 1 {
 		totalThreadEstimate = 1
@@ -27,15 +119,12 @@ func Execute() {
 		totalThreadEstimate = 100000
 	}
 	progressCh := make(chan int, totalThreadEstimate)
-	workerPool := NewWorkerPool(cfg.Threads, progressCh, cfg.HostParallelism, totalHosts)
+	eventSink := tui.NewLegacyEventSink(progressCh)
+	workerPool := NewWorkerPool(cfg.Threads, eventSink, cfg.HostParallelism, totalHosts)
 	workerPool.stopOnSuccess = cfg.StopOnSuccess
 	workerPool.rateLimit = cfg.RateLimit
 	workerPool.sprayMode = cfg.SprayMode
 	workerPool.sprayDelay = cfg.SprayDelay
-
-	// Only enable the circuit breaker in spray mode where skipping unreachable
-	// hosts is useful. In normal mode, keep trying — connection hiccups are common.
-	brute.GetCircuitBreaker().SetDisabled(!cfg.SprayMode)
 
 	// Initialize checkpoint for resume capability
 	if cfg.ResumeFile != "" {
@@ -63,13 +152,6 @@ func Execute() {
 		modules.PrintfColored(pterm.FgLightYellow, "Socks5 Proxy: %s\n", cfg.SocksProxy)
 	}
 
-	// Initialize Connection Manager once
-	cm, err := modules.NewConnectionManager(cfg.SocksProxy, cfg.Timeout, cfg.NetInterface)
-	if err != nil {
-		fmt.Printf("Error creating connection manager: %v\n", err)
-		os.Exit(1)
-	}
-
 	if cfg.NetInterface != "" {
 		modules.PrintfColored(pterm.FgLightYellow, "Network Interface: %s\n", cm.Iface)
 		ipAddr, err := modules.GetIPv4Address(cm.Iface)
@@ -88,7 +170,7 @@ func Execute() {
 	} else {
 		spinner, _ := pterm.DefaultSpinner.Start("[*] Testing credentials...")
 		time.Sleep(1 * time.Second)
-		err = spinner.Stop()
+		err := spinner.Stop()
 		if err != nil {
 			_ = err
 		}
@@ -99,7 +181,7 @@ func Execute() {
 		bar, _ = pterm.DefaultProgressbar.WithTotal(cfg.TotalCombinations).WithTitle("Progress").Start()
 	}
 
-	counterMutex, currentCounter := StartProgressTracker(progressCh, cfg.TotalCombinations, cfg.Threads, bar)
+	counterMutex, currentCounter := StartProgressTracker(eventSink.ProgressCh(), cfg.TotalCombinations, cfg.Threads, bar)
 
 	// Start periodic checkpoint saves
 	checkpointStop := make(chan struct{})
@@ -150,8 +232,6 @@ func Execute() {
 	workerPool.Start(cfg.Timeout, cfg.Retry, cfg.Output, cm, cfg.Domain, cfg.NoStats)
 
 	// Process hosts with proper parallelism.
-	// Interleave dispatch across services so that a large SSH list doesn't
-	// starve FTP/HTTP targets waiting behind the host semaphore.
 	var hostWg sync.WaitGroup
 	for _, h := range cfg.Hosts {
 		hostWg.Add(1)
@@ -181,8 +261,8 @@ func Execute() {
 		fmt.Println("[*] Waiting for hosts to finish current operations...")
 	}
 
-	// Close progress channel to stop progress goroutine cleanly
-	close(progressCh)
+	// Close event sink to stop progress goroutine cleanly
+	eventSink.Close()
 
 	// Run cleanup via Once (safe even if signal handler already did it)
 	doCleanup()

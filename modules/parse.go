@@ -116,7 +116,7 @@ func MapService(service string) string {
 }
 
 func ParseGNMAP(filename string) (map[Host]int, error) {
-	supported := []string{"ssh", "ftp", "postgres", "telnet", "mysql", "ms-sql-s", "shell",
+	supported := []string{"ssh", "ftp", "postgres", "telnet", "mysql", "ms-sql-s",
 		"vnc", "imap", "imaps", "nntp", "pcanywheredata", "pop3", "pop3s",
 		"exec", "login", "microsoft-ds", "smtp", "smtps", "submission",
 		"svn", "iss-realsecure", "snmptrap", "snmp", "ms-wbt-server", "mongod", "nntp", "oracle", "textui", "xmpp-client", "redis", "ldap", "ldaps", "wsman", "wsmans"}
@@ -156,7 +156,7 @@ func ParseGNMAP(filename string) (map[Host]int, error) {
 	return hosts, nil
 }
 func ParseJSON(filename string) (map[Host]int, error) {
-	supported := []string{"ssh", "ftp", "postgres", "telnet", "mysql", "ms-sql-s", "shell",
+	supported := []string{"ssh", "ftp", "postgres", "telnet", "mysql", "ms-sql-s",
 		"vnc", "imap", "imaps", "nntp", "pcanywheredata", "pop3", "pop3s",
 		"exec", "login", "microsoft-ds", "smtp", "smtps", "submission",
 		"svn", "iss-realsecure", "snmptrap", "snmp", "mongodb", "nntp", "oracle", "textui", "xmpp-client", "ms-wbt-server", "redis"}
