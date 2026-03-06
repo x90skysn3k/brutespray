@@ -26,19 +26,6 @@ var tabNames = []string{"All", "By Host", "By Service", "Completed", "Successes"
 // brandText is the compact brand name shown in the top-right of the tab bar.
 const brandText = "BRUTESPRAY"
 
-// renderRainbowText renders text with each character in a different
-// cycling color from the scheme, creating a rainbow gradient effect.
-func renderRainbowText(text string, scheme *ColorScheme) string {
-	var b strings.Builder
-	colors := scheme.CycleColors
-	for i, ch := range text {
-		color := colors[i%len(colors)]
-		style := lipgloss.NewStyle().Foreground(color).Bold(true)
-		b.WriteString(style.Render(string(ch)))
-	}
-	return b.String()
-}
-
 // RenderTabBar renders the tab bar at the top of the screen.
 func RenderTabBar(activeTab Tab, width int, scheme *ColorScheme, badges map[Tab]int, tabBarFocused bool, version string) string {
 	var tabs []string
@@ -78,9 +65,13 @@ func RenderTabBar(activeTab Tab, width int, scheme *ColorScheme, badges map[Tab]
 
 	tabLine := strings.Join(tabs, " ")
 
-	// Rainbow brand right-aligned on the tab line
-	brand := renderRainbowText(brandText, scheme)
-	brandWidth := len(brandText)
+	// Brand + version right-aligned on the tab line, colored with the scheme's accent
+	brandLabel := brandText
+	if version != "" {
+		brandLabel = brandText + " " + version
+	}
+	brand := lipgloss.NewStyle().Foreground(accentColor).Bold(true).Render(brandLabel)
+	brandWidth := len(brandLabel)
 
 	tabLineWidth := lipgloss.Width(tabLine)
 	gap := width - tabLineWidth - brandWidth
