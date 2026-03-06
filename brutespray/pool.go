@@ -47,6 +47,8 @@ type HostWorkerPool struct {
 	pauseCh chan struct{}
 	paused  bool
 	pauseMu sync.Mutex
+	// Session log for resume replay
+	sessionLog *modules.SessionLog
 }
 
 // WorkerPool manages the worker goroutines for brute force attempts with per-host allocation
@@ -75,6 +77,8 @@ type WorkerPool struct {
 	sprayDelay time.Duration
 	// Checkpoint for resume capability
 	checkpoint *modules.Checkpoint
+	// Session log for resume replay
+	sessionLog *modules.SessionLog
 }
 
 // NewHostWorkerPool creates a new host-specific worker pool
@@ -520,6 +524,22 @@ func (hwp *HostWorkerPool) processCredential(cred Credential, timeout time.Durat
 		Duration:  duration,
 		Timestamp: startTime,
 	})
+
+	// Write to session log for resume replay
+	if hwp.sessionLog != nil {
+		hwp.sessionLog.Write(modules.SessionEntry{
+			Type:      "attempt",
+			Host:      cred.Host.Host,
+			Port:      cred.Host.Port,
+			Service:   cred.Service,
+			User:      cred.User,
+			Password:  cred.Password,
+			Success:   result.AuthSuccess,
+			Connected: result.ConnectionSuccess,
+			Duration:  duration,
+			Timestamp: startTime,
+		})
+	}
 }
 
 // updatePerformanceMetrics updates the performance metrics for the host
@@ -584,6 +604,7 @@ func (wp *WorkerPool) getOrCreateHostPool(host modules.Host) *HostWorkerPool {
 			}
 
 			hostPool = NewHostWorkerPool(host, threadsForHost, wp.eventSink, wp.stopOnSuccess, wp.rateLimit)
+			hostPool.sessionLog = wp.sessionLog
 			wp.hostPools[hostKey] = hostPool
 		}
 		wp.hostPoolsMutex.Unlock()
