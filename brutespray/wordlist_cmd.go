@@ -310,6 +310,55 @@ type researchCandidate struct {
 	Source  string `json:"source"`
 }
 
+type braveSearchResponse struct {
+	Web struct {
+		Results []struct {
+			Title       string `json:"title"`
+			Description string `json:"description"`
+			URL         string `json:"url"`
+		} `json:"results"`
+	} `json:"web"`
+}
+
+func searchBrave(apiKey, query string) (string, error) {
+	req, err := http.NewRequest("GET", "https://api.search.brave.com/res/v1/web/search", nil)
+	if err != nil {
+		return "", err
+	}
+	q := req.URL.Query()
+	q.Set("q", query)
+	q.Set("count", "10")
+	req.URL.RawQuery = q.Encode()
+	req.Header.Set("X-Subscription-Token", apiKey)
+	req.Header.Set("Accept", "application/json")
+
+	client := &http.Client{Timeout: 15 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("brave search: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	if resp.StatusCode != 200 {
+		return "", fmt.Errorf("brave search returned %d: %s", resp.StatusCode, string(body))
+	}
+
+	var result braveSearchResponse
+	if err := json.Unmarshal(body, &result); err != nil {
+		return "", err
+	}
+
+	var snippets []string
+	for _, r := range result.Web.Results {
+		snippets = append(snippets, fmt.Sprintf("- %s: %s (%s)", r.Title, r.Description, r.URL))
+	}
+	return strings.Join(snippets, "\n"), nil
+}
+
 func cmdResearch() error {
 	model := os.Getenv("OLLAMA_MODEL")
 	if model == "" {
@@ -319,6 +368,7 @@ func cmdResearch() error {
 	if ollamaURL == "" {
 		ollamaURL = "http://localhost:11434"
 	}
+	braveAPIKey := os.Getenv("BRAVE_API_KEY")
 
 	services := []string{
 		"ssh", "ftp", "telnet", "rdp", "http", "mysql", "mssql",
@@ -330,10 +380,33 @@ func cmdResearch() error {
 
 	for _, svc := range services {
 		spinner, _ := pterm.DefaultSpinner.Start(fmt.Sprintf("Researching %s...", svc))
+
+		// Search Brave for recent default credential info
+		var searchContext string
+		if braveAPIKey != "" {
+			queries := []string{
+				fmt.Sprintf("default credentials %s service appliance", svc),
+				fmt.Sprintf("%s default username password CVE", svc),
+			}
+			var allSnippets []string
+			for _, q := range queries {
+				snippets, err := searchBrave(braveAPIKey, q)
+				if err != nil {
+					pterm.Warning.Printfln("  brave search warning: %v", err)
+					continue
+				}
+				allSnippets = append(allSnippets, snippets)
+			}
+			if len(allSnippets) > 0 {
+				searchContext = "\n\nHere are recent web search results for context:\n" +
+					strings.Join(allSnippets, "\n")
+			}
+		}
+
 		prompt := fmt.Sprintf(`List all publicly documented default credentials for %s services and appliances.
 Include credentials from vendor documentation, security advisories, and CVE reports.
 Do NOT include credentials from data breaches or leaks.
-
+%s
 Return ONLY a JSON array with objects like:
 [{"product": "ProductName", "username": "admin", "password": "admin", "source": "vendor docs"}]
 
@@ -344,7 +417,7 @@ Focus on:
 - Enterprise software defaults
 - Cloud service defaults
 
-Return valid JSON only, no other text.`, svc)
+Return valid JSON only, no other text.`, svc, searchContext)
 
 		resp, err := queryOllama(ollamaURL, model, prompt)
 		if err != nil {
@@ -379,7 +452,12 @@ Return valid JSON only, no other text.`, svc)
 				})
 			}
 		}
-		spinner.Success(fmt.Sprintf("%s: found %d credentials", svc, len(creds)))
+
+		srcLabel := "ollama"
+		if braveAPIKey != "" {
+			srcLabel = "brave+ollama"
+		}
+		spinner.Success(fmt.Sprintf("%s: found %d credentials (%s)", svc, len(creds), srcLabel))
 	}
 
 	outPath := filepath.Join("wordlist", "_candidates.json")
