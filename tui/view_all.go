@@ -29,14 +29,17 @@ func (v *AllView) SetSize(width, height int) {
 func (v *AllView) AddAttempt(msg AttemptResultMsg, scheme *ColorScheme) {
 	style, status := scheme.AttemptStyle(msg.Success, msg.Connected, msg.Retrying)
 
-	var line string
+	hostPort := fmt.Sprintf("%s:%d", msg.Host, msg.Port)
+	creds := fmt.Sprintf("%s:%s", msg.User, msg.Password)
 	if msg.User == "" {
-		line = fmt.Sprintf("[%s] %s:%d  pass:%-20s  %s  %s",
-			msg.Service, msg.Host, msg.Port, msg.Password, status, msg.Duration.Round(1e6))
-	} else {
-		line = fmt.Sprintf("[%s] %s:%d  %s:%-15s  %s  %s",
-			msg.Service, msg.Host, msg.Port, msg.User, msg.Password, status, msg.Duration.Round(1e6))
+		creds = fmt.Sprintf("pass:%s", msg.Password)
 	}
+	line := fmt.Sprintf("[%-*s] %-*s  %-*s  %-*s  %*s",
+		colWidthService, msg.Service,
+		colWidthHostPort, hostPort,
+		colWidthCreds, creds,
+		colWidthStatus, status,
+		colWidthDuration, msg.Duration.Round(1e6))
 
 	v.lines = append(v.lines, style.Render(line))
 

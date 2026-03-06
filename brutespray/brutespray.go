@@ -51,6 +51,7 @@ func executeTUI(cfg *Config, cm *modules.ConnectionManager, totalHosts int) {
 	workerPool.sprayDelay = cfg.SprayDelay
 
 	// Initialize checkpoint
+	var replayEntries []modules.SessionEntry
 	if cfg.ResumeFile != "" {
 		cp, err := modules.LoadCheckpoint(cfg.ResumeFile)
 		if err != nil {
@@ -58,8 +59,27 @@ func executeTUI(cfg *Config, cm *modules.ConnectionManager, totalHosts int) {
 			os.Exit(1)
 		}
 		workerPool.checkpoint = cp
+
+		// Load session log for replay
+		logPath := modules.SessionLogPath(cfg.ResumeFile)
+		entries, err := modules.LoadSessionLog(logPath)
+		if err != nil {
+			fmt.Printf("Warning: could not load session log: %v\n", err)
+		} else {
+			replayEntries = entries
+		}
 	} else {
 		workerPool.checkpoint = modules.NewCheckpoint(cfg.CheckpointFile)
+	}
+
+	// Initialize session log for recording attempts
+	sessionLogPath := modules.SessionLogPath(workerPool.checkpoint.FilePath)
+	sessionLog, err := modules.NewSessionLog(sessionLogPath)
+	if err != nil {
+		fmt.Printf("Warning: could not open session log: %v\n", err)
+	} else {
+		workerPool.sessionLog = sessionLog
+		defer sessionLog.Close()
 	}
 
 	checkpointStop := make(chan struct{})
@@ -90,7 +110,7 @@ func executeTUI(cfg *Config, cm *modules.ConnectionManager, totalHosts int) {
 	}()
 
 	// Run the TUI (blocks until user exits)
-	if err := tui.Run(workerPool, cfg.TotalCombinations, eventBus, version); err != nil {
+	if err := tui.Run(workerPool, cfg.TotalCombinations, eventBus, version, replayEntries); err != nil {
 		fmt.Printf("TUI error: %v\n", err)
 	}
 
@@ -138,6 +158,16 @@ func executeLegacy(cfg *Config, cm *modules.ConnectionManager, totalHosts int) {
 			len(cp.CompletedHosts), len(cp.SuccessfulCreds))
 	} else {
 		workerPool.checkpoint = modules.NewCheckpoint(cfg.CheckpointFile)
+	}
+
+	// Initialize session log for recording attempts
+	sessionLogPath := modules.SessionLogPath(workerPool.checkpoint.FilePath)
+	sessionLog, err := modules.NewSessionLog(sessionLogPath)
+	if err != nil {
+		fmt.Printf("Warning: could not open session log: %v\n", err)
+	} else {
+		workerPool.sessionLog = sessionLog
+		defer sessionLog.Close()
 	}
 
 	// Register signal handler BEFORE launching the goroutine that reads from it

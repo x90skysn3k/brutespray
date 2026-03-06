@@ -91,8 +91,9 @@ type Model struct {
 	splashActive bool
 }
 
-// NewModel creates a new TUI model.
-func NewModel(pool WorkerPoolController, totalCombinations int, version string) Model {
+// NewModel creates a new TUI model. resumedProgress is the number of attempts
+// replayed from a previous session (used to initialize the progress counter).
+func NewModel(pool WorkerPoolController, totalCombinations int, version string, resumedProgress int) Model {
 	return Model{
 		allView:           NewAllView(),
 		hostView:          NewHostView(),
@@ -106,6 +107,7 @@ func NewModel(pool WorkerPoolController, totalCombinations int, version string) 
 		scheme:            NewRandomColorScheme(),
 		pool:              pool,
 		totalCombinations: totalCombinations,
+		currentProgress:   resumedProgress,
 		keys:              DefaultKeyMap(),
 		tabBarFocused:     true,
 		version:           version,
