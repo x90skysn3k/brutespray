@@ -51,10 +51,13 @@ func NewSessionLog(filePath string) (*SessionLog, error) {
 }
 
 // Write appends a single entry to the session log.
+// Errors are logged to stderr but do not block workers.
 func (sl *SessionLog) Write(entry SessionEntry) {
 	sl.mu.Lock()
 	defer sl.mu.Unlock()
-	_ = sl.encoder.Encode(entry) // best-effort; don't block workers on log errors
+	if err := sl.encoder.Encode(entry); err != nil {
+		fmt.Fprintf(os.Stderr, "[!] session log write error: %v\n", err)
+	}
 }
 
 // Close closes the underlying file.

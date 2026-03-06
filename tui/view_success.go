@@ -24,6 +24,9 @@ func (v *SuccessView) SetSize(width, height int) {
 
 func (v *SuccessView) AddSuccess(msg AttemptResultMsg) {
 	v.entries = append(v.entries, msg)
+	if len(v.entries) > 1000 {
+		v.entries = v.entries[len(v.entries)-1000:]
+	}
 }
 
 func (v *SuccessView) View(scheme *ColorScheme) string {

@@ -79,7 +79,7 @@ func (v *SettingsView) flash() {
 
 // AdjustRight increases the selected editable field.
 func (v *SettingsView) AdjustRight() {
-	if v.pool == nil {
+	if v.pool == nil || v.selectedIdx >= len(settingsFields) {
 		return
 	}
 	f := settingsFields[v.selectedIdx]
@@ -104,7 +104,7 @@ func (v *SettingsView) AdjustRight() {
 
 // AdjustLeft decreases the selected editable field.
 func (v *SettingsView) AdjustLeft() {
-	if v.pool == nil {
+	if v.pool == nil || v.selectedIdx >= len(settingsFields) {
 		return
 	}
 	f := settingsFields[v.selectedIdx]
@@ -129,6 +129,9 @@ func (v *SettingsView) AdjustLeft() {
 
 // IsEditable returns true if the currently selected field is editable.
 func (v *SettingsView) IsEditable() bool {
+	if v.selectedIdx >= len(settingsFields) {
+		return false
+	}
 	return settingsFields[v.selectedIdx].editable
 }
 

@@ -30,7 +30,7 @@ func BruteAsterisk(host string, port int, user, password string, timeout time.Du
 	}
 
 	// Send Login action
-	loginCmd := fmt.Sprintf("Action: Login\r\nUsername: %s\r\nSecret: %s\r\n\r\n", user, password)
+	loginCmd := fmt.Sprintf("Action: Login\r\nUsername: %s\r\nSecret: %s\r\n\r\n", sanitizeCred(user), sanitizeCred(password))
 	_, err = conn.Write([]byte(loginCmd))
 	if err != nil {
 		return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}

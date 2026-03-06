@@ -34,6 +34,9 @@ func (v *CompletedView) SetSize(width, height int) {
 
 func (v *CompletedView) AddCompleted(msg HostCompletedMsg) {
 	v.entries = append(v.entries, HostCompletedInfo(msg))
+	if len(v.entries) > 1000 {
+		v.entries = v.entries[len(v.entries)-1000:]
+	}
 }
 
 func (v *CompletedView) View(scheme *ColorScheme) string {

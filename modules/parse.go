@@ -138,7 +138,10 @@ func ParseGNMAP(filename string) (map[Host]int, error) {
 			if len(portMatches) == 0 {
 				continue
 			}
-			port, _ := strconv.Atoi(portMatches[1])
+			port, err := strconv.Atoi(portMatches[1])
+			if err != nil || port <= 0 {
+				continue
+			}
 			ipMatches := regexp.MustCompile(`[0-9]+(?:\.[0-9]+){3}`).FindAllString(line, -1)
 
 			for _, ip := range ipMatches {
@@ -180,7 +183,10 @@ func ParseJSON(filename string) (map[Host]int, error) {
 		port, _ := data["port"].(string)
 		name, _ := data["service"].(string)
 		if contains(supported, name) {
-			p, _ := strconv.Atoi(port)
+			p, err := strconv.Atoi(port)
+			if err != nil || p <= 0 {
+				continue
+			}
 			mappedService := MapService(name)
 			h := Host{Service: mappedService, Host: host, Port: p}
 			hosts[h] = 1
@@ -231,7 +237,10 @@ func ParseXML(filename string) (map[Host]int, error) {
 			if port.PortState.State == "open" {
 				name := port.Service.Name
 				if contains(supported, name) {
-					p, _ := strconv.Atoi(port.PortId)
+					p, err := strconv.Atoi(port.PortId)
+					if err != nil || p <= 0 {
+						continue
+					}
 					mappedService := MapService(name)
 					h := Host{Service: mappedService, Host: ip, Port: p}
 					hosts[h] = 1
@@ -282,7 +291,10 @@ func ParseNexpose(filename string) (map[Host]int, error) {
 				name := port.Service.Name
 				name = strings.ToLower(name)
 				if contains(supported, name) {
-					p, _ := strconv.Atoi(port.Port)
+					p, err := strconv.Atoi(port.Port)
+					if err != nil || p <= 0 {
+						continue
+					}
 					mappedService := MapService(name)
 					h := Host{Service: mappedService, Host: ip, Port: p}
 					hosts[h] = 1
@@ -317,7 +329,10 @@ func ParseNessus(filename string) (map[Host]int, error) {
 			if port.Port != "0" {
 				name := port.SvcName
 				if contains(supported, name) {
-					p, _ := strconv.Atoi(port.Port)
+					p, err := strconv.Atoi(port.Port)
+					if err != nil || p <= 0 {
+						continue
+					}
 					mappedService := MapService(name)
 					h := Host{Service: mappedService, Host: ip, Port: p}
 					hosts[h] = 1
@@ -454,6 +469,10 @@ func (h *Host) Parse(host string) ([]Host, error) {
 	return hosts, nil
 }
 
+// maxCIDRHosts is the maximum number of hosts generated from a CIDR range.
+// A /16 generates ~65534 hosts; anything larger is likely a mistake.
+const maxCIDRHosts = 65536
+
 func generateHostList(ipnet *net.IPNet) []net.IP {
 	var ips []net.IP
 	startIP := ipnet.IP.Mask(ipnet.Mask)
@@ -461,6 +480,10 @@ func generateHostList(ipnet *net.IPNet) []net.IP {
 	for ip := startIP; ipnet.Contains(ip); inc(ip) {
 		if !ip.IsLoopback() && !ip.IsLinkLocalUnicast() && !ip.IsLinkLocalMulticast() && !isBroadcast(ip, ipnet) {
 			ips = append(ips, append([]byte(nil), ip...))
+			if len(ips) >= maxCIDRHosts {
+				fmt.Fprintf(os.Stderr, "[!] CIDR range too large, capped at %d hosts\n", maxCIDRHosts)
+				break
+			}
 		}
 	}
 	return ips

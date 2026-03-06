@@ -37,6 +37,9 @@ func detectFileFormat(filename string) (string, error) {
 	}
 	line := scanner.Text()
 
+	if len(line) == 0 {
+		return "list", nil
+	}
 	if line[0] == '{' {
 		return "json", nil
 	}
@@ -44,7 +47,8 @@ func detectFileFormat(filename string) (string, error) {
 		if !scanner.Scan() {
 			return "", scanner.Err()
 		}
-		if !strings.HasPrefix(scanner.Text()[1:], "Nmap") {
+		nextLine := scanner.Text()
+		if len(nextLine) > 1 && !strings.HasPrefix(nextLine[1:], "Nmap") {
 			return "gnmap", nil
 		}
 		return "", fmt.Errorf("file is not a supported format")
