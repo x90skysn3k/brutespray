@@ -25,6 +25,7 @@ jobs:
         env:
           OLLAMA_MODEL: qwen3:14b
           OLLAMA_URL: http://localhost:11434
+          BRAVE_API_KEY: ${{ secrets.BRAVE_API_KEY }}
 
       - name: Merge candidates into wordlists
         run: go run . wordlist merge
