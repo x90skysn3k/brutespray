@@ -11,6 +11,22 @@ Brutespray has been re-written in Golang, eliminating the requirement for additi
 
 <img src="https://i.imgur.com/6fQI6Qs.png" width="500">
 
+# Interactive Terminal UI
+
+Brutespray now features an interactive terminal UI built with [Bubble Tea](https://github.com/charmbracelet/bubbletea). The TUI is **enabled by default** on interactive terminals.
+
+**Features:**
+- **Tabbed views** — All, By Host, By Service, Completed, Successes, Errors, Settings
+- **Live settings** — Adjust threads per host and parallel hosts on the fly during a scan
+- **Focus navigation** — Left/right to switch tabs, down to enter content, up to return to tabs
+- **Error routing** — All errors display cleanly in the Errors tab instead of corrupting the screen
+- **Real-time stats** — Elapsed time, attempts/sec, success rate, and error counts
+
+To disable the TUI and use legacy console output:
+```
+brutespray -f nmap.gnmap -u admin -p password --no-tui
+```
+
 # Install
 
 ```
@@ -75,6 +91,7 @@ Command: ```brutespray -H ssh://127.0.0.1 -C root:root```
 | `-resume` | Resume from a checkpoint file (saved automatically on interrupt) | `-resume brutespray-checkpoint.json` |
 | `-checkpoint` | Checkpoint file path for resume capability (default: brutespray-checkpoint.json) | `-checkpoint myrun.json` |
 | `-config` | YAML config file (CLI flags override config values) | `-config engagement.yaml` |
+| `--no-tui` | Disable interactive terminal UI, use legacy output mode | `--no-tui` |
 
 # Examples
 
@@ -310,6 +327,10 @@ user4:pass1
 ...
 ```
 
+# Embedded Wordlists
+
+Brutespray ships with curated default wordlists embedded directly in the binary — no external downloads needed. Wordlists are organized via a manifest system with shared base lists and per-service overrides, keeping the binary compact while covering all supported protocols. You can still override with your own wordlists using `-u` and `-p`.
+
 # Performance Features
 
 - **Per-Host Threading**: Each host gets its own thread pool for optimal performance
@@ -336,6 +357,8 @@ user4:pass1
 * ~~Ability to select interface~~
 * ~~More modules~~
 * ~~Better connection handling~~
+* ~~Interactive Terminal UI~~
+* ~~Embedded wordlists~~
 * HTTP form-based and digest authentication
 * SNMP v1/v3 support
 
