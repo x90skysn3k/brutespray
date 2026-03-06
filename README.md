@@ -61,6 +61,10 @@ See [all examples](docs/examples.md) for more usage patterns.
 
 Full details and service-specific notes: [docs/services.md](docs/services.md)
 
+Print discovered services from a scan file with `-P -q`:
+
+<img src="https://i.imgur.com/97ENS23.png" width="500">
+
 ## Documentation
 
 | Guide | Description |
@@ -72,8 +76,6 @@ Full details and service-specific notes: [docs/services.md](docs/services.md)
 | [Interactive TUI](docs/tui.md) | Keybindings, tabs, live settings |
 | [Advanced](docs/advanced.md) | Spray mode, proxy, resume, performance tuning |
 | [Output & Reporting](docs/output.md) | Summary reports, Metasploit/NetExec integration |
-
-<img src="https://i.imgur.com/97ENS23.png" width="500">
 
 ## Star History
 
