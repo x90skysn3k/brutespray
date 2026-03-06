@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"net/url"
 	"time"
 
 	"go.mongodb.org/mongo-driver/mongo"
@@ -36,7 +37,7 @@ func BruteMongoDB(host string, port int, user, password string, timeout time.Dur
 	dialer := &ContextDialerWrapper{CM: cm}
 
 	clientOptions := options.Client().
-		ApplyURI(fmt.Sprintf("mongodb://%s:%s@%s:%d", user, password, host, port)).
+		ApplyURI(fmt.Sprintf("mongodb://%s:%s@%s:%d", url.QueryEscape(user), url.QueryEscape(password), host, port)).
 		SetDialer(dialer)
 	client, err := mongo.Connect(ctx, clientOptions)
 	if err != nil {

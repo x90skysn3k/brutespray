@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"net"
+	"strings"
 	"time"
 
 	"github.com/lib/pq"
@@ -31,7 +32,13 @@ func (d *pqDialer) DialTimeout(network, address string, timeout time.Duration) (
 }
 
 func BrutePostgres(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) *BruteResult {
-	connStr := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=postgres sslmode=disable", host, port, user, password)
+	// Use single-quote escaping for libpq connection strings: ' -> \'  \ -> \\
+	escPq := func(s string) string {
+		s = strings.ReplaceAll(s, `\`, `\\`)
+		s = strings.ReplaceAll(s, `'`, `\'`)
+		return s
+	}
+	connStr := fmt.Sprintf("host=%s port=%d user='%s' password='%s' dbname=postgres sslmode=disable", host, port, escPq(user), escPq(password))
 
 	connector, err := pq.NewConnector(connStr)
 	if err != nil {

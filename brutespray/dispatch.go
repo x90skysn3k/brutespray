@@ -69,7 +69,11 @@ func (wp *WorkerPool) ProcessHost(host modules.Host, service string, combo strin
 	// Generate and queue all credentials for this host
 	if combo != "" {
 		users, passwords := modules.GetUsersAndPasswordsCombo(&host, combo, version)
-		for i := range users {
+		n := len(users)
+		if len(passwords) < n {
+			n = len(passwords)
+		}
+		for i := 0; i < n; i++ {
 			// Check if we should stop before processing each credential
 			select {
 			case <-wp.globalStopChan:

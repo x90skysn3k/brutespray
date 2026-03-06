@@ -11,6 +11,12 @@ import (
 	"github.com/x90skysn3k/brutespray/v2/modules"
 )
 
+// sanitizeCred strips CR/LF and null bytes from a credential string to prevent
+// protocol injection in text-based services (AMI, TeamSpeak, VMAuthd, NNTP, etc.).
+func sanitizeCred(s string) string {
+	return strings.NewReplacer("\r", "", "\n", "", "\x00", "").Replace(s)
+}
+
 // BruteResult captures the outcome of a single credential attempt including
 // whether the connection itself succeeded (to distinguish auth failures from
 // network failures).

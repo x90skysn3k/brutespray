@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"net"
+	"strings"
 	"time"
 
 	mssql "github.com/denisenkom/go-mssqldb"
@@ -29,7 +30,14 @@ func (d *mssqlDialer) DialContext(ctx context.Context, network, addr string) (ne
 }
 
 func BruteMSSQL(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) *BruteResult {
-	connString := fmt.Sprintf("server=%s;port=%d;user id=%s;password=%s", host, port, user, password)
+	// Wrap values in braces to escape semicolons per MSSQL connection string spec
+	escMssql := func(s string) string {
+		if strings.ContainsAny(s, ";{}") {
+			return "{" + strings.ReplaceAll(s, "}", "}}") + "}"
+		}
+		return s
+	}
+	connString := fmt.Sprintf("server=%s;port=%d;user id=%s;password=%s", host, port, escMssql(user), escMssql(password))
 
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()

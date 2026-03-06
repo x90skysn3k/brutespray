@@ -32,7 +32,7 @@ func BruteTeamSpeak(host string, port int, user, password string, timeout time.D
 	_, _ = r.ReadString('\n')
 
 	// Send login command
-	loginCmd := fmt.Sprintf("login client_login_name=%s client_login_password=%s\n", user, password)
+	loginCmd := fmt.Sprintf("login client_login_name=%s client_login_password=%s\n", sanitizeCred(user), sanitizeCred(password))
 	_, err = conn.Write([]byte(loginCmd))
 	if err != nil {
 		return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}

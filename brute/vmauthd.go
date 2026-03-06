@@ -48,7 +48,7 @@ func BruteVMAuthd(host string, port int, user, password string, timeout time.Dur
 		}
 
 		stepDeadline()
-		cmd := fmt.Sprintf("USER %s\r\n", user)
+		cmd := fmt.Sprintf("USER %s\r\n", sanitizeCred(user))
 		_, err = activeConn.Write([]byte(cmd))
 		if err != nil {
 			done <- result{false, true}
@@ -69,7 +69,7 @@ func BruteVMAuthd(host string, port int, user, password string, timeout time.Dur
 		}
 
 		stepDeadline()
-		cmd = fmt.Sprintf("PASS %s\r\n", password)
+		cmd = fmt.Sprintf("PASS %s\r\n", sanitizeCred(password))
 		_, err = activeConn.Write([]byte(cmd))
 		if err != nil {
 			done <- result{false, true}

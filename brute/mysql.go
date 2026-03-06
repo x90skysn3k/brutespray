@@ -32,7 +32,13 @@ func BruteMYSQL(host string, port int, user, password string, timeout time.Durat
 		return conn, nil
 	})
 
-	connString := fmt.Sprintf("%s:%s@%s(%s)/?timeout=%s", user, password, dialerName, addr, timeout.String())
+	connString := (&mysql.Config{
+		User:   user,
+		Passwd: password,
+		Net:    dialerName,
+		Addr:   addr,
+		Params: map[string]string{"timeout": timeout.String()},
+	}).FormatDSN()
 
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()

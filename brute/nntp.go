@@ -32,7 +32,7 @@ func BruteNNTP(host string, port int, user, password string, timeout time.Durati
 			return
 		}
 
-		err = textConn.PrintfLine("AUTHINFO USER %s", user)
+		err = textConn.PrintfLine("AUTHINFO USER %s", sanitizeCred(user))
 		if err != nil {
 			done <- result{textConn, err}
 			return
@@ -43,7 +43,7 @@ func BruteNNTP(host string, port int, user, password string, timeout time.Durati
 			return
 		}
 
-		err = textConn.PrintfLine("AUTHINFO PASS %s", password)
+		err = textConn.PrintfLine("AUTHINFO PASS %s", sanitizeCred(password))
 		if err != nil {
 			done <- result{textConn, err}
 			return
