@@ -12,71 +12,65 @@ func BruteNNTP(host string, port int, user, password string, timeout time.Durati
 	timer := time.NewTimer(timeout)
 	defer timer.Stop()
 
-	type result struct {
-		client *textproto.Conn
-		err    error
+	conn, err := cm.Dial("tcp", fmt.Sprintf("%s:%d", host, port))
+	if err != nil {
+		return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
 	}
-	done := make(chan result, 1)
+
+	done := make(chan error, 1)
 	go func() {
-		conn, err := cm.Dial("tcp", fmt.Sprintf("%s:%d", host, port))
-		if err != nil {
-			done <- result{nil, err}
-			return
-		}
+		defer conn.Close()
+
+		_ = conn.SetDeadline(time.Now().Add(timeout))
 
 		textConn := textproto.NewConn(conn)
-		_, response, err := textConn.ReadResponse(200)
+
+		_, _, err := textConn.ReadResponse(200)
 		if err != nil {
-			_ = response
-			done <- result{textConn, err}
+			done <- err
 			return
 		}
 
 		err = textConn.PrintfLine("AUTHINFO USER %s", sanitizeCred(user))
 		if err != nil {
-			done <- result{textConn, err}
+			done <- err
 			return
 		}
 		_, _, err = textConn.ReadResponse(381)
 		if err != nil {
-			done <- result{textConn, err}
+			done <- err
 			return
 		}
 
 		err = textConn.PrintfLine("AUTHINFO PASS %s", sanitizeCred(password))
 		if err != nil {
-			done <- result{textConn, err}
+			done <- err
 			return
 		}
 		_, _, err = textConn.ReadResponse(281)
 		if err != nil {
-			done <- result{textConn, err}
+			done <- err
 			return
 		}
 
-		done <- result{textConn, nil}
+		done <- nil
 	}()
 
 	select {
 	case <-timer.C:
+		_ = conn.SetDeadline(time.Now())
 		select {
-		case r := <-done:
-			if r.client != nil {
-				r.client.Close()
-			}
-			if r.err != nil {
-				return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: r.err}
+		case err := <-done:
+			if err != nil {
+				return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: err}
 			}
 			return &BruteResult{AuthSuccess: true, ConnectionSuccess: true}
 		default:
 			return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: nil}
 		}
-	case r := <-done:
-		if r.client != nil {
-			defer r.client.Close()
-		}
-		if r.err != nil {
-			return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: r.err}
+	case err := <-done:
+		if err != nil {
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: err}
 		}
 		return &BruteResult{AuthSuccess: true, ConnectionSuccess: true}
 	}

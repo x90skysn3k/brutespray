@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"regexp"
-	"strconv"
 	"strings"
 )
 
@@ -162,43 +161,3 @@ func ReadPwDumpFile(filename string) (users []string, hashes []string, err error
 	return users, hashes, nil
 }
 
-func CalcCombinations(userCh []string, passCh []string) int {
-	var totalCombinations int
-	users := []string{}
-	passwords := []string{}
-
-	for u := range userCh {
-		users = append(users, strconv.Itoa(u))
-	}
-
-	for p := range passCh {
-		passwords = append(passwords, strconv.Itoa(p))
-	}
-
-	totalCombinations = len(users) * len(passwords)
-	return totalCombinations
-}
-
-func CalcCombinationsPass(passCh []string) int {
-	var totalCombinations int
-	passwords := []string{}
-
-	for p := range passCh {
-		passwords = append(passwords, strconv.Itoa(p))
-	}
-
-	totalCombinations = len(passwords)
-	return totalCombinations
-}
-
-func CalcCombinationsCombo(userCh []string, passCh []string) int {
-	var totalCombinations int
-	users := []string{}
-
-	for u := range userCh {
-		users = append(users, strconv.Itoa(u))
-	}
-
-	totalCombinations = len(users)
-	return totalCombinations
-}

@@ -411,8 +411,8 @@ func ParseConfig() *Config {
 					}
 				}
 				if cfg.Combo != "" {
-					users, passwords := modules.GetUsersAndPasswordsCombo(&h, cfg.Combo, version)
-					cfg.TotalCombinations += modules.CalcCombinationsCombo(users, passwords)
+					users, _ := modules.GetUsersAndPasswordsCombo(&h, cfg.Combo, version)
+					cfg.TotalCombinations += len(users)
 				} else {
 					if service == "vnc" || service == "snmp" {
 						_, passwords, err := modules.GetUsersAndPasswords(&h, cfg.User, cfg.Password, version)

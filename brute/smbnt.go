@@ -15,6 +15,11 @@ func BruteSMB(host string, port int, user, password string, timeout time.Duratio
 	timer := time.NewTimer(timeout)
 	defer timer.Stop()
 
+	conn, err := cm.Dial("tcp", fmt.Sprintf("%s:%d", host, port))
+	if err != nil {
+		return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
+	}
+
 	type result struct {
 		session *smb2.Session
 		conn    net.Conn
@@ -23,12 +28,6 @@ func BruteSMB(host string, port int, user, password string, timeout time.Duratio
 	done := make(chan result, 1)
 
 	go func() {
-		conn, err := cm.Dial("tcp", fmt.Sprintf("%s:%d", host, port))
-		if err != nil {
-			done <- result{nil, nil, err}
-			return
-		}
-
 		if err := conn.SetDeadline(time.Now().Add(timeout)); err != nil {
 			done <- result{nil, conn, err}
 			return
@@ -90,6 +89,8 @@ func BruteSMB(host string, port int, user, password string, timeout time.Duratio
 
 	select {
 	case <-timer.C:
+		_ = conn.SetDeadline(time.Now())
+		conn.Close()
 		select {
 		case r := <-done:
 			return handleResult(r)
