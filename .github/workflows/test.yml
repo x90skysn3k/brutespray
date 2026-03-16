@@ -1,0 +1,136 @@
+name: test
+
+on:
+  push:
+    branches: [dev, master]
+  pull_request:
+    branches: [dev, master]
+
+jobs:
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "stable"
+          cache-dependency-path: go.sum
+
+      - name: Build
+        run: go build ./...
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test ./... -count=1 -race -v
+
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "stable"
+          cache-dependency-path: go.sum
+
+      - name: Build binary
+        run: go build -o brutespray-bin .
+
+      - name: Start test services
+        working-directory: test
+        run: docker compose up -d
+
+      - name: Wait for services to be healthy
+        run: |
+          echo "Waiting up to 120s for services..."
+          timeout 120 bash -c '
+            until docker compose -f test/docker-compose.yml ps --format json | \
+              python3 -c "
+          import sys, json
+          lines = sys.stdin.read().strip().split(chr(10))
+          containers = [json.loads(l) for l in lines if l]
+          total = len(containers)
+          healthy = sum(1 for c in containers if \"healthy\" in c.get(\"Status\", \"\"))
+          running = sum(1 for c in containers if \"Up\" in c.get(\"Status\", \"\"))
+          print(f\"{healthy}/{total} healthy, {running}/{total} running\")
+          sys.exit(0 if healthy >= total - 2 else 1)
+          "; do
+              sleep 5
+            done
+          ' || echo "Some services may not be healthy, continuing..."
+
+      - name: Wait extra for slow services
+        run: sleep 15
+
+      - name: Test valid credentials
+        run: |
+          PASS=0; FAIL=0
+          declare -A tests=(
+            ["SSH"]="ssh://127.0.0.1:20022|testuser|testpass"
+            ["FTP"]="ftp://127.0.0.1:20021|ftpuser|ftppass"
+            ["HTTP-Basic"]="http://127.0.0.1:20080|admin|secret"
+            ["HTTP-Digest"]="http://127.0.0.1:20081|admin|secret"
+            ["MySQL"]="mysql://127.0.0.1:23306|root|rootpass"
+            ["PostgreSQL"]="postgres://127.0.0.1:25432|postgres|pgpass"
+            ["Redis"]="redis://127.0.0.1:26379|default|testpass"
+            ["MongoDB"]="mongodb://127.0.0.1:27018|admin|mongopass"
+            ["SMB"]="smbnt://127.0.0.1:20445|smbuser|smbpass"
+            ["VNC"]="vnc://127.0.0.1:25900|x|vncpass"
+            ["Telnet"]="telnet://127.0.0.1:20023|testuser|testpass"
+          )
+          for name in "${!tests[@]}"; do
+            IFS='|' read -r host user pass <<< "${tests[$name]}"
+            result=$(./brutespray-bin -H "$host" -u "$user" -p "$pass" --stop-on-success -nc --no-tui -t 1 -T 1 -w 15s -r 1 2>&1 | grep -c " - SUCCESS" || true)
+            if [ "$result" -gt 0 ]; then
+              echo "✅ $name: valid creds accepted"
+              PASS=$((PASS + 1))
+            else
+              echo "❌ $name: valid creds REJECTED"
+              FAIL=$((FAIL + 1))
+            fi
+          done
+          echo "---"
+          echo "Passed: $PASS, Failed: $FAIL"
+          [ "$FAIL" -eq 0 ] || exit 1
+
+      - name: Test invalid credentials
+        run: |
+          PASS=0; FAIL=0
+          declare -A tests=(
+            ["SSH"]="ssh://127.0.0.1:20022|testuser|WRONG"
+            ["FTP"]="ftp://127.0.0.1:20021|ftpuser|WRONG"
+            ["HTTP-Basic"]="http://127.0.0.1:20080|admin|WRONG"
+            ["HTTP-Digest"]="http://127.0.0.1:20081|admin|WRONG"
+            ["MySQL"]="mysql://127.0.0.1:23306|root|WRONG"
+            ["PostgreSQL"]="postgres://127.0.0.1:25432|postgres|WRONG"
+            ["Redis"]="redis://127.0.0.1:26379|default|WRONG"
+            ["MongoDB"]="mongodb://127.0.0.1:27018|admin|WRONG"
+            ["SMB"]="smbnt://127.0.0.1:20445|smbuser|WRONG"
+            ["VNC"]="vnc://127.0.0.1:25900|x|WRONG"
+            ["Telnet"]="telnet://127.0.0.1:20023|testuser|WRONG"
+          )
+          for name in "${!tests[@]}"; do
+            IFS='|' read -r host user pass <<< "${tests[$name]}"
+            result=$(./brutespray-bin -H "$host" -u "$user" -p "$pass" -nc --no-tui -t 1 -T 1 -w 15s -r 1 2>&1 | grep -c " - SUCCESS" || true)
+            if [ "$result" -eq 0 ]; then
+              echo "✅ $name: invalid creds rejected"
+              PASS=$((PASS + 1))
+            else
+              echo "❌ $name: invalid creds ACCEPTED"
+              FAIL=$((FAIL + 1))
+            fi
+          done
+          echo "---"
+          echo "Passed: $PASS, Failed: $FAIL"
+          [ "$FAIL" -eq 0 ] || exit 1
+
+      - name: Tear down
+        if: always()
+        working-directory: test
+        run: docker compose down -v --remove-orphans

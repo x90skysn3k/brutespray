@@ -65,11 +65,11 @@ func handleRexecConn(conn net.Conn, validUser, validPass string) {
 
 	if user == validUser && pass == validPass {
 		// Success: \0 followed by output
-		conn.Write([]byte{0})
+		_, _ = conn.Write([]byte{0})
 		fmt.Fprintf(conn, "uid=0(root) gid=0(root)\n")
 	} else {
 		// Failure: \1 followed by error message
-		conn.Write([]byte{1})
+		_, _ = conn.Write([]byte{1})
 		fmt.Fprintf(conn, "Permission denied\n")
 	}
 }
