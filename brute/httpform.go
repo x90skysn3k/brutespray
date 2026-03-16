@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -74,10 +75,18 @@ func BruteHTTPForm(host string, port int, user, password string, timeout time.Du
 	// Build URL
 	targetURL := fmt.Sprintf("%s://%s:%d%s", scheme, host, port, urlPath)
 
-	// Replace credential placeholders in body
+	// Replace credential placeholders in body.
+	// URL-encode credentials for form-urlencoded content types to prevent
+	// body corruption when passwords contain & or = characters.
+	effectiveUser := user
+	effectivePass := password
+	if strings.Contains(strings.ToLower(contentType), "application/x-www-form-urlencoded") {
+		effectiveUser = url.QueryEscape(user)
+		effectivePass = url.QueryEscape(password)
+	}
 	body := bodyTemplate
-	body = strings.ReplaceAll(body, "%U", user)
-	body = strings.ReplaceAll(body, "%W", password)
+	body = strings.ReplaceAll(body, "%U", effectiveUser)
+	body = strings.ReplaceAll(body, "%W", effectivePass)
 
 	// Build HTTP client
 	transport := &http.Transport{

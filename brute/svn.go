@@ -16,7 +16,7 @@ import (
 // GET/OPTIONS is sufficient for brute-forcing.
 func BruteSVN(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager, params ModuleParams) *BruteResult {
 	scheme := "http"
-	if port == 443 {
+	if params["https"] == "true" || port == 443 {
 		scheme = "https"
 	}
 

@@ -58,8 +58,6 @@ func GetUsersAndPasswords(h *Host, user string, password string, version string)
 		if err != nil {
 			return nil, nil, fmt.Errorf("reading PwDump file: %w", err)
 		}
-		// Set pass=HASH flag for modules that support pass-the-hash
-		PwDumpMode = true
 		return users, hashes, nil
 	}
 
@@ -122,10 +120,6 @@ func GetUsersAndPasswords(h *Host, user string, password string, version string)
 
 	return userResult.words, passResult.words, nil
 }
-
-// PwDumpMode is set to true when a PwDump file is detected, indicating that
-// passwords are NTLM hashes and modules should use pass-the-hash.
-var PwDumpMode bool
 
 // pwdumpRe matches lines in PwDump format: username:uid:LM_hash:NTLM_hash:::
 var pwdumpRe = regexp.MustCompile(`^([^:]+):\d+:[0-9a-fA-F]{32}:([0-9a-fA-F]{32}):::$`)

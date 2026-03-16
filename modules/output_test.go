@@ -1,6 +1,9 @@
 package modules
 
 import (
+	"bytes"
+	"encoding/json"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -167,6 +170,76 @@ func TestGetStatsCopiesData(t *testing.T) {
 	}
 	if original.ServiceBreakdown["fake"] != 0 {
 		t.Fatal("global stats should not have been modified")
+	}
+}
+
+func TestPrintResultJSON(t *testing.T) {
+	resetGlobalStats()
+
+	// Save and restore global state
+	origFormat := OutputFormatMode
+	origSilent := Silent
+	origTUI := TUIMode
+	origNoColor := NoColorMode
+	defer func() {
+		OutputFormatMode = origFormat
+		Silent = origSilent
+		TUIMode = origTUI
+		NoColorMode = origNoColor
+	}()
+
+	OutputFormatMode = "json"
+	Silent = false
+	TUIMode = false
+	NoColorMode = true
+
+	// Capture stdout
+	old := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	dir := t.TempDir()
+	PrintResult("ssh", "10.0.0.1", 22, "root", "toor", true, true, false, dir, 0, "OpenSSH_8.9")
+
+	w.Close()
+	os.Stdout = old
+
+	var buf bytes.Buffer
+	_, _ = io.Copy(&buf, r)
+	output := strings.TrimSpace(buf.String())
+
+	if output == "" {
+		t.Fatal("expected JSON output, got empty string")
+	}
+
+	var attempt AttemptResult
+	if err := json.Unmarshal([]byte(output), &attempt); err != nil {
+		t.Fatalf("invalid JSON output: %v\nraw: %s", err, output)
+	}
+
+	if attempt.Service != "ssh" {
+		t.Errorf("expected service ssh, got %s", attempt.Service)
+	}
+	if attempt.Host != "10.0.0.1" {
+		t.Errorf("expected host 10.0.0.1, got %s", attempt.Host)
+	}
+	if attempt.Port != 22 {
+		t.Errorf("expected port 22, got %d", attempt.Port)
+	}
+	if !attempt.Success {
+		t.Error("expected success=true")
+	}
+	if !attempt.Connected {
+		t.Error("expected connected=true")
+	}
+	if attempt.Banner != "OpenSSH_8.9" {
+		t.Errorf("expected banner OpenSSH_8.9, got %s", attempt.Banner)
+	}
+	if attempt.Status != "SUCCESS" {
+		t.Errorf("expected status SUCCESS, got %s", attempt.Status)
+	}
+	if attempt.Timestamp == "" {
+		t.Error("expected non-empty timestamp")
 	}
 }
 
