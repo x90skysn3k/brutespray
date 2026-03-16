@@ -164,11 +164,11 @@ func pop3Auth(conn net.Conn, user, password, authMethod string, timeout time.Dur
 		// Send USER
 		_, err = fmt.Fprintf(conn, "USER %s\r\n", user)
 		if err != nil {
-			return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: err, Banner: banner}
 		}
 		resp, err := pop3ReadLine(r)
 		if err != nil {
-			return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: err, Banner: banner}
 		}
 		if !strings.HasPrefix(resp, "+OK") {
 			return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: nil, Banner: banner}
@@ -177,11 +177,11 @@ func pop3Auth(conn net.Conn, user, password, authMethod string, timeout time.Dur
 		// Send PASS
 		_, err = fmt.Fprintf(conn, "PASS %s\r\n", password)
 		if err != nil {
-			return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: err, Banner: banner}
 		}
 		resp, err = pop3ReadLine(r)
 		if err != nil {
-			return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: err, Banner: banner}
 		}
 
 		// Send QUIT regardless
