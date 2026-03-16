@@ -38,7 +38,7 @@ services:
       start_period: 10s
 
   # ---------------------------------------------------------------------------
-  # FTP  --  ftpuser:ftppass  --  port 20021 (command), 20100-20110 (passive)
+  # FTP  --  ftpuser:ftppass  --  port 20021 (command), 20200-20210 (passive)
   # ---------------------------------------------------------------------------
   vsftpd:
     image: bogem/ftp
@@ -50,7 +50,7 @@ services:
       FTP_PORT: 21
     ports:
       - "20021:21"
-      - "20100-20110:20100-20110"
+      - "20200-20210:20200-20210"
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "nc -z 127.0.0.1 21 || exit 1"]
