@@ -36,7 +36,7 @@ func TestBruteSSHKeyMissingFile(t *testing.T) {
 func TestBruteSSHKeyInvalidKey(t *testing.T) {
 	dir := t.TempDir()
 	keyPath := filepath.Join(dir, "badkey")
-	os.WriteFile(keyPath, []byte("not a real key"), 0600)
+	_ = os.WriteFile(keyPath, []byte("not a real key"), 0600)
 
 	cm, _ := modules.NewConnectionManager("", 5*time.Second, "")
 
@@ -70,7 +70,7 @@ func TestBruteSSHKeyValidUnencrypted(t *testing.T) {
 
 	dir := t.TempDir()
 	keyPath := filepath.Join(dir, "id_ed25519")
-	os.WriteFile(keyPath, keyData, 0600)
+	_ = os.WriteFile(keyPath, keyData, 0600)
 
 	cm, _ := modules.NewConnectionManager("", 5*time.Second, "")
 
@@ -105,7 +105,7 @@ func TestBruteSSHKeyPassphraseMode(t *testing.T) {
 
 	dir := t.TempDir()
 	keyPath := filepath.Join(dir, "id_ed25519_enc")
-	os.WriteFile(keyPath, keyData, 0600)
+	_ = os.WriteFile(keyPath, keyData, 0600)
 
 	cm, _ := modules.NewConnectionManager("", 5*time.Second, "")
 
@@ -149,7 +149,7 @@ func TestBruteSSHKeyCache(t *testing.T) {
 
 	dir := t.TempDir()
 	keyPath := filepath.Join(dir, "cached_key")
-	os.WriteFile(keyPath, keyData, 0600)
+	_ = os.WriteFile(keyPath, keyData, 0600)
 
 	cm, _ := modules.NewConnectionManager("", 5*time.Second, "")
 

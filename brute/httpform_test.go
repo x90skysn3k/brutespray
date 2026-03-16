@@ -17,10 +17,10 @@ func TestBruteHTTPFormSuccess(t *testing.T) {
 		}
 		if r.FormValue("username") == "admin" && r.FormValue("password") == "secret" {
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte("Welcome, admin!"))
+			_, _ = w.Write([]byte("Welcome, admin!"))
 		} else {
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte("Invalid credentials"))
+			_, _ = w.Write([]byte("Invalid credentials"))
 		}
 	}))
 	defer server.Close()
@@ -45,7 +45,7 @@ func TestBruteHTTPFormSuccess(t *testing.T) {
 func TestBruteHTTPFormFailure(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("Invalid credentials"))
+		_, _ = w.Write([]byte("Invalid credentials"))
 	}))
 	defer server.Close()
 
@@ -74,10 +74,10 @@ func TestBruteHTTPFormSuccessMatch(t *testing.T) {
 		}
 		if r.FormValue("user") == "admin" && r.FormValue("pass") == "correct" {
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte("Dashboard - Welcome"))
+			_, _ = w.Write([]byte("Dashboard - Welcome"))
 		} else {
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte("Login failed"))
+			_, _ = w.Write([]byte("Login failed"))
 		}
 	}))
 	defer server.Close()
@@ -100,7 +100,7 @@ func TestBruteHTTPFormSuccessMatch(t *testing.T) {
 func TestBruteHTTPFormSuccessMatchMiss(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("Login failed"))
+		_, _ = w.Write([]byte("Login failed"))
 	}))
 	defer server.Close()
 
@@ -125,10 +125,10 @@ func TestBruteHTTPFormGET(t *testing.T) {
 		}
 		if r.URL.Query().Get("user") == "admin" && r.URL.Query().Get("pass") == "secret" {
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte("Welcome"))
+			_, _ = w.Write([]byte("Welcome"))
 		} else {
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte("Invalid"))
+			_, _ = w.Write([]byte("Invalid"))
 		}
 	}))
 	defer server.Close()
@@ -153,11 +153,11 @@ func TestBruteHTTPFormWithCookie(t *testing.T) {
 		cookie := r.Header.Get("Cookie")
 		if cookie != "session=abc123" {
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte("No session"))
+			_, _ = w.Write([]byte("No session"))
 			return
 		}
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("Welcome"))
+		_, _ = w.Write([]byte("Welcome"))
 	}))
 	defer server.Close()
 
@@ -184,7 +184,7 @@ func TestBruteHTTPFormFollowRedirect(t *testing.T) {
 		}
 		if r.URL.Path == "/dashboard" {
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte("Dashboard Welcome"))
+			_, _ = w.Write([]byte("Dashboard Welcome"))
 		}
 	}))
 	defer server.Close()
@@ -237,6 +237,74 @@ func TestBruteHTTPFormMissingURL(t *testing.T) {
 	}
 }
 
+func TestBruteHTTPFormURLEncoding(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := r.ParseForm(); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		// ParseForm correctly decodes URL-encoded values, so we check
+		// that the raw form values match the original (decoded) credentials.
+		if r.FormValue("user") == "admin" && r.FormValue("pass") == "foo&bar=baz" {
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("Welcome"))
+		} else {
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("Invalid credentials"))
+		}
+	}))
+	defer server.Close()
+
+	host, port := parseHostPort(t, server.URL)
+	cm := newTestCM()
+
+	result := BruteHTTPForm(host, port, "admin", "foo&bar=baz", 5*time.Second, cm, ModuleParams{
+		"url":  "/login",
+		"body": "user=%U&pass=%W",
+		"fail": "Invalid credentials",
+	})
+
+	if !result.ConnectionSuccess {
+		t.Fatal("expected connection success")
+	}
+	if !result.AuthSuccess {
+		t.Fatalf("expected auth success with URL-encoded special chars, got error: %v", result.Error)
+	}
+}
+
+func TestBruteHTTPFormNoEncodingForJSON(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// For JSON, credentials should NOT be URL-encoded
+		body := make([]byte, r.ContentLength)
+		_, _ = r.Body.Read(body)
+		if string(body) == `{"user":"admin","pass":"foo&bar"}` {
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("Welcome"))
+		} else {
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("Invalid"))
+		}
+	}))
+	defer server.Close()
+
+	host, port := parseHostPort(t, server.URL)
+	cm := newTestCM()
+
+	result := BruteHTTPForm(host, port, "admin", "foo&bar", 5*time.Second, cm, ModuleParams{
+		"url":          "/login",
+		"body":         `{"user":"%U","pass":"%W"}`,
+		"fail":         "Invalid",
+		"content-type": "application/json",
+	})
+
+	if !result.ConnectionSuccess {
+		t.Fatal("expected connection success")
+	}
+	if !result.AuthSuccess {
+		t.Fatalf("expected auth success with raw JSON body, got error: %v", result.Error)
+	}
+}
+
 func TestBruteHTTPFormRegistered(t *testing.T) {
 	for _, svc := range []string{"http-form", "https-form"} {
 		if !IsRegistered(svc) {
@@ -253,10 +321,10 @@ func TestBruteHTTPFormHTTPS(t *testing.T) {
 		}
 		if r.FormValue("user") == "admin" && r.FormValue("pass") == "secret" {
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte("Welcome"))
+			_, _ = w.Write([]byte("Welcome"))
 		} else {
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte("Invalid"))
+			_, _ = w.Write([]byte("Invalid"))
 		}
 	}))
 	defer server.Close()

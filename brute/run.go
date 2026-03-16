@@ -169,7 +169,7 @@ func RunBrute(h modules.Host, u string, p string, timeout time.Duration, maxRetr
 	if effectiveParams["domain"] == "" && domain != "" {
 		effectiveParams["domain"] = domain
 	}
-	if effectiveParams["https"] == "" && service == "https" {
+	if effectiveParams["https"] == "" && (service == "https" || service == "https-form") {
 		effectiveParams["https"] = "true"
 	}
 

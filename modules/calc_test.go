@@ -12,7 +12,7 @@ func TestIsPwDumpFile(t *testing.T) {
 	t.Run("valid pwdump", func(t *testing.T) {
 		path := filepath.Join(dir, "pwdump.txt")
 		content := "Administrator:500:aad3b435b51404eeaad3b435b51404ee:31d6cfe0d16ae931b73c59d7e0c089c0:::\nGuest:501:aad3b435b51404eeaad3b435b51404ee:31d6cfe0d16ae931b73c59d7e0c089c0:::\n"
-		os.WriteFile(path, []byte(content), 0644)
+		_ = os.WriteFile(path, []byte(content), 0644)
 
 		if !IsPwDumpFile(path) {
 			t.Fatal("expected PwDump format detection")
@@ -22,7 +22,7 @@ func TestIsPwDumpFile(t *testing.T) {
 	t.Run("not pwdump", func(t *testing.T) {
 		path := filepath.Join(dir, "passwords.txt")
 		content := "password123\nadmin\nroot\n"
-		os.WriteFile(path, []byte(content), 0644)
+		_ = os.WriteFile(path, []byte(content), 0644)
 
 		if IsPwDumpFile(path) {
 			t.Fatal("should not detect regular password file as PwDump")
@@ -40,7 +40,7 @@ func TestReadPwDumpFile(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "pwdump.txt")
 	content := "Administrator:500:aad3b435b51404eeaad3b435b51404ee:31d6cfe0d16ae931b73c59d7e0c089c0:::\nGuest:501:aad3b435b51404eeaad3b435b51404ee:c23413a8a1e7665faad3b435b51404ee:::\n"
-	os.WriteFile(path, []byte(content), 0644)
+	_ = os.WriteFile(path, []byte(content), 0644)
 
 	users, hashes, err := ReadPwDumpFile(path)
 	if err != nil {
@@ -72,7 +72,7 @@ func TestReadPwDumpFileSkipsInvalid(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "mixed.txt")
 	content := "Administrator:500:aad3b435b51404eeaad3b435b51404ee:31d6cfe0d16ae931b73c59d7e0c089c0:::\ninvalid line\n"
-	os.WriteFile(path, []byte(content), 0644)
+	_ = os.WriteFile(path, []byte(content), 0644)
 
 	users, hashes, err := ReadPwDumpFile(path)
 	if err != nil {
