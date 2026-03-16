@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/usr/bin/env -S bash
 ###############################################################################
 # BruteSpray Integration Test Runner
 #
@@ -41,14 +41,14 @@ TESTS_RUN=0
 # Resolve brutespray binary
 ###############################################################################
 BRUTESPRAY=""
-if [ -x "${PROJECT_ROOT}/brutespray" ]; then
-    BRUTESPRAY="${PROJECT_ROOT}/brutespray"
+if [ -x "${PROJECT_ROOT}/brutespray-bin" ]; then
+    BRUTESPRAY="${PROJECT_ROOT}/brutespray-bin"
 elif command -v brutespray &>/dev/null; then
     BRUTESPRAY="$(command -v brutespray)"
 else
     warn "brutespray binary not found. Building..."
-    (cd "${PROJECT_ROOT}" && go build -o brutespray main.go)
-    BRUTESPRAY="${PROJECT_ROOT}/brutespray"
+    (cd "${PROJECT_ROOT}" && go build -o brutespray-bin .)
+    BRUTESPRAY="${PROJECT_ROOT}/brutespray-bin"
 fi
 info "Using brutespray: ${BRUTESPRAY}"
 
@@ -81,7 +81,7 @@ wait_for_service() {
     local host="$2"
     local port="$3"
     local secs=0
-    while ! nc -z "$host" "$port" 2>/dev/null; do
+    while ! (echo >/dev/tcp/"$host"/"$port") 2>/dev/null; do
         sleep 1
         secs=$((secs + 1))
         if [ "$secs" -ge "$MAX_WAIT" ]; then
