@@ -88,3 +88,20 @@ services:
   rdp:
     users: [sysadmin_users]
     passwords: [common_passwords, seasonal_passwords, os_infra]
+  ftps:
+    alias: ftp
+  smtp-vrfy:
+    users: [email_users]
+    passwords: []
+  rexec:
+    users: [sysadmin_users]
+    passwords: [common_passwords, seasonal_passwords, os_infra]
+  rlogin:
+    users: [sysadmin_users]
+    passwords: [common_passwords, seasonal_passwords, os_infra]
+  rsh:
+    users: [sysadmin_users]
+    passwords: [common_passwords, seasonal_passwords, os_infra]
+  wrapper:
+    users: [sysadmin_users]
+    passwords: [common_passwords]
