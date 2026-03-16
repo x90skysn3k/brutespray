@@ -435,8 +435,11 @@ func (h *Host) Parse(host string) ([]Host, error) {
 		"winrm":     5985,
 		"rexec":     512,
 		"rlogin":    513,
-		"rsh":       514,
-		"wrapper":   0,
+		"rsh":        514,
+		"wrapper":    0,
+		"http-form":  80,
+		"https-form": 443,
+		"svn":        3690,
 	}
 
 	parts := strings.Split(host, "://")

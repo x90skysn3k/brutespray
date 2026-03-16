@@ -1,13 +1,17 @@
 package modules
 
 import (
+	"bufio"
 	"crypto/tls"
 	"fmt"
+	"math/rand"
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"golang.org/x/net/proxy"
@@ -33,6 +37,10 @@ type ConnectionManager struct {
 	ConnPool         map[string]chan net.Conn
 	PoolMutex        sync.RWMutex
 	SharedHTTPClient *http.Client
+	// Proxy rotation
+	proxyList    []string
+	proxyIndex   uint64
+	proxyDialers []proxy.Dialer
 }
 
 func NewConnectionManager(socks5 string, timeout time.Duration, iface ...string) (*ConnectionManager, error) {
@@ -255,6 +263,92 @@ func (cm *ConnectionManager) ClearPool() {
 		}
 	}
 	cm.ConnPool = make(map[string]chan net.Conn)
+}
+
+// LoadProxyList reads a file containing one proxy per line (socks5://host:port)
+// and sets up round-robin proxy rotation.
+func (cm *ConnectionManager) LoadProxyList(filename string) error {
+	file, err := os.Open(filename)
+	if err != nil {
+		return fmt.Errorf("opening proxy list: %w", err)
+	}
+	defer file.Close()
+
+	var proxies []string
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		proxies = append(proxies, line)
+	}
+	if err := scanner.Err(); err != nil {
+		return fmt.Errorf("reading proxy list: %w", err)
+	}
+	if len(proxies) == 0 {
+		return fmt.Errorf("proxy list is empty")
+	}
+
+	// Create dialers for each proxy
+	forward := &net.Dialer{Timeout: cm.Timeout}
+	if cm.LocalIP != nil {
+		forward.LocalAddr = &net.TCPAddr{IP: cm.LocalIP}
+	}
+
+	var dialers []proxy.Dialer
+	for _, p := range proxies {
+		var dialer proxy.Dialer
+		if strings.Contains(p, "://") {
+			parsed, perr := url.Parse(p)
+			if perr != nil {
+				return fmt.Errorf("invalid proxy URL %q: %v", p, perr)
+			}
+			if strings.EqualFold(parsed.Scheme, "socks5h") {
+				parsed.Scheme = "socks5"
+			}
+			dialer, err = proxy.FromURL(parsed, forward)
+		} else {
+			dialer, err = proxy.SOCKS5("tcp", p, nil, forward)
+		}
+		if err != nil {
+			return fmt.Errorf("creating proxy dialer for %q: %v", p, err)
+		}
+		dialers = append(dialers, dialer)
+	}
+
+	cm.proxyList = proxies
+	cm.proxyDialers = dialers
+
+	// Randomize starting index
+	cm.proxyIndex = uint64(rand.Intn(len(dialers)))
+
+	// Override DialFunc to rotate through proxies
+	cm.DialFunc = func(network, address string) (net.Conn, error) {
+		idx := atomic.AddUint64(&cm.proxyIndex, 1) % uint64(len(cm.proxyDialers))
+		return cm.proxyDialers[idx].Dial(network, address)
+	}
+
+	// Rebuild shared HTTP client with new dial function
+	transport := &http.Transport{
+		Dial:                  cm.DialFunc,
+		TLSHandshakeTimeout:   cm.Timeout,
+		ResponseHeaderTimeout: cm.Timeout,
+		ExpectContinueTimeout: 1 * time.Second,
+		TLSClientConfig:       &tls.Config{InsecureSkipVerify: true},
+		MaxIdleConns:          1000,
+		MaxIdleConnsPerHost:   100,
+		IdleConnTimeout:       90 * time.Second,
+	}
+	cm.SharedHTTPClient = &http.Client{
+		Transport: transport,
+		Timeout:   cm.Timeout,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	return nil
 }
 
 func GetIPv4Address(ifaceName string) (net.IP, error) {

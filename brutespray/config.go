@@ -17,7 +17,7 @@ import (
 
 var masterServiceList = brute.Services()
 
-var BetaServiceList = []string{"asterisk", "nntp", "oracle", "xmpp", "rdp", "ldap", "ldaps", "winrm", "ftps", "smtp-vrfy", "rexec", "rlogin", "rsh", "wrapper"}
+var BetaServiceList = []string{"asterisk", "nntp", "oracle", "xmpp", "rdp", "ldap", "ldaps", "winrm", "ftps", "smtp-vrfy", "rexec", "rlogin", "rsh", "wrapper", "http-form", "https-form", "svn"}
 
 var version = "dev"
 var NoColorMode bool
@@ -68,6 +68,7 @@ type Config struct {
 	Threads             int
 	HostParallelism     int
 	SocksProxy          string
+	ProxyList           string
 	NetInterface        string
 	ServiceType         string
 	File                string
@@ -91,6 +92,11 @@ type Config struct {
 	TotalCombinations   int
 	ModuleParams        map[string]string
 	UseUsernameAsPass   bool
+	UseReversedPass     bool
+	AllowWrapper        bool
+	PasswordGenSpec     string
+	PasswordGen         *modules.PasswordGenerator
+	OutputFormat        string
 }
 
 // ParseConfig parses CLI flags, loads config file, and validates inputs.
@@ -131,7 +137,11 @@ func ParseConfig() *Config {
 	noTUI := flag.Bool("no-tui", false, "Disable interactive terminal UI, use legacy output mode")
 	var moduleParamsArgs moduleParamsFlag
 	flag.Var(&moduleParamsArgs, "m", "Module-specific parameter in KEY:VALUE format (repeatable). Example: -m auth:NTLM -m dir:/admin")
-	extraCreds := flag.String("e", "", "Extra password checks: n=blank password, s=password=username, ns=both")
+	extraCreds := flag.String("e", "", "Extra password checks: n=blank password, s=password=username, r=reversed username, combine: nsr")
+	allowWrapper := flag.Bool("allow-wrapper", false, "Allow the wrapper module to execute arbitrary commands (required for security)")
+	passwordGen := flag.String("x", "", "Generate passwords: MIN:MAX:CHARSET (a=lower, A=upper, 1=digits, !=symbols). Example: -x 4:4:1")
+	outputFormat := flag.String("output-format", "text", "Output format: text (default) or json (JSONL per-attempt)")
+	proxyList := flag.String("proxy-list", "", "File containing proxy list (one socks5://host:port per line) for rotation")
 
 	flag.Parse()
 
@@ -259,8 +269,12 @@ func ParseConfig() *Config {
 	cfg.ResumeFile = resume
 	cfg.CheckpointFile = *checkpointFile
 	cfg.ConfigFile = *configFile
-	// TUI is default for interactive terminals; --no-tui or --nc disables it
-	cfg.TUI = !*noTUI && !cfg.NoColor && term.IsTerminal(int(os.Stdout.Fd()))
+	cfg.AllowWrapper = *allowWrapper
+	cfg.PasswordGenSpec = *passwordGen
+	cfg.OutputFormat = *outputFormat
+	cfg.ProxyList = *proxyList
+	// TUI is default for interactive terminals; --no-tui, --nc, or --output-format json disables it
+	cfg.TUI = !*noTUI && !cfg.NoColor && cfg.OutputFormat != "json" && term.IsTerminal(int(os.Stdout.Fd()))
 
 	// Parse module parameters from -m flags
 	cfg.ModuleParams = make(map[string]string)
@@ -278,6 +292,19 @@ func ParseConfig() *Config {
 		if strings.Contains(e, "n") {
 			modules.UseEmptyPassword = true
 		}
+		if strings.Contains(e, "r") {
+			cfg.UseReversedPass = true
+		}
+	}
+
+	// Parse -x password generation spec
+	if cfg.PasswordGenSpec != "" {
+		gen, err := modules.ParsePasswordGenerator(cfg.PasswordGenSpec)
+		if err != nil {
+			fmt.Printf("Error parsing -x flag: %v\n", err)
+			os.Exit(2)
+		}
+		cfg.PasswordGen = gen
 	}
 
 	// Apply global settings
@@ -393,14 +420,30 @@ func ParseConfig() *Config {
 							fmt.Printf("Error loading wordlist for %s: %v\n", service, err)
 							continue
 						}
-						cfg.TotalCombinations += modules.CalcCombinationsPass(passwords)
+						passCount := len(passwords)
+						if cfg.PasswordGen != nil {
+							passCount = cfg.PasswordGen.Count()
+						}
+						cfg.TotalCombinations += passCount
 					} else {
 						users, passwords, err := modules.GetUsersAndPasswords(&h, cfg.User, cfg.Password, version)
 						if err != nil {
 							fmt.Printf("Error loading wordlist for %s: %v\n", service, err)
 							continue
 						}
-						cfg.TotalCombinations += modules.CalcCombinations(users, passwords)
+						passCount := len(passwords)
+						if cfg.PasswordGen != nil {
+							passCount = cfg.PasswordGen.Count()
+						}
+						combos := len(users) * passCount
+						// Add extra creds: -e s (username as pass) and -e r (reversed)
+						if cfg.UseUsernameAsPass {
+							combos += len(users)
+						}
+						if cfg.UseReversedPass {
+							combos += len(users)
+						}
+						cfg.TotalCombinations += combos
 					}
 				}
 			}

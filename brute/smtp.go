@@ -1,14 +1,17 @@
 package brute
 
 import (
+	"bufio"
 	"crypto/tls"
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"net"
 	"net/smtp"
 	"strings"
 	"time"
 
+	"github.com/Azure/go-ntlmssp"
 	"github.com/x90skysn3k/brutespray/v2/modules"
 )
 
@@ -136,6 +139,11 @@ func BruteSMTP(host string, port int, user, password string, timeout time.Durati
 				done <- result{true, true, banner}
 				return
 			}
+		case "NTLM":
+			if smtpNTLMAuth(conn, user, password, params["domain"]) {
+				done <- result{true, true, banner}
+				return
+			}
 		default:
 			// AUTO: try methods in order based on server capabilities
 			methods := strings.ToUpper(authMethods)
@@ -151,6 +159,14 @@ func BruteSMTP(host string, port int, user, password string, timeout time.Durati
 			// Try LOGIN
 			if strings.Contains(methods, "LOGIN") {
 				if tryAuth(&loginAuth{user, password}) {
+					done <- result{true, true, banner}
+					return
+				}
+			}
+
+			// Try NTLM
+			if strings.Contains(methods, "NTLM") {
+				if smtpNTLMAuth(conn, user, password, params["domain"]) {
 					done <- result{true, true, banner}
 					return
 				}
@@ -180,6 +196,51 @@ func BruteSMTP(host string, port int, user, password string, timeout time.Durati
 	case r := <-done:
 		return &BruteResult{AuthSuccess: r.authSuccess, ConnectionSuccess: r.connSuccess, Banner: r.banner}
 	}
+}
+
+// smtpNTLMAuth performs raw SMTP NTLM authentication on an existing connection.
+// It sends AUTH NTLM, then the negotiate message, parses the challenge, and
+// sends the authenticate message.
+func smtpNTLMAuth(conn net.Conn, user, password, domain string) bool {
+	r := bufio.NewReader(conn)
+
+	// Send AUTH NTLM
+	negotiateMsg, err := ntlmssp.NewNegotiateMessage(domain, "")
+	if err != nil {
+		return false
+	}
+	fmt.Fprintf(conn, "AUTH NTLM %s\r\n", base64.StdEncoding.EncodeToString(negotiateMsg))
+
+	// Read challenge response (334 <base64 challenge>)
+	line, err := r.ReadString('\n')
+	if err != nil {
+		return false
+	}
+	line = strings.TrimRight(line, "\r\n")
+	if !strings.HasPrefix(line, "334 ") {
+		return false
+	}
+
+	challengeB64 := strings.TrimPrefix(line, "334 ")
+	challengeBytes, err := base64.StdEncoding.DecodeString(challengeB64)
+	if err != nil {
+		return false
+	}
+
+	// Generate authenticate message
+	authenticateMsg, err := ntlmssp.ProcessChallenge(challengeBytes, user, password, domain == "")
+	if err != nil {
+		return false
+	}
+
+	fmt.Fprintf(conn, "%s\r\n", base64.StdEncoding.EncodeToString(authenticateMsg))
+
+	// Read result
+	line, err = r.ReadString('\n')
+	if err != nil {
+		return false
+	}
+	return strings.HasPrefix(line, "235")
 }
 
 func init() { Register("smtp", BruteSMTP) }

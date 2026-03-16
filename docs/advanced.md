@@ -145,3 +145,126 @@ For very large scans, disable metrics tracking to reduce overhead:
 ```bash
 brutespray -f nmap.gnmap -u admin -p password -no-stats
 ```
+
+## Password Generation (`-x`)
+
+Generate passwords on-the-fly instead of using a wordlist file. Format: `MIN:MAX:CHARSET`
+
+| Charset | Characters |
+|---------|-----------|
+| `a` | lowercase letters (a-z) |
+| `A` | uppercase letters (A-Z) |
+| `1` | digits (0-9) |
+| `!` | symbols (!@#$%^&*()_+-=[]{}|;:',.<>?/`~") |
+
+Combine charsets: `-x 2:4:aA1` generates 2-4 character alphanumeric passwords.
+
+**Examples:**
+```bash
+# All 4-digit PINs (10,000 combinations)
+brutespray -H ssh://target:22 -u admin -x 4:4:1
+
+# Short lowercase passwords (26 + 676 + 17,576 = 18,278 combinations)
+brutespray -H ssh://target:22 -u admin -x 1:3:a
+```
+
+Max length is capped at 8 to prevent accidental generation of billions of passwords.
+
+## Extra Credential Checks (`-e`)
+
+Add extra password attempts alongside the wordlist:
+
+| Flag | Description |
+|------|-------------|
+| `n` | Blank/empty password |
+| `s` | Username as password (e.g., user `admin` → password `admin`) |
+| `r` | Reversed username as password (e.g., user `admin` → password `nimda`) |
+
+Combine: `-e nsr` tries all three. Extra checks are always attempted before the wordlist.
+
+## PwDump Format Support
+
+When the `-p` flag points to a file in PwDump format (`username:uid:LM_hash:NTLM_hash:::`), brutespray auto-detects it and extracts user+NTLM hash pairs. This enables pass-the-hash attacks against SMB/NTLM services.
+
+```bash
+brutespray -H smbnt://10.0.0.1:445 -p hashdump.txt
+```
+
+## JSON Output Format
+
+Use `--output-format json` for machine-readable JSONL (one JSON object per line) output. Each attempt produces a line like:
+
+```json
+{"timestamp":"2024-01-15T10:30:00Z","service":"ssh","host":"10.0.0.1","port":22,"user":"admin","password":"secret","success":true,"connected":true,"status":"SUCCESS"}
+```
+
+Useful for piping into `jq`, log aggregators, or SIEM systems.
+
+## SSH Key Authentication
+
+Test SSH private keys instead of passwords. Set `-m key:true` and use `-p` to specify the key file path:
+
+```bash
+# Test a specific key
+brutespray -H ssh://target:22 -u root -p /path/to/id_rsa -m key:true
+```
+
+## Wrapper Module
+
+The wrapper module executes an arbitrary external command for each credential attempt. Placeholders:
+- `%H` — host
+- `%P` — port
+- `%U` — username
+- `%W` — password
+
+Exit code 0 = authentication success, non-zero = failure.
+
+**Security:** The `--allow-wrapper` flag is required to use this module, since it executes arbitrary shell commands.
+
+```bash
+brutespray -H wrapper://target:8080 -u admin -p passlist.txt \
+  -m "cmd:python3 check_login.py %H %P %U %W" --allow-wrapper
+```
+
+## Proxy List Rotation
+
+Rotate through multiple SOCKS5 proxies for load distribution and anonymity:
+
+```bash
+brutespray -f nmap.gnmap -u admin -p passlist.txt --proxy-list proxies.txt
+```
+
+The proxy list file contains one proxy per line:
+```
+socks5://proxy1.example.com:1080
+socks5://user:pass@proxy2.example.com:1080
+127.0.0.1:9050
+```
+
+Proxies are rotated round-robin across connections. This is separate from the single `--socks5` flag.
+
+## Module Parameter Reference
+
+| Service | Parameter | Values | Description |
+|---------|-----------|--------|-------------|
+| http/https | `auth` | BASIC, DIGEST, NTLM, AUTO | Authentication method |
+| http/https | `dir` | path | Target path (default: /) |
+| http/https | `method` | GET, POST, etc. | HTTP method |
+| http/https | `custom-header` | Header:Value | Custom HTTP header |
+| http/https | `user-agent` | string | Custom User-Agent |
+| http/https | `domain` | string | NTLM domain |
+| http-form | `url` | path | Login form path (required) |
+| http-form | `body` | template | POST body with %U/%W placeholders |
+| http-form | `fail` | string | Failure string in response |
+| http-form | `success` | string | Success string in response |
+| http-form | `method` | GET, POST | HTTP method (default: POST) |
+| http-form | `follow` | true/false | Follow redirects |
+| http-form | `cookie` | string | Custom cookie |
+| http-form | `content-type` | string | Content-Type header |
+| smtp | `auth` | PLAIN, LOGIN, NTLM | SMTP auth method |
+| smtp | `ehlo` | hostname | EHLO hostname |
+| ssh | `key` | true/path | Use SSH key authentication |
+| svn | `path` | path | SVN repository path |
+| wrapper | `cmd` | command | Command template with %H/%P/%U/%W |
+| smbnt | `domain` | string | SMB domain |
+| rdp | `domain` | string | RDP domain |

@@ -86,6 +86,9 @@ type WorkerPool struct {
 	checkpoint *modules.Checkpoint
 	// Session log for resume replay
 	sessionLog *modules.SessionLog
+	// Extra credential options
+	useReversedPass bool
+	passwordGen     *modules.PasswordGenerator
 }
 
 // NewHostWorkerPool creates a new host-specific worker pool

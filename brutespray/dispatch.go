@@ -9,6 +9,15 @@ import (
 	"github.com/x90skysn3k/brutespray/v2/tui"
 )
 
+// reverseString returns the reversed version of a string.
+func reverseString(s string) string {
+	runes := []rune(s)
+	for i, j := 0, len(runes)-1; i < j; i, j = i+1, j-1 {
+		runes[i], runes[j] = runes[j], runes[i]
+	}
+	return string(runes)
+}
+
 // ProcessHost processes a single host with all its credentials using dedicated host worker pool
 func (wp *WorkerPool) ProcessHost(host modules.Host, service string, combo string, user string, password string, version string, timeout time.Duration, retry int, output string, cm *modules.ConnectionManager, domain string, moduleParams brute.ModuleParams, useUsernameAsPass bool) {
 	// Skip hosts already completed in a previous run
@@ -101,10 +110,16 @@ func (wp *WorkerPool) ProcessHost(host modules.Host, service string, combo strin
 		}
 	} else {
 		if service == "vnc" || service == "snmp" {
-			_, passwords, err := modules.GetUsersAndPasswords(&host, user, password, version)
-			if err != nil {
-				modules.TUIError("Error loading wordlist for %s: %v\n", service, err)
-				return
+			var passwords []string
+			if wp.passwordGen != nil {
+				passwords = wp.passwordGen.Generate()
+			} else {
+				_, pw, err := modules.GetUsersAndPasswords(&host, user, password, version)
+				if err != nil {
+					modules.TUIError("Error loading wordlist for %s: %v\n", service, err)
+					return
+				}
+				passwords = pw
 			}
 			for _, p := range passwords {
 				// Check if we should stop before processing each credential
@@ -132,10 +147,24 @@ func (wp *WorkerPool) ProcessHost(host modules.Host, service string, combo strin
 				}
 			}
 		} else {
-			users, passwords, err := modules.GetUsersAndPasswords(&host, user, password, version)
-			if err != nil {
-				modules.TUIError("Error loading wordlist for %s: %v\n", service, err)
-				return
+			var users, passwords []string
+			if wp.passwordGen != nil {
+				// Only load users from wordlist; passwords come from generator
+				u, _, err := modules.GetUsersAndPasswords(&host, user, password, version)
+				if err != nil {
+					modules.TUIError("Error loading wordlist for %s: %v\n", service, err)
+					return
+				}
+				users = u
+				passwords = wp.passwordGen.Generate()
+			} else {
+				u, p, err := modules.GetUsersAndPasswords(&host, user, password, version)
+				if err != nil {
+					modules.TUIError("Error loading wordlist for %s: %v\n", service, err)
+					return
+				}
+				users = u
+				passwords = p
 			}
 
 			queueCred := func(u, p string) bool {
@@ -157,7 +186,7 @@ func (wp *WorkerPool) ProcessHost(host modules.Host, service string, combo strin
 				}
 			}
 
-			if wp.sprayMode {
+				if wp.sprayMode {
 				// Spray: try each password across all users before next password
 
 				// Prepend username-as-password round if -e s
@@ -165,6 +194,18 @@ func (wp *WorkerPool) ProcessHost(host modules.Host, service string, combo strin
 					for _, u := range users {
 						if !queueCred(u, u) {
 							return
+						}
+					}
+				}
+
+				// Prepend reversed-username round if -e r
+				if wp.useReversedPass {
+					for _, u := range users {
+						reversed := reverseString(u)
+						if reversed != u { // skip if palindrome (already covered by -e s)
+							if !queueCred(u, reversed) {
+								return
+							}
 						}
 					}
 				}
@@ -193,6 +234,15 @@ func (wp *WorkerPool) ProcessHost(host modules.Host, service string, combo strin
 					if useUsernameAsPass {
 						if !queueCred(u, u) {
 							return
+						}
+					}
+					// Prepend reversed-username if -e r
+					if wp.useReversedPass {
+						reversed := reverseString(u)
+						if reversed != u {
+							if !queueCred(u, reversed) {
+								return
+							}
 						}
 					}
 					for _, p := range passwords {

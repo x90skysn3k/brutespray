@@ -11,6 +11,7 @@ func TestAllModulesRegistered(t *testing.T) {
 		"mongodb", "nntp", "oracle", "teamspeak", "xmpp", "rdp", "redis",
 		"http", "https", "ldap", "ldaps", "winrm",
 		"smtp-vrfy", "rexec", "rlogin", "rsh", "wrapper",
+		"http-form", "https-form", "svn",
 	}
 
 	for _, svc := range expected {

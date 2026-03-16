@@ -12,7 +12,8 @@ func TestBruteWrapperSuccess(t *testing.T) {
 	cm, _ := modules.NewConnectionManager("", 5*time.Second, "")
 
 	result := BruteWrapper("127.0.0.1", 9999, "user", "pass", 5*time.Second, cm, ModuleParams{
-		"cmd": "echo success && exit 0",
+		"cmd":           "echo success && exit 0",
+		"allow-wrapper": "true",
 	})
 
 	if !result.AuthSuccess {
@@ -27,7 +28,8 @@ func TestBruteWrapperFailure(t *testing.T) {
 	cm, _ := modules.NewConnectionManager("", 5*time.Second, "")
 
 	result := BruteWrapper("127.0.0.1", 9999, "user", "pass", 5*time.Second, cm, ModuleParams{
-		"cmd": "exit 1",
+		"cmd":           "exit 1",
+		"allow-wrapper": "true",
 	})
 
 	if result.AuthSuccess {
@@ -42,7 +44,8 @@ func TestBruteWrapperPlaceholders(t *testing.T) {
 	cm, _ := modules.NewConnectionManager("", 5*time.Second, "")
 
 	result := BruteWrapper("10.0.0.1", 8080, "testuser", "testpass", 5*time.Second, cm, ModuleParams{
-		"cmd": "echo %H %P %U %W",
+		"cmd":           "echo %H %P %U %W",
+		"allow-wrapper": "true",
 	})
 
 	if !result.AuthSuccess {
@@ -68,7 +71,8 @@ func TestBruteWrapperTimeout(t *testing.T) {
 	cm, _ := modules.NewConnectionManager("", 5*time.Second, "")
 
 	result := BruteWrapper("127.0.0.1", 9999, "user", "pass", 2*time.Second, cm, ModuleParams{
-		"cmd": "sleep 30",
+		"cmd":           "sleep 30",
+		"allow-wrapper": "true",
 	})
 
 	if result.AuthSuccess {
@@ -85,7 +89,9 @@ func TestBruteWrapperTimeout(t *testing.T) {
 func TestBruteWrapperMissingCmd(t *testing.T) {
 	cm, _ := modules.NewConnectionManager("", 5*time.Second, "")
 
-	result := BruteWrapper("127.0.0.1", 9999, "user", "pass", 5*time.Second, cm, ModuleParams{})
+	result := BruteWrapper("127.0.0.1", 9999, "user", "pass", 5*time.Second, cm, ModuleParams{
+		"allow-wrapper": "true",
+	})
 
 	if result.AuthSuccess {
 		t.Fatal("expected auth failure when cmd is missing")
@@ -105,7 +111,8 @@ func TestBruteWrapperBanner(t *testing.T) {
 	cm, _ := modules.NewConnectionManager("", 5*time.Second, "")
 
 	result := BruteWrapper("127.0.0.1", 9999, "user", "pass", 5*time.Second, cm, ModuleParams{
-		"cmd": "echo 'banner output line'",
+		"cmd":           "echo 'banner output line'",
+		"allow-wrapper": "true",
 	})
 
 	if !result.AuthSuccess {
@@ -113,5 +120,23 @@ func TestBruteWrapperBanner(t *testing.T) {
 	}
 	if !strings.Contains(result.Banner, "banner output line") {
 		t.Fatalf("expected banner to capture stdout, got %q", result.Banner)
+	}
+}
+
+func TestBruteWrapperBlockedWithoutFlag(t *testing.T) {
+	cm, _ := modules.NewConnectionManager("", 5*time.Second, "")
+
+	result := BruteWrapper("127.0.0.1", 9999, "user", "pass", 5*time.Second, cm, ModuleParams{
+		"cmd": "echo hello",
+	})
+
+	if result.AuthSuccess {
+		t.Fatal("expected auth failure without --allow-wrapper")
+	}
+	if result.ConnectionSuccess {
+		t.Fatal("expected connection failure without --allow-wrapper")
+	}
+	if result.Error == nil || !strings.Contains(result.Error.Error(), "allow-wrapper") {
+		t.Fatalf("expected error mentioning allow-wrapper, got: %v", result.Error)
 	}
 }

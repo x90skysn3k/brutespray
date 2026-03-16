@@ -3,17 +3,72 @@ package brute
 import (
 	"fmt"
 	"net"
+	"os"
+	"sync"
 	"time"
 
 	"github.com/x90skysn3k/brutespray/v2/modules"
 	"golang.org/x/crypto/ssh"
 )
 
+// sshKeyCache caches key file contents to avoid re-reading on every attempt.
+var sshKeyCache sync.Map
+
 func BruteSSH(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager, params ModuleParams) *BruteResult {
+	var authMethod ssh.AuthMethod
+
+	keyParam := params["key"]
+	if keyParam != "" && keyParam != "false" {
+		// Key auth mode. Two sub-modes:
+		//   -m key:/path/to/key  — fixed key, brute-force the passphrase via -p
+		//   -m key:true          — each -p entry is a key file path (no passphrase)
+		var keyPath string
+		var passphrase string
+
+		if keyParam == "true" {
+			// Each password entry is a key file path
+			keyPath = password
+			passphrase = ""
+		} else {
+			// Fixed key file; passwords are passphrases
+			keyPath = keyParam
+			passphrase = password
+		}
+
+		// Cache key file contents
+		var keyData []byte
+		if cached, ok := sshKeyCache.Load(keyPath); ok {
+			keyData = cached.([]byte)
+		} else {
+			data, err := os.ReadFile(keyPath)
+			if err != nil {
+				return &BruteResult{AuthSuccess: false, ConnectionSuccess: true,
+					Error: fmt.Errorf("reading SSH key %s: %w", keyPath, err)}
+			}
+			keyData = data
+			sshKeyCache.Store(keyPath, data)
+		}
+
+		var signer ssh.Signer
+		var err error
+		if passphrase != "" {
+			signer, err = ssh.ParsePrivateKeyWithPassphrase(keyData, []byte(passphrase))
+		} else {
+			signer, err = ssh.ParsePrivateKey(keyData)
+		}
+		if err != nil {
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: true,
+				Error: fmt.Errorf("parsing SSH key: %w", err)}
+		}
+		authMethod = ssh.PublicKeys(signer)
+	} else {
+		authMethod = ssh.Password(password)
+	}
+
 	config := &ssh.ClientConfig{
 		User: user,
 		Auth: []ssh.AuthMethod{
-			ssh.Password(password),
+			authMethod,
 		},
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 	}
