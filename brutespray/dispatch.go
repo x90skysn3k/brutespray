@@ -4,12 +4,13 @@ import (
 	"time"
 
 	"github.com/pterm/pterm"
+	"github.com/x90skysn3k/brutespray/v2/brute"
 	"github.com/x90skysn3k/brutespray/v2/modules"
 	"github.com/x90skysn3k/brutespray/v2/tui"
 )
 
 // ProcessHost processes a single host with all its credentials using dedicated host worker pool
-func (wp *WorkerPool) ProcessHost(host modules.Host, service string, combo string, user string, password string, version string, timeout time.Duration, retry int, output string, cm *modules.ConnectionManager, domain string) {
+func (wp *WorkerPool) ProcessHost(host modules.Host, service string, combo string, user string, password string, version string, timeout time.Duration, retry int, output string, cm *modules.ConnectionManager, domain string, moduleParams brute.ModuleParams, useUsernameAsPass bool) {
 	// Skip hosts already completed in a previous run
 	if wp.checkpoint != nil && wp.checkpoint.IsHostCompleted(host.Host, host.Port, service) {
 		return
@@ -88,6 +89,7 @@ func (wp *WorkerPool) ProcessHost(host modules.Host, service string, combo strin
 				User:     users[i],
 				Password: passwords[i],
 				Service:  service,
+				Params:   moduleParams,
 			}
 			select {
 			case hostPool.jobQueue <- cred:
@@ -119,6 +121,7 @@ func (wp *WorkerPool) ProcessHost(host modules.Host, service string, combo strin
 					User:     "",
 					Password: p,
 					Service:  service,
+					Params:   moduleParams,
 				}
 				select {
 				case hostPool.jobQueue <- cred:
@@ -143,7 +146,7 @@ func (wp *WorkerPool) ProcessHost(host modules.Host, service string, combo strin
 					return false
 				default:
 				}
-				cred := Credential{Host: host, User: u, Password: p, Service: service}
+				cred := Credential{Host: host, User: u, Password: p, Service: service, Params: moduleParams}
 				select {
 				case hostPool.jobQueue <- cred:
 					return true
@@ -156,6 +159,16 @@ func (wp *WorkerPool) ProcessHost(host modules.Host, service string, combo strin
 
 			if wp.sprayMode {
 				// Spray: try each password across all users before next password
+
+				// Prepend username-as-password round if -e s
+				if useUsernameAsPass {
+					for _, u := range users {
+						if !queueCred(u, u) {
+							return
+						}
+					}
+				}
+
 				for i, p := range passwords {
 					if i > 0 && wp.sprayDelay > 0 {
 						modules.PrintfColored(pterm.FgLightYellow, "[spray] %s — waiting %v before next password round...\n", host.Host, wp.sprayDelay)
@@ -176,6 +189,12 @@ func (wp *WorkerPool) ProcessHost(host modules.Host, service string, combo strin
 			} else {
 				// Standard: try all passwords per user
 				for _, u := range users {
+					// Prepend username-as-password if -e s
+					if useUsernameAsPass {
+						if !queueCred(u, u) {
+							return
+						}
+					}
 					for _, p := range passwords {
 						if !queueCred(u, p) {
 							return
@@ -218,8 +237,45 @@ func (wp *WorkerPool) ProcessHost(host modules.Host, service string, combo strin
 		return
 	}
 
-	// Now stop the host pool (this will close stopChan but jobQueue is already closed)
-	hostPool.Stop()
+	// Missed credential recovery: retry credentials that failed due to connection errors
+	missed := hostPool.DrainMissedQueue()
+	if len(missed) > 0 {
+		modules.PrintfColored(pterm.FgLightYellow, "[*] Retrying %d missed credentials for %s:%d\n", len(missed), host.Host, host.Port)
+
+		// Re-create job queue for retry pass
+		retryPool := wp.getOrCreateHostPool(host)
+		retryPool.jobQueue = make(chan Credential, retryPool.workers*10)
+		retryPool.Start(timeout, retry, output, cm, domain, wp.noStats)
+
+		for _, cred := range missed {
+			select {
+			case retryPool.jobQueue <- cred:
+			case <-retryPool.stopChan:
+				break
+			case <-wp.globalStopChan:
+				retryPool.Stop()
+				return
+			}
+		}
+		close(retryPool.jobQueue)
+
+		retryDone := make(chan struct{})
+		go func() {
+			retryPool.wg.Wait()
+			close(retryDone)
+		}()
+
+		select {
+		case <-retryDone:
+		case <-wp.globalStopChan:
+			retryPool.Stop()
+			return
+		}
+		retryPool.Stop()
+	} else {
+		// Now stop the host pool (this will close stopChan but jobQueue is already closed)
+		hostPool.Stop()
+	}
 
 	// Debug output to show host completion with performance metrics
 	hostPool.mutex.RLock()

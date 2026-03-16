@@ -10,7 +10,7 @@ import (
 	"github.com/x90skysn3k/brutespray/v2/modules"
 )
 
-func BruteTelnet(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) *BruteResult {
+func BruteTelnet(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager, params ModuleParams) *BruteResult {
 	return RunWithTimeout(timeout, func(ctx context.Context) *BruteResult {
 		connection, err := cm.Dial("tcp", fmt.Sprintf("%s:%d", host, port))
 		if err != nil {
@@ -39,11 +39,11 @@ func BruteTelnet(host string, port int, user, password string, timeout time.Dura
 		}
 
 		stepDeadline(short)
-		_, _ = readUntil(reader, []string{"login:", "ogin:"}, 1024)
+		bannerText, _ := readUntil(reader, []string{"login:", "ogin:"}, 1024)
 
 		stepDeadline(short)
 		if _, err := fmt.Fprintf(connection, "%s\r\n", user); err != nil {
-			return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: err}
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: err, Banner: bannerText}
 		}
 
 		stepDeadline(short)
@@ -51,24 +51,24 @@ func BruteTelnet(host string, port int, user, password string, timeout time.Dura
 
 		stepDeadline(short)
 		if _, err := fmt.Fprintf(connection, "%s\r\n", password); err != nil {
-			return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: err}
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: err, Banner: bannerText}
 		}
 
 		stepDeadline(short)
 		if _, err := fmt.Fprintf(connection, "id\r\n"); err != nil {
-			return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: err}
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: err, Banner: bannerText}
 		}
 
 		stepDeadline(short)
 		output, _ := readSome(reader, 2048)
 		lower := strings.ToLower(output)
 		if strings.Contains(lower, "login incorrect") || strings.Contains(lower, "authentication failure") || strings.Contains(lower, "incorrect") {
-			return &BruteResult{AuthSuccess: false, ConnectionSuccess: true}
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Banner: bannerText}
 		}
 		if strings.Contains(output, "uid=") || strings.Contains(output, "# ") || strings.Contains(output, "$ ") || strings.Contains(output, "/ #") {
-			return &BruteResult{AuthSuccess: true, ConnectionSuccess: true}
+			return &BruteResult{AuthSuccess: true, ConnectionSuccess: true, Banner: bannerText}
 		}
-		return &BruteResult{AuthSuccess: false, ConnectionSuccess: true}
+		return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Banner: bannerText}
 	})
 }
 

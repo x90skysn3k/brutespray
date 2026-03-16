@@ -30,7 +30,7 @@ func (cdw *ContextDialerWrapper) DialContext(ctx context.Context, network, addre
 	return conn, nil
 }
 
-func BruteMongoDB(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) *BruteResult {
+func BruteMongoDB(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager, params ModuleParams) *BruteResult {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 

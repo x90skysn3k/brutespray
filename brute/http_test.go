@@ -32,7 +32,7 @@ func TestBruteHTTPAuthSuccess(t *testing.T) {
 	host, port := parseHostPort(t, server.URL)
 	cm := newTestCM()
 
-	result := BruteHTTP(host, port, "admin", "secret", 5*time.Second, cm, false)
+	result := BruteHTTP(host, port, "admin", "secret", 5*time.Second, cm, ModuleParams{})
 	if !result.AuthSuccess {
 		t.Fatal("expected auth success")
 	}
@@ -50,7 +50,7 @@ func TestBruteHTTPAuthFailure(t *testing.T) {
 	host, port := parseHostPort(t, server.URL)
 	cm := newTestCM()
 
-	result := BruteHTTP(host, port, "admin", "wrong", 5*time.Second, cm, false)
+	result := BruteHTTP(host, port, "admin", "wrong", 5*time.Second, cm, ModuleParams{})
 	if result.AuthSuccess {
 		t.Fatal("expected auth failure")
 	}
@@ -63,7 +63,7 @@ func TestBruteHTTPConnectionFailure(t *testing.T) {
 	cm := newTestCM()
 
 	// Connect to a port that's not listening
-	result := BruteHTTP("127.0.0.1", 1, "admin", "pass", 2*time.Second, cm, false)
+	result := BruteHTTP("127.0.0.1", 1, "admin", "pass", 2*time.Second, cm, ModuleParams{})
 	if result.AuthSuccess {
 		t.Fatal("expected auth failure")
 	}
@@ -81,7 +81,7 @@ func TestBruteHTTPRedirect(t *testing.T) {
 	host, port := parseHostPort(t, server.URL)
 	cm := newTestCM()
 
-	result := BruteHTTP(host, port, "admin", "pass", 5*time.Second, cm, false)
+	result := BruteHTTP(host, port, "admin", "pass", 5*time.Second, cm, ModuleParams{})
 	if result.AuthSuccess {
 		t.Fatal("redirect should not count as auth success")
 	}
@@ -99,7 +99,7 @@ func TestBruteHTTPServerError(t *testing.T) {
 	host, port := parseHostPort(t, server.URL)
 	cm := newTestCM()
 
-	result := BruteHTTP(host, port, "admin", "pass", 5*time.Second, cm, false)
+	result := BruteHTTP(host, port, "admin", "pass", 5*time.Second, cm, ModuleParams{})
 	if result.AuthSuccess {
 		t.Fatal("server error should not count as auth success")
 	}

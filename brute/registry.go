@@ -7,42 +7,26 @@ import (
 	"github.com/x90skysn3k/brutespray/v2/modules"
 )
 
-// BruteFunc is the standard signature for a brute-force module.
-type BruteFunc func(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) *BruteResult
+// ModuleParams carries per-module configuration such as auth method, domain,
+// HTTPS flag, target path, etc. Modules read what they need and ignore the rest.
+type ModuleParams map[string]string
 
-// BruteFuncWithDomain is for modules that require a domain parameter (SMB, RDP).
-type BruteFuncWithDomain func(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager, domain string) *BruteResult
+// BruteFunc is the unified signature for all brute-force modules.
+type BruteFunc func(host string, port int, user, password string,
+	timeout time.Duration, cm *modules.ConnectionManager,
+	params ModuleParams) *BruteResult
 
-// BruteFuncHTTP is for the HTTP module that needs the useHTTPS flag.
-type BruteFuncHTTP func(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager, useHTTPS bool) *BruteResult
+var registry = map[string]BruteFunc{}
 
-type moduleEntry struct {
-	standard   BruteFunc
-	withDomain BruteFuncWithDomain
-	http       BruteFuncHTTP
-}
-
-var registry = map[string]moduleEntry{}
-
-// Register adds a standard brute-force module to the registry.
+// Register adds a brute-force module to the registry.
 func Register(service string, fn BruteFunc) {
-	registry[service] = moduleEntry{standard: fn}
+	registry[service] = fn
 }
 
-// RegisterWithDomain adds a domain-aware module (SMB, RDP).
-func RegisterWithDomain(service string, fn BruteFuncWithDomain) {
-	registry[service] = moduleEntry{withDomain: fn}
-}
-
-// RegisterHTTP adds the HTTP module with HTTPS flag support.
-func RegisterHTTP(service string, fn BruteFuncHTTP) {
-	registry[service] = moduleEntry{http: fn}
-}
-
-// Lookup returns the module entry for a service, if registered.
-func Lookup(service string) (moduleEntry, bool) {
-	entry, ok := registry[service]
-	return entry, ok
+// Lookup returns the module function for a service, if registered.
+func Lookup(service string) (BruteFunc, bool) {
+	fn, ok := registry[service]
+	return fn, ok
 }
 
 // Services returns a sorted list of all registered service names.

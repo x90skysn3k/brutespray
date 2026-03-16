@@ -11,7 +11,7 @@ import (
 	"github.com/x90skysn3k/brutespray/v2/modules"
 )
 
-func BruteSNMP(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) *BruteResult {
+func BruteSNMP(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager, params ModuleParams) *BruteResult {
 	hasher := md5.New()
 	hasher.Write([]byte(password))
 	md5Password := hex.EncodeToString(hasher.Sum(nil))

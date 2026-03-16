@@ -29,7 +29,7 @@ func (d *oracleDialer) DialContext(ctx context.Context, network, address string)
 	return conn, nil
 }
 
-func BruteOracle(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) *BruteResult {
+func BruteOracle(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager, params ModuleParams) *BruteResult {
 	connString := fmt.Sprintf("oracle://%s:%s@%s:%d/", url.QueryEscape(user), url.QueryEscape(password), host, port)
 
 	connector := go_ora.NewConnector(connString)

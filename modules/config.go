@@ -11,28 +11,30 @@ import (
 // Config holds settings loadable from a YAML config file.
 // CLI flags override config file values.
 type Config struct {
-	User            string        `yaml:"user"`
-	Password        string        `yaml:"password"`
-	Combo           string        `yaml:"combo"`
-	Output          string        `yaml:"output"`
-	Threads         int           `yaml:"threads"`
-	HostParallelism int           `yaml:"host_parallelism"`
-	Timeout         time.Duration `yaml:"timeout"`
-	Retry           int           `yaml:"retry"`
-	Service         string        `yaml:"service"`
-	Socks5          string        `yaml:"socks5"`
-	Interface       string        `yaml:"interface"`
-	Domain          string        `yaml:"domain"`
-	RateLimit       float64       `yaml:"rate"`
-	StopOnSuccess   bool          `yaml:"stop_on_success"`
-	Silent          bool          `yaml:"silent"`
-	LogEvery        int           `yaml:"log_every"`
-	Summary         bool          `yaml:"summary"`
-	NoColor         bool          `yaml:"no_color"`
-	Spray           bool          `yaml:"spray"`
-	SprayDelay      time.Duration `yaml:"spray_delay"`
-	Hosts           []string      `yaml:"hosts"`
-	File            string        `yaml:"file"`
+	User            string            `yaml:"user"`
+	Password        string            `yaml:"password"`
+	Combo           string            `yaml:"combo"`
+	Output          string            `yaml:"output"`
+	Threads         int               `yaml:"threads"`
+	HostParallelism int               `yaml:"host_parallelism"`
+	Timeout         time.Duration     `yaml:"timeout"`
+	Retry           int               `yaml:"retry"`
+	Service         string            `yaml:"service"`
+	Socks5          string            `yaml:"socks5"`
+	Interface       string            `yaml:"interface"`
+	Domain          string            `yaml:"domain"`
+	RateLimit       float64           `yaml:"rate"`
+	StopOnSuccess   bool              `yaml:"stop_on_success"`
+	Silent          bool              `yaml:"silent"`
+	LogEvery        int               `yaml:"log_every"`
+	Summary         bool              `yaml:"summary"`
+	NoColor         bool              `yaml:"no_color"`
+	Spray           bool              `yaml:"spray"`
+	SprayDelay      time.Duration     `yaml:"spray_delay"`
+	Hosts           []string          `yaml:"hosts"`
+	File            string            `yaml:"file"`
+	ModuleParams    map[string]string `yaml:"module_params"`
+	ExtraCreds      string            `yaml:"extra_creds"`
 }
 
 // LoadConfig reads a YAML config file and returns the parsed config.
