@@ -38,22 +38,27 @@ services:
       start_period: 10s
 
   # ---------------------------------------------------------------------------
-  # FTP  --  ftpuser:ftppass  --  port 20021 (command), 20200-20210 (passive)
+  # FTP  --  ftpuser:ftppass  --  port 20021
+  # Using fauria/vsftpd which properly handles passive mode
   # ---------------------------------------------------------------------------
   vsftpd:
-    image: bogem/ftp
+    image: fauria/vsftpd
     container_name: bs-test-ftp
     hostname: bs-test-ftp
     environment:
       FTP_USER: ftpuser
       FTP_PASS: ftppass
-      FTP_PORT: 21
+      PASV_ENABLE: "YES"
+      PASV_MIN_PORT: 20200
+      PASV_MAX_PORT: 20210
+      PASV_ADDRESS: 127.0.0.1
+      LOCAL_UMASK: "022"
     ports:
       - "20021:21"
       - "20200-20210:20200-20210"
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "nc -z 127.0.0.1 21 || exit 1"]
+      test: ["CMD-SHELL", "ss -tlnp | grep -q ':21 ' || exit 1"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -227,50 +232,48 @@ services:
 
   # ---------------------------------------------------------------------------
   # VNC  --  password: vncpass  --  port 25900
+  # Uses TigerVNC which supports standard VNC Authentication (Type 2)
   # ---------------------------------------------------------------------------
   vnc:
-    image: theasp/novnc:latest
+    image: consol/rocky-xfce-vnc:latest
     container_name: bs-test-vnc
     hostname: bs-test-vnc
     environment:
-      DISPLAY_WIDTH: 800
-      DISPLAY_HEIGHT: 600
-      VNC_PASSWORD: vncpass
+      VNC_PW: vncpass
+      VNC_RESOLUTION: 800x600
     ports:
-      - "25900:5900"     # VNC protocol
-      - "26080:8080"     # noVNC web (optional)
+      - "25900:5901"     # VNC protocol (TigerVNC listens on 5901)
+      - "26080:6901"     # noVNC web
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "nc -z 127.0.0.1 5900 || exit 1"]
+      test: ["CMD-SHELL", "ss -tlnp | grep -q ':5901 ' || exit 1"]
       interval: 5s
       timeout: 3s
-      retries: 15
-      start_period: 15s
+      retries: 20
+      start_period: 20s
 
   # ---------------------------------------------------------------------------
-  # Telnet  --  root:root  --  port 20023
-  # Uses a minimal Alpine container running busybox telnetd
+  # Telnet  --  testuser:testpass  --  port 20023
+  # Uses Debian with proper telnetd package
   # ---------------------------------------------------------------------------
   telnet:
-    image: alpine:3.20
+    image: alpine:3.14
     container_name: bs-test-telnet
     hostname: bs-test-telnet
     entrypoint: /bin/sh
     command:
       - -c
       - |
-        # Create a test user with a known password
-        adduser -D testuser
+        apk add --no-cache busybox-extras > /dev/null 2>&1
+        adduser -D testuser 2>/dev/null || true
         echo "testuser:testpass" | chpasswd
-        # Install and run busybox telnetd in the foreground
-        # -F = don't fork, -l /bin/login = use system login
-        exec busybox telnetd -F -p 23 -l /bin/login
+        exec busybox-extras telnetd -F -p 23 -l /bin/login
     ports:
       - "20023:23"
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "nc -z 127.0.0.1 23 || exit 1"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
-      start_period: 5s
+      test: ["CMD-SHELL", "ss -tlnp | grep -q ':23 ' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
