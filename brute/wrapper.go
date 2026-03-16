@@ -14,7 +14,13 @@ import (
 // BruteWrapper executes an external command with credential placeholders.
 // Placeholders: %H (host), %P (port), %U (user), %W (password).
 // Exit code 0 = success. Requires params["cmd"] to be set.
+// SECURITY: Requires --allow-wrapper flag (params["allow-wrapper"] == "true").
 func BruteWrapper(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager, params ModuleParams) *BruteResult {
+	if params["allow-wrapper"] != "true" {
+		return &BruteResult{AuthSuccess: false, ConnectionSuccess: false,
+			Error: fmt.Errorf("wrapper module requires --allow-wrapper flag (executes arbitrary commands)")}
+	}
+
 	cmdTemplate := params["cmd"]
 	if cmdTemplate == "" {
 		return &BruteResult{AuthSuccess: false, ConnectionSuccess: false,

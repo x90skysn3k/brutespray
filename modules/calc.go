@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 )
@@ -51,6 +52,17 @@ func GetUsersAndPasswordsCombo(h *Host, combo string, version string) ([]string,
 }
 
 func GetUsersAndPasswords(h *Host, user string, password string, version string) ([]string, []string, error) {
+	// Auto-detect PwDump format in password file: extracts user+NTLM hash pairs
+	if password != "" && IsFile(password) && IsPwDumpFile(password) {
+		users, hashes, err := ReadPwDumpFile(password)
+		if err != nil {
+			return nil, nil, fmt.Errorf("reading PwDump file: %w", err)
+		}
+		// Set pass=HASH flag for modules that support pass-the-hash
+		PwDumpMode = true
+		return users, hashes, nil
+	}
+
 	type result struct {
 		words []string
 		err   error
@@ -109,6 +121,51 @@ func GetUsersAndPasswords(h *Host, user string, password string, version string)
 	}
 
 	return userResult.words, passResult.words, nil
+}
+
+// PwDumpMode is set to true when a PwDump file is detected, indicating that
+// passwords are NTLM hashes and modules should use pass-the-hash.
+var PwDumpMode bool
+
+// pwdumpRe matches lines in PwDump format: username:uid:LM_hash:NTLM_hash:::
+var pwdumpRe = regexp.MustCompile(`^([^:]+):\d+:[0-9a-fA-F]{32}:([0-9a-fA-F]{32}):::$`)
+
+// IsPwDumpFile checks whether a file is in PwDump format by examining the first line.
+func IsPwDumpFile(filename string) bool {
+	file, err := os.Open(filename)
+	if err != nil {
+		return false
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	if scanner.Scan() {
+		return pwdumpRe.MatchString(scanner.Text())
+	}
+	return false
+}
+
+// ReadPwDumpFile parses a PwDump file and returns users and NTLM hashes.
+func ReadPwDumpFile(filename string) (users []string, hashes []string, err error) {
+	file, err := os.Open(filename)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := scanner.Text()
+		matches := pwdumpRe.FindStringSubmatch(line)
+		if len(matches) == 3 {
+			users = append(users, matches[1])
+			hashes = append(hashes, matches[2])
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, nil, err
+	}
+	return users, hashes, nil
 }
 
 func CalcCombinations(userCh []string, passCh []string) int {
