@@ -17,7 +17,7 @@ import (
 
 var masterServiceList = brute.Services()
 
-var BetaServiceList = []string{"asterisk", "nntp", "oracle", "xmpp", "rdp", "ldap", "ldaps", "winrm"}
+var BetaServiceList = []string{"asterisk", "nntp", "oracle", "xmpp", "rdp", "ldap", "ldaps", "winrm", "ftps", "smtp-vrfy", "rexec", "rlogin", "rsh", "wrapper"}
 
 var version = "dev"
 var NoColorMode bool
@@ -43,40 +43,54 @@ func (h *hostListFlag) Set(value string) error {
 	return nil
 }
 
+// moduleParamsFlag collects multiple -m KEY:VALUE parameters
+type moduleParamsFlag []string
+
+func (m *moduleParamsFlag) String() string { return strings.Join(*m, ",") }
+func (m *moduleParamsFlag) Set(value string) error {
+	if !strings.Contains(value, ":") {
+		return fmt.Errorf("module param must be in KEY:VALUE format, got %q", value)
+	}
+	*m = append(*m, value)
+	return nil
+}
+
 // Config holds all parsed configuration for a brutespray run
 type Config struct {
-	User              string
-	Password          string
-	Combo             string
-	Output            string
-	Summary           bool
-	NoStats           bool
-	Silent            bool
-	LogEvery          int
-	Threads           int
-	HostParallelism   int
-	SocksProxy        string
-	NetInterface      string
-	ServiceType       string
-	File              string
-	HostArgs          hostListFlag
-	Quiet             bool
-	Timeout           time.Duration
-	Retry             int
-	PrintHosts        bool
-	Domain            string
-	NoColor           bool
-	StopOnSuccess     bool
-	RateLimit         float64
-	SprayMode         bool
-	SprayDelay        time.Duration
-	ResumeFile        string
-	CheckpointFile    string
-	ConfigFile        string
-	TUI               bool
-	Hosts             []modules.Host
-	SupportedServices []string
-	TotalCombinations int
+	User                string
+	Password            string
+	Combo               string
+	Output              string
+	Summary             bool
+	NoStats             bool
+	Silent              bool
+	LogEvery            int
+	Threads             int
+	HostParallelism     int
+	SocksProxy          string
+	NetInterface        string
+	ServiceType         string
+	File                string
+	HostArgs            hostListFlag
+	Quiet               bool
+	Timeout             time.Duration
+	Retry               int
+	PrintHosts          bool
+	Domain              string
+	NoColor             bool
+	StopOnSuccess       bool
+	RateLimit           float64
+	SprayMode           bool
+	SprayDelay          time.Duration
+	ResumeFile          string
+	CheckpointFile      string
+	ConfigFile          string
+	TUI                 bool
+	Hosts               []modules.Host
+	SupportedServices   []string
+	TotalCombinations   int
+	ModuleParams        map[string]string
+	UseUsernameAsPass   bool
 }
 
 // ParseConfig parses CLI flags, loads config file, and validates inputs.
@@ -115,6 +129,9 @@ func ParseConfig() *Config {
 	checkpointFile := flag.String("checkpoint", "brutespray-checkpoint.json", "Checkpoint file path for resume capability")
 	configFile := flag.String("config", "", "YAML config file (CLI flags override config values)")
 	noTUI := flag.Bool("no-tui", false, "Disable interactive terminal UI, use legacy output mode")
+	var moduleParamsArgs moduleParamsFlag
+	flag.Var(&moduleParamsArgs, "m", "Module-specific parameter in KEY:VALUE format (repeatable). Example: -m auth:NTLM -m dir:/admin")
+	extraCreds := flag.String("e", "", "Extra password checks: n=blank password, s=password=username, ns=both")
 
 	flag.Parse()
 
@@ -193,6 +210,15 @@ func ParseConfig() *Config {
 		if !setFlags["f"] && fileCfg.File != "" {
 			*file = fileCfg.File
 		}
+		// Load module params from config if not set via CLI
+		if len(moduleParamsArgs) == 0 && len(fileCfg.ModuleParams) > 0 {
+			for k, v := range fileCfg.ModuleParams {
+				moduleParamsArgs = append(moduleParamsArgs, k+":"+v)
+			}
+		}
+		if !setFlags["e"] && fileCfg.ExtraCreds != "" {
+			*extraCreds = fileCfg.ExtraCreds
+		}
 		if len(fileCfg.Hosts) > 0 && len(cfg.HostArgs) == 0 {
 			for _, h := range fileCfg.Hosts {
 				cfg.HostArgs = append(cfg.HostArgs, h)
@@ -235,6 +261,24 @@ func ParseConfig() *Config {
 	cfg.ConfigFile = *configFile
 	// TUI is default for interactive terminals; --no-tui or --nc disables it
 	cfg.TUI = !*noTUI && !cfg.NoColor && term.IsTerminal(int(os.Stdout.Fd()))
+
+	// Parse module parameters from -m flags
+	cfg.ModuleParams = make(map[string]string)
+	for _, mp := range moduleParamsArgs {
+		parts := strings.SplitN(mp, ":", 2)
+		cfg.ModuleParams[parts[0]] = parts[1]
+	}
+
+	// Parse -e flag for extra credential checks
+	if *extraCreds != "" {
+		e := strings.ToLower(*extraCreds)
+		if strings.Contains(e, "s") {
+			cfg.UseUsernameAsPass = true
+		}
+		if strings.Contains(e, "n") {
+			modules.UseEmptyPassword = true
+		}
+	}
 
 	// Apply global settings
 	NoColorMode = cfg.NoColor

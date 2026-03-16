@@ -9,7 +9,7 @@ import (
 	"github.com/x90skysn3k/brutespray/v2/modules"
 )
 
-func BruteAsterisk(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) *BruteResult {
+func BruteAsterisk(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager, params ModuleParams) *BruteResult {
 	addr := fmt.Sprintf("%s:%d", host, port)
 
 	conn, err := cm.Dial("tcp", addr)

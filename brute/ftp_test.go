@@ -89,7 +89,7 @@ func TestBruteFTPAuthSuccess(t *testing.T) {
 	defer cleanup()
 
 	cm, _ := modules.NewConnectionManager("", 5*time.Second, "")
-	result := BruteFTP("127.0.0.1", port, "ftpuser", "ftppass", 5*time.Second, cm)
+	result := BruteFTP("127.0.0.1", port, "ftpuser", "ftppass", 5*time.Second, cm, ModuleParams{})
 
 	if !result.AuthSuccess {
 		t.Fatalf("expected auth success, got error: %v", result.Error)
@@ -104,7 +104,7 @@ func TestBruteFTPAuthFailure(t *testing.T) {
 	defer cleanup()
 
 	cm, _ := modules.NewConnectionManager("", 5*time.Second, "")
-	result := BruteFTP("127.0.0.1", port, "ftpuser", "wrongpass", 5*time.Second, cm)
+	result := BruteFTP("127.0.0.1", port, "ftpuser", "wrongpass", 5*time.Second, cm, ModuleParams{})
 
 	if result.AuthSuccess {
 		t.Fatal("expected auth failure")
@@ -116,7 +116,7 @@ func TestBruteFTPAuthFailure(t *testing.T) {
 
 func TestBruteFTPConnectionFailure(t *testing.T) {
 	cm, _ := modules.NewConnectionManager("", 2*time.Second, "")
-	result := BruteFTP("127.0.0.1", 1, "user", "pass", 2*time.Second, cm)
+	result := BruteFTP("127.0.0.1", 1, "user", "pass", 2*time.Second, cm, ModuleParams{})
 
 	if result.AuthSuccess {
 		t.Fatal("expected auth failure")

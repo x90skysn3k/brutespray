@@ -9,7 +9,7 @@ import (
 	"gosrc.io/xmpp/stanza"
 )
 
-func BruteXMPP(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) *BruteResult {
+func BruteXMPP(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager, params ModuleParams) *BruteResult {
 	portstr := strconv.Itoa(port)
 	hoststr := host + ":" + portstr
 	timer := time.NewTimer(timeout)

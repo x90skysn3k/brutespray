@@ -29,7 +29,7 @@ func (d *mssqlDialer) DialContext(ctx context.Context, network, addr string) (ne
 	return conn, nil
 }
 
-func BruteMSSQL(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) *BruteResult {
+func BruteMSSQL(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager, params ModuleParams) *BruteResult {
 	// Wrap values in braces to escape semicolons per MSSQL connection string spec
 	escMssql := func(s string) string {
 		if strings.ContainsAny(s, ";{}") {

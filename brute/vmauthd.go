@@ -10,7 +10,7 @@ import (
 	"github.com/x90skysn3k/brutespray/v2/modules"
 )
 
-func BruteVMAuthd(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) *BruteResult {
+func BruteVMAuthd(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager, params ModuleParams) *BruteResult {
 	timer := time.NewTimer(timeout)
 	defer timer.Stop()
 

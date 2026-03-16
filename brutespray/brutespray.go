@@ -98,7 +98,7 @@ func executeTUI(cfg *Config, cm *modules.ConnectionManager, totalHosts int) {
 			case <-workerPool.globalStopChan:
 				return
 			default:
-				workerPool.ProcessHost(host, host.Service, cfg.Combo, cfg.User, cfg.Password, version, cfg.Timeout, cfg.Retry, cfg.Output, cm, cfg.Domain)
+				workerPool.ProcessHost(host, host.Service, cfg.Combo, cfg.User, cfg.Password, version, cfg.Timeout, cfg.Retry, cfg.Output, cm, cfg.Domain, brute.ModuleParams(cfg.ModuleParams), cfg.UseUsernameAsPass)
 			}
 		}(h)
 	}
@@ -273,7 +273,7 @@ func executeLegacy(cfg *Config, cm *modules.ConnectionManager, totalHosts int) {
 			case <-workerPool.globalStopChan:
 				return
 			default:
-				workerPool.ProcessHost(host, host.Service, cfg.Combo, cfg.User, cfg.Password, version, cfg.Timeout, cfg.Retry, cfg.Output, cm, cfg.Domain)
+				workerPool.ProcessHost(host, host.Service, cfg.Combo, cfg.User, cfg.Password, version, cfg.Timeout, cfg.Retry, cfg.Output, cm, cfg.Domain, brute.ModuleParams(cfg.ModuleParams), cfg.UseUsernameAsPass)
 			}
 		}(h)
 	}
