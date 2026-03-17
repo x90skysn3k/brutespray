@@ -54,6 +54,8 @@ type HostWorkerPool struct {
 	// Missed credential recovery: credentials that failed due to connection errors
 	missedQueue []Credential
 	missedMu    sync.Mutex
+	// User enumeration skip: users confirmed non-existent by the service (e.g. FTP 530)
+	skipUsers sync.Map // user string → struct{}
 }
 
 // WorkerPool manages the worker goroutines for brute force attempts with per-host allocation
@@ -462,6 +464,11 @@ func (hwp *HostWorkerPool) applyAdaptiveBackoff(cred Credential) bool {
 }
 
 func (hwp *HostWorkerPool) processCredential(cred Credential, timeout time.Duration, retry int, output string, cm *modules.ConnectionManager, domain string, noStats bool) {
+	// Skip users that the service confirmed don't exist (e.g. FTP 530)
+	if _, skipped := hwp.skipUsers.Load(cred.User); skipped {
+		return
+	}
+
 	// Random jitter to prevent workers from re-synchronizing after completing
 	// jobs with similar response times. Scale jitter with timeout.
 	maxJitter := timeout / 10
@@ -497,6 +504,11 @@ func (hwp *HostWorkerPool) processCredential(cred Credential, timeout time.Durat
 		if !result.ConnectionSuccess {
 			modules.RecordConnectionError(cred.Host.Host)
 		}
+	}
+
+	// Propagate user skip (e.g. FTP 530 user-not-found)
+	if result.SkipUser {
+		hwp.skipUsers.Store(cred.User, struct{}{})
 	}
 
 	// Update adaptive backoff counter

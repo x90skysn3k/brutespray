@@ -294,3 +294,92 @@ proxy3:1080
 ```bash
 brutespray -H ftps://10.0.0.1:990 -u admin -p passlist.txt
 ```
+
+## SNMPv3
+
+**MD5 auth (default):**
+```bash
+brutespray -H snmp://10.0.0.1:161 -u snmpuser -p authpass -m version:3
+```
+
+**SHA auth with AES privacy:**
+```bash
+brutespray -H snmp://10.0.0.1:161 -u snmpuser -p authpass \
+  -m version:3 -m auth:SHA -m priv:AES -m privpass:privpass123
+```
+
+## HTTP-Form with CSRF Token
+
+**Auto-extract CSRF token before login:**
+```bash
+brutespray -H "http-form://10.0.0.1:8080" -u admin -p passlist.txt \
+  -m "url:/login" -m "body:user=%U&pass=%W&token=%C" \
+  -m "fail:Invalid" -m "csrf:csrf_token"
+```
+
+**CSRF with separate form page:**
+```bash
+brutespray -H "http-form://10.0.0.1:8080" -u admin -p passlist.txt \
+  -m "url:/api/login" -m "body:user=%U&pass=%W&_token=%C" \
+  -m "fail:Unauthorized" -m "csrf:_token" -m "form-url:/login"
+```
+
+## HTTP-Form with Base64 Credentials
+
+```bash
+brutespray -H "http-form://10.0.0.1:8080" -u admin -p passlist.txt \
+  -m 'url:/api/auth' -m 'body:{"credentials":"%U64:%W64"}' \
+  -m 'content-type:application/json' -m 'fail:invalid'
+```
+
+## SSH Keyboard-Interactive
+
+**Force keyboard-interactive auth (for servers that disable password auth):**
+```bash
+brutespray -H ssh://10.0.0.1:22 -u root -p passlist.txt -m auth:keyboard-interactive
+```
+
+## SOCKS5 Proxy Authentication
+
+**Brute-force SOCKS5 proxy credentials:**
+```bash
+brutespray -H socks5-auth://10.0.0.1:1080 -u admin -p passlist.txt
+```
+
+## Postgres with Custom Database
+
+```bash
+brutespray -H postgres://10.0.0.1:5432 -u admin -p passlist.txt -m dbname:mydb
+```
+
+## MySQL with Custom Database
+
+```bash
+brutespray -H mysql://10.0.0.1:3306 -u admin -p passlist.txt -m dbname:webapp
+```
+
+## MSSQL with Domain Authentication
+
+```bash
+brutespray -H mssql://10.0.0.1:1433 -u sa -p passlist.txt -m domain:CORP
+```
+
+## Redis with Custom Database
+
+```bash
+brutespray -H redis://10.0.0.1:6379 -u default -p passlist.txt -m db:3
+```
+
+## POP3 APOP Authentication
+
+**Force APOP auth:**
+```bash
+brutespray -H pop3://10.0.0.1:110 -u admin -p passlist.txt -m auth:APOP
+```
+
+## IMAP CRAM-MD5 Authentication
+
+**Force CRAM-MD5 auth:**
+```bash
+brutespray -H imap://10.0.0.1:143 -u admin -p passlist.txt -m auth:CRAM-MD5
+```

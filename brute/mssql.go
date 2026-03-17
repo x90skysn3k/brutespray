@@ -38,6 +38,9 @@ func BruteMSSQL(host string, port int, user, password string, timeout time.Durat
 		return s
 	}
 	connString := fmt.Sprintf("server=%s;port=%d;user id=%s;password=%s", host, port, escMssql(user), escMssql(password))
+	if domain := params["domain"]; domain != "" {
+		connString += ";domain=" + escMssql(domain)
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()

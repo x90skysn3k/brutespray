@@ -37,6 +37,7 @@ func BruteMYSQL(host string, port int, user, password string, timeout time.Durat
 		Passwd: password,
 		Net:    dialerName,
 		Addr:   addr,
+		DBName: params["dbname"], // empty string = MySQL default
 		Params: map[string]string{"timeout": timeout.String()},
 	}).FormatDSN()
 

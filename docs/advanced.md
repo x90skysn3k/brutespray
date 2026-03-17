@@ -243,6 +243,38 @@ socks5://user:pass@proxy2.example.com:1080
 
 Proxies are rotated round-robin across connections. This is separate from the single `--socks5` flag.
 
+## SNMPv3 Authentication
+
+SNMPv3 provides user-based authentication with optional encryption, replacing community-string-based v2c:
+
+```bash
+# Basic SNMPv3 with MD5 auth
+brutespray -H snmp://10.0.0.1:161 -u snmpuser -p authpass -m version:3
+
+# SHA auth with AES privacy
+brutespray -H snmp://10.0.0.1:161 -u snmpuser -p authpass \
+  -m version:3 -m auth:SHA -m priv:AES -m privpass:privpass123
+```
+
+Without `-m version:3`, SNMP defaults to v2c with community strings.
+
+## HTTP-Form CSRF Token Extraction
+
+For forms protected by CSRF tokens, use `-m csrf:FIELD_NAME` to automatically extract the token:
+
+```bash
+brutespray -H "http-form://10.0.0.1:8080" -u admin -p passlist.txt \
+  -m "url:/login" -m "body:user=%U&pass=%W&token=%C" \
+  -m "fail:Invalid" -m "csrf:csrf_token"
+```
+
+How it works:
+1. GET request to the form URL extracts the token from `<input name="csrf_token" value="...">`
+2. The `%C` placeholder in the body is replaced with the extracted token
+3. If the token is not found, the request proceeds without it
+
+Use `-m form-url:/path` if the CSRF form page differs from the login URL.
+
 ## Module Parameter Reference
 
 | Service | Parameter | Values | Description |
@@ -254,17 +286,31 @@ Proxies are rotated round-robin across connections. This is separate from the si
 | http/https | `user-agent` | string | Custom User-Agent |
 | http/https | `domain` | string | NTLM domain |
 | http-form | `url` | path | Login form path (required) |
-| http-form | `body` | template | POST body with %U/%W placeholders |
+| http-form | `body` | template | POST body with %U/%W/%U64/%W64/%C placeholders |
 | http-form | `fail` | string | Failure string in response |
 | http-form | `success` | string | Success string in response |
 | http-form | `method` | GET, POST | HTTP method (default: POST) |
 | http-form | `follow` | true/false | Follow redirects |
 | http-form | `cookie` | string | Custom cookie |
 | http-form | `content-type` | string | Content-Type header |
+| http-form | `csrf` | field name | CSRF token hidden field name |
+| http-form | `form-url` | path | URL to GET for CSRF token (default: same as `url`) |
+| snmp | `version` | 2c, 3 | SNMP version (default: 2c) |
+| snmp | `auth` | MD5, SHA | SNMPv3 authentication protocol |
+| snmp | `priv` | NONE, DES, AES | SNMPv3 privacy protocol |
+| snmp | `privpass` | string | SNMPv3 privacy passphrase |
+| pop3 | `auth` | USER, PLAIN, LOGIN, APOP | Auth method (default: auto) |
+| imap | `auth` | LOGIN, PLAIN, CRAM-MD5 | Auth method (default: auto) |
+| ssh | `auth` | password, keyboard-interactive | Auth method (default: password + kbd-interactive fallback) |
+| ssh | `key` | true/path | Use SSH key authentication |
 | smtp | `auth` | PLAIN, LOGIN, NTLM | SMTP auth method |
 | smtp | `ehlo` | hostname | EHLO hostname |
-| ssh | `key` | true/path | Use SSH key authentication |
 | svn | `path` | path | SVN repository path |
+| mysql | `dbname` | string | Target database (default: server default) |
+| postgres | `dbname` | string | Target database (default: postgres) |
+| mssql | `domain` | string | Windows domain for domain auth |
+| redis | `db` | integer | Redis database number (default: 0) |
+| telnet | `success` | string | Custom success string match |
 | wrapper | `cmd` | command | Command template with %H/%P/%U/%W |
 | smbnt | `domain` | string | SMB domain |
 | rdp | `domain` | string | RDP domain |

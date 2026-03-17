@@ -2,10 +2,13 @@ package brute
 
 import (
 	"crypto/tls"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/cookiejar"
 	"net/url"
+	"regexp"
 	"strings"
 	"time"
 
@@ -29,6 +32,8 @@ import (
 //	content-type — default application/x-www-form-urlencoded
 //	method       — POST (default) or GET
 //	user-agent   — custom User-Agent
+//	csrf         — CSRF token hidden field name (enables GET-before-POST)
+//	form-url     — URL to GET for CSRF token (default: same as url)
 func BruteHTTPForm(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager, params ModuleParams) *BruteResult {
 	scheme := "http"
 	if params["https"] == "true" {
@@ -84,11 +89,18 @@ func BruteHTTPForm(host string, port int, user, password string, timeout time.Du
 		effectiveUser = url.QueryEscape(user)
 		effectivePass = url.QueryEscape(password)
 	}
+
+	// Base64-encoded credential variants
+	userB64 := base64.StdEncoding.EncodeToString([]byte(user))
+	passB64 := base64.StdEncoding.EncodeToString([]byte(password))
+
 	body := bodyTemplate
+	body = strings.ReplaceAll(body, "%U64", userB64)
+	body = strings.ReplaceAll(body, "%W64", passB64)
 	body = strings.ReplaceAll(body, "%U", effectiveUser)
 	body = strings.ReplaceAll(body, "%W", effectivePass)
 
-	// Build HTTP client
+	// Build HTTP client with cookie jar
 	transport := &http.Transport{
 		Dial:                  cm.DialFunc,
 		TLSHandshakeTimeout:   timeout,
@@ -97,14 +109,54 @@ func BruteHTTPForm(host string, port int, user, password string, timeout time.Du
 		TLSClientConfig:       &tls.Config{InsecureSkipVerify: true},
 	}
 
-	client := &http.Client{
+	jar, _ := cookiejar.New(nil)
+	httpClient := &http.Client{
 		Transport: transport,
 		Timeout:   timeout,
+		Jar:       jar,
 	}
 	if !followRedirects {
-		client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		httpClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse
 		}
+	}
+
+	// CSRF token extraction
+	csrfField := params["csrf"]
+	if csrfField != "" {
+		formURL := params["form-url"]
+		if formURL == "" {
+			formURL = urlPath
+		}
+		csrfURL := fmt.Sprintf("%s://%s:%d%s", scheme, host, port, formURL)
+
+		csrfReq, err := http.NewRequest("GET", csrfURL, nil)
+		if err == nil {
+			csrfReq.Header.Set("User-Agent", ua)
+			csrfResp, err := httpClient.Do(csrfReq)
+			if err == nil {
+				csrfBody, _ := io.ReadAll(io.LimitReader(csrfResp.Body, 1<<20))
+				csrfResp.Body.Close()
+
+				// Extract CSRF token value from hidden input field
+				pattern := fmt.Sprintf(`<input[^>]*name="%s"[^>]*value="([^"]*)"`, regexp.QuoteMeta(csrfField))
+				re := regexp.MustCompile(pattern)
+				if matches := re.FindSubmatch(csrfBody); len(matches) > 1 {
+					csrfToken := string(matches[1])
+					body = strings.ReplaceAll(body, "%C", csrfToken)
+				}
+				// Also try value before name order
+				if strings.Contains(body, "%C") {
+					pattern2 := fmt.Sprintf(`<input[^>]*value="([^"]*)"[^>]*name="%s"`, regexp.QuoteMeta(csrfField))
+					re2 := regexp.MustCompile(pattern2)
+					if matches := re2.FindSubmatch(csrfBody); len(matches) > 1 {
+						csrfToken := string(matches[1])
+						body = strings.ReplaceAll(body, "%C", csrfToken)
+					}
+				}
+			}
+		}
+		// If CSRF extraction fails, proceed without it (don't fail)
 	}
 
 	// Build request
@@ -132,13 +184,13 @@ func BruteHTTPForm(host string, port int, user, password string, timeout time.Du
 	}
 	req.Header.Set("User-Agent", ua)
 
-	// Custom cookie
+	// Custom cookie (in addition to cookie jar)
 	if cookie := params["cookie"]; cookie != "" {
 		req.Header.Set("Cookie", cookie)
 	}
 
 	// Execute request
-	resp, err := client.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
 	}
