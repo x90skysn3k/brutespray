@@ -33,12 +33,13 @@ func (wp *WorkerPool) ProcessHost(host modules.Host, service string, combo strin
 	}
 
 	// Acquire host semaphore to limit concurrent hosts
+	sem := wp.hostSem // capture reference so release goes to same channel
 	select {
-	case wp.hostSem <- struct{}{}:
+	case sem <- struct{}{}:
 	case <-wp.globalStopChan:
 		return
 	}
-	defer func() { <-wp.hostSem }()
+	defer func() { <-sem }()
 
 	// Check again after acquiring semaphore
 	select {
