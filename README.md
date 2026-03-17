@@ -52,7 +52,7 @@ See [all examples](docs/examples.md) for more usage patterns.
 - **Password spray mode** — Lockout-aware spraying with configurable delays ([details](docs/advanced.md#password-spray-mode))
 - **SOCKS5 proxy** — Full proxy support with authentication ([details](docs/advanced.md#socks5-proxy))
 - **Resume & checkpoint** — Interrupt with Ctrl+C, resume later ([details](docs/advanced.md#resume-and-checkpoints))
-- **Embedded wordlists** — Curated defaults compiled into the binary ([details](docs/advanced.md#embedded-wordlists))
+- **Embedded wordlists** — Layered manifest system compiled into the binary ([details](docs/wordlists.md))
 - **Summary reports** — JSON, CSV, Metasploit RC, NetExec scripts ([details](docs/output.md))
 - **Performance tuning** — Dynamic threading, circuit breaker, rate limiting ([details](docs/advanced.md#performance-tuning))
 - **YAML config files** — Per-engagement settings ([details](docs/usage.md#config-file))
@@ -77,6 +77,7 @@ Print discovered services from a scan file with `-P -q`:
 | [Examples](docs/examples.md) | Common usage patterns and recipes |
 | [Interactive TUI](docs/tui.md) | Keybindings, tabs, live settings |
 | [Advanced](docs/advanced.md) | Spray mode, proxy, resume, performance tuning |
+| [Wordlists](docs/wordlists.md) | Manifest system, layers, overrides, customization |
 | [Output & Reporting](docs/output.md) | Summary reports, Metasploit/NetExec integration |
 
 ## Star History
