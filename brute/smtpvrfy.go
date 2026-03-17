@@ -1,6 +1,7 @@
 package brute
 
 import (
+	"context"
 	"fmt"
 	"net/textproto"
 	"strings"
@@ -12,22 +13,14 @@ import (
 // BruteSMTPVRFY performs SMTP user enumeration via VRFY, EXPN, or RCPT TO.
 // The username field is the address to verify; password is ignored.
 func BruteSMTPVRFY(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager, params ModuleParams) *BruteResult {
-	timer := time.NewTimer(timeout)
-	defer timer.Stop()
-
-	type result struct {
-		success bool
-		banner  string
-	}
-	done := make(chan result, 1)
-
 	conn, err := cm.Dial("tcp", fmt.Sprintf("%s:%d", host, port))
 	if err != nil {
 		return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
 	}
 
-	go func() {
+	return RunWithTimeout(timeout, func(ctx context.Context) *BruteResult {
 		defer conn.Close()
+		go func() { <-ctx.Done(); _ = conn.SetDeadline(time.Now()) }()
 
 		_ = conn.SetDeadline(time.Now().Add(timeout))
 
@@ -37,8 +30,7 @@ func BruteSMTPVRFY(host string, port int, user, password string, timeout time.Du
 		// Read greeting
 		code, greeting, err := tc.ReadResponse(220)
 		if err != nil {
-			done <- result{false, ""}
-			return
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: false}
 		}
 		_ = code
 
@@ -46,8 +38,7 @@ func BruteSMTPVRFY(host string, port int, user, password string, timeout time.Du
 
 		// Send EHLO
 		if err := tc.PrintfLine("EHLO brutespray"); err != nil {
-			done <- result{false, banner}
-			return
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Banner: banner}
 		}
 		_, _, _ = tc.ReadResponse(250)
 
@@ -59,47 +50,39 @@ func BruteSMTPVRFY(host string, port int, user, password string, timeout time.Du
 		switch verb {
 		case "VRFY":
 			if err := tc.PrintfLine("VRFY %s", sanitizeCred(user)); err != nil {
-				done <- result{false, banner}
-				return
+				return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Banner: banner}
 			}
 			code, _, err := tc.ReadResponse(0)
 			if err != nil && code == 0 {
-				done <- result{false, banner}
-				return
+				return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Banner: banner}
 			}
 			// 250, 251, 252 = user exists
 			if code == 250 || code == 251 || code == 252 {
-				done <- result{true, banner}
-				return
+				return &BruteResult{AuthSuccess: true, ConnectionSuccess: true, Banner: banner}
 			}
-			done <- result{false, banner}
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Banner: banner}
 
 		case "EXPN":
 			if err := tc.PrintfLine("EXPN %s", sanitizeCred(user)); err != nil {
-				done <- result{false, banner}
-				return
+				return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Banner: banner}
 			}
 			code, _, err := tc.ReadResponse(0)
 			if err != nil && code == 0 {
-				done <- result{false, banner}
-				return
+				return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Banner: banner}
 			}
 			if code == 250 || code == 251 || code == 252 {
-				done <- result{true, banner}
-				return
+				return &BruteResult{AuthSuccess: true, ConnectionSuccess: true, Banner: banner}
 			}
-			done <- result{false, banner}
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Banner: banner}
 
 		case "RCPT":
 			// MAIL FROM
 			if err := tc.PrintfLine("MAIL FROM:<>"); err != nil {
-				done <- result{false, banner}
-				return
+				return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Banner: banner}
 			}
 			code, _, err := tc.ReadResponse(0)
 			if err != nil && code == 0 {
-				done <- result{false, banner}
-				return
+				return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Banner: banner}
 			}
 
 			// Build RCPT address
@@ -109,37 +92,21 @@ func BruteSMTPVRFY(host string, port int, user, password string, timeout time.Du
 			}
 
 			if err := tc.PrintfLine("RCPT TO:<%s>", sanitizeCred(addr)); err != nil {
-				done <- result{false, banner}
-				return
+				return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Banner: banner}
 			}
 			code, _, err = tc.ReadResponse(0)
 			if err != nil && code == 0 {
-				done <- result{false, banner}
-				return
+				return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Banner: banner}
 			}
 			if code == 250 || code == 251 || code == 252 {
-				done <- result{true, banner}
-				return
+				return &BruteResult{AuthSuccess: true, ConnectionSuccess: true, Banner: banner}
 			}
-			done <- result{false, banner}
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Banner: banner}
 
 		default:
-			done <- result{false, banner}
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Banner: banner}
 		}
-	}()
-
-	select {
-	case <-timer.C:
-		_ = conn.SetDeadline(time.Now())
-		select {
-		case r := <-done:
-			return &BruteResult{AuthSuccess: r.success, ConnectionSuccess: true, Banner: r.banner}
-		default:
-			return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: nil}
-		}
-	case r := <-done:
-		return &BruteResult{AuthSuccess: r.success, ConnectionSuccess: true, Banner: r.banner}
-	}
+	})
 }
 
 func init() { Register("smtp-vrfy", BruteSMTPVRFY) }

@@ -46,7 +46,7 @@ func BruteSNMP(host string, port int, user, password string, timeout time.Durati
 					Port:      uint16(port),
 					Community: cs,
 					Version:   gosnmp.Version2c,
-					Timeout:   timeout / 2, // inner timeout shorter than outer
+					Timeout:   timeout / 3, // inner timeout well within outer RunWithTimeout
 				}
 
 				err := gs.Connect()

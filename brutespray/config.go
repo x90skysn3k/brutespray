@@ -99,6 +99,32 @@ type Config struct {
 	OutputFormat        string
 }
 
+// Validate checks for mutually exclusive flags, contradictory options,
+// and unknown service names. It is called after ParseConfig populates the
+// Config struct.
+func (cfg *Config) Validate() error {
+	// Mutually exclusive flags
+	if cfg.User != "" && cfg.Combo != "" {
+		return fmt.Errorf("-u and -C are mutually exclusive")
+	}
+
+	// Contradictory flags (warn, don't error)
+	if cfg.SprayMode && cfg.StopOnSuccess {
+		fmt.Fprintf(os.Stderr, "Warning: --spray with --stop-on-success may produce incomplete spray rounds\n")
+	}
+
+	// Validate service types exist when user specified specific services
+	if cfg.ServiceType != "all" {
+		for _, s := range cfg.SupportedServices {
+			if !brute.IsRegistered(s) {
+				return fmt.Errorf("unknown service %q (use -S to list available services)", s)
+			}
+		}
+	}
+
+	return nil
+}
+
 // ParseConfig parses CLI flags, loads config file, and validates inputs.
 // It handles --list-services and usage output, exiting if appropriate.
 func ParseConfig() *Config {
@@ -448,6 +474,11 @@ func ParseConfig() *Config {
 				}
 			}
 		}
+	}
+
+	if err := cfg.Validate(); err != nil {
+		fmt.Fprintln(os.Stderr, "Error:", err)
+		os.Exit(2)
 	}
 
 	// Validate threads per host (no upper limit)
