@@ -83,20 +83,9 @@ brutespray -f nmap.gnmap -u admin -p passlist.txt -checkpoint engagement1.json
 
 ## Embedded Wordlists
 
-Brutespray ships with curated default wordlists compiled into the binary. No external files are needed for basic operation.
+Brutespray ships curated wordlists compiled into the binary — no external files required.
 
-Wordlists are organized via a manifest system with shared base lists and per-service overrides. Override with your own using `-u` and `-p`.
-
-### Wordlist Subcommand
-
-```bash
-brutespray wordlist seasonal     # Generate seasonal passwords (current year/month)
-brutespray wordlist validate     # Validate wordlists and manifest
-brutespray wordlist build        # Build flat wordlists from manifest
-brutespray wordlist research     # AI-powered research via Ollama
-brutespray wordlist merge        # Merge research candidates into wordlists
-brutespray wordlist download -o path  # Download rockyou.txt
-```
+See [Wordlist System](wordlists.md) for the full architecture, manifest format, and customization guide.
 
 ## Stop on Success
 
