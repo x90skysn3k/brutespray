@@ -46,7 +46,7 @@ func BruteRexec(host string, port int, user, password string, timeout time.Durat
 		r := bufio.NewReader(conn)
 		b, err := r.ReadByte()
 		if err != nil {
-			done <- result{false, false}
+			done <- result{false, true}
 			return
 		}
 

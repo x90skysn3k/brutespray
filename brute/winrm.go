@@ -3,6 +3,7 @@ package brute
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/masterzen/winrm"
@@ -39,8 +40,7 @@ func BruteWinRM(host string, port int, user, password string, timeout time.Durat
 		return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: err}
 	}
 
-	_ = stdout
-	return &BruteResult{AuthSuccess: true, ConnectionSuccess: true}
+	return &BruteResult{AuthSuccess: true, ConnectionSuccess: true, Banner: strings.TrimSpace(stdout)}
 }
 
 func contains401(s string) bool {

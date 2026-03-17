@@ -105,6 +105,9 @@ func BruteFTP(host string, port int, user, password string, timeout time.Duratio
 				_ = result.client.Quit()
 			}
 			if result.err != nil {
+				if strings.Contains(result.err.Error(), "530") {
+					return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, SkipUser: true, Error: result.err}
+				}
 				return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: result.err}
 			}
 			return &BruteResult{AuthSuccess: true, ConnectionSuccess: true}
@@ -118,6 +121,10 @@ func BruteFTP(host string, port int, user, password string, timeout time.Duratio
 			_ = result.client.Quit()
 		}
 		if result.err != nil {
+			// FTP 530 = user doesn't exist → skip remaining passwords for this user
+			if strings.Contains(result.err.Error(), "530") {
+				return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, SkipUser: true, Error: result.err}
+			}
 			return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: result.err}
 		}
 		return &BruteResult{AuthSuccess: true, ConnectionSuccess: true}

@@ -33,14 +33,14 @@ func BruteAsterisk(host string, port int, user, password string, timeout time.Du
 	loginCmd := fmt.Sprintf("Action: Login\r\nUsername: %s\r\nSecret: %s\r\n\r\n", sanitizeCred(user), sanitizeCred(password))
 	_, err = conn.Write([]byte(loginCmd))
 	if err != nil {
-		return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
+		return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: err}
 	}
 
 	// Read response lines until we find Response: or hit blank line
 	for {
 		line, err := r.ReadString('\n')
 		if err != nil {
-			return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: err}
 		}
 		line = strings.TrimSpace(line)
 
@@ -48,7 +48,7 @@ func BruteAsterisk(host string, port int, user, password string, timeout time.Du
 			if strings.Contains(line, "Success") {
 				// Send Logoff
 				_, _ = conn.Write([]byte("Action: Logoff\r\n\r\n"))
-				return &BruteResult{AuthSuccess: true, ConnectionSuccess: true}
+				return &BruteResult{AuthSuccess: true, ConnectionSuccess: true, Banner: strings.TrimSpace(banner)}
 			}
 			return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: nil}
 		}

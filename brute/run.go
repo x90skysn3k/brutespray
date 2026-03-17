@@ -26,6 +26,7 @@ type BruteResult struct {
 	Error             error         // underlying error for diagnostics
 	Banner            string        // service banner if captured
 	RetryDelay        time.Duration // if > 0, module requests this delay before next retry (e.g. VNC anti-brute)
+	SkipUser          bool          // if true, skip remaining passwords for this user (e.g. FTP 530 user-not-found)
 }
 
 // CircuitBreaker tracks consecutive connection failures per host and trips
@@ -258,5 +259,5 @@ func RunBrute(h modules.Host, u string, p string, timeout time.Duration, maxRetr
 	}
 
 	modules.PrintResult(service, h.Host, h.Port, u, p, modResult.AuthSuccess, modResult.ConnectionSuccess, false, output, 0, modResult.Banner)
-	return BruteResult{AuthSuccess: modResult.AuthSuccess, ConnectionSuccess: modResult.ConnectionSuccess, Banner: modResult.Banner}
+	return BruteResult{AuthSuccess: modResult.AuthSuccess, ConnectionSuccess: modResult.ConnectionSuccess, Banner: modResult.Banner, SkipUser: modResult.SkipUser}
 }

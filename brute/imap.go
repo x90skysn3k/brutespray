@@ -1,7 +1,10 @@
 package brute
 
 import (
+	"crypto/hmac"
+	"crypto/md5"
 	"crypto/tls"
+	"encoding/hex"
 	"fmt"
 	"sort"
 	"strings"
@@ -11,6 +14,23 @@ import (
 	"github.com/emersion/go-sasl"
 	"github.com/x90skysn3k/brutespray/v2/modules"
 )
+
+// cramMD5Client implements the sasl.Client interface for CRAM-MD5 authentication.
+type cramMD5Client struct {
+	user     string
+	password string
+}
+
+func (c *cramMD5Client) Start() (string, []byte, error) {
+	return "CRAM-MD5", nil, nil
+}
+
+func (c *cramMD5Client) Next(challenge []byte) ([]byte, error) {
+	mac := hmac.New(md5.New, []byte(c.password))
+	mac.Write(challenge)
+	digest := hex.EncodeToString(mac.Sum(nil))
+	return []byte(c.user + " " + digest), nil
+}
 
 func BruteIMAP(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager, params ModuleParams) *BruteResult {
 	timer := time.NewTimer(timeout)
@@ -47,10 +67,15 @@ func BruteIMAP(host string, port int, user, password string, timeout time.Durati
 
 		// Capture capabilities as banner
 		banner := ""
-		if caps, err := c.Capability(); err == nil && len(caps) > 0 {
+		caps, capErr := c.Capability()
+		hasCRAMMD5 := false
+		if capErr == nil && len(caps) > 0 {
 			names := make([]string, 0, len(caps))
 			for k := range caps {
 				names = append(names, k)
+				if strings.EqualFold(k, "AUTH=CRAM-MD5") {
+					hasCRAMMD5 = true
+				}
 			}
 			sort.Strings(names)
 			banner = strings.Join(names, " ")
@@ -66,6 +91,14 @@ func BruteIMAP(host string, port int, user, password string, timeout time.Durati
 				if banner != "" {
 					banner += " (TLS)"
 				}
+				// Re-check capabilities after STARTTLS
+				if newCaps, err := c.Capability(); err == nil {
+					for k := range newCaps {
+						if strings.EqualFold(k, "AUTH=CRAM-MD5") {
+							hasCRAMMD5 = true
+						}
+					}
+				}
 			}
 		}
 
@@ -75,8 +108,14 @@ func BruteIMAP(host string, port int, user, password string, timeout time.Durati
 		switch authMethod {
 		case "PLAIN":
 			err = c.Authenticate(sasl.NewPlainClient("", user, password))
-		default: // LOGIN (default)
-			err = c.Login(user, password)
+		case "CRAM-MD5":
+			err = c.Authenticate(&cramMD5Client{user: user, password: password})
+		default: // AUTO: try CRAM-MD5 if supported, fall back to LOGIN
+			if hasCRAMMD5 {
+				err = c.Authenticate(&cramMD5Client{user: user, password: password})
+			} else {
+				err = c.Login(user, password)
+			}
 		}
 
 		if err != nil {

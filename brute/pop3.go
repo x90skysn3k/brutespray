@@ -2,8 +2,10 @@ package brute
 
 import (
 	"bufio"
+	"crypto/md5"
 	"crypto/tls"
 	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 	"net"
 	"strings"
@@ -50,6 +52,37 @@ func pop3GetCapa(conn net.Conn, r *bufio.Reader) string {
 		return ""
 	}
 	return strings.Join(lines, " ")
+}
+
+// pop3ExtractChallenge extracts an APOP challenge from a POP3 greeting.
+// The challenge is the string between < and > (inclusive) in the greeting.
+func pop3ExtractChallenge(greeting string) string {
+	start := strings.Index(greeting, "<")
+	if start < 0 {
+		return ""
+	}
+	end := strings.Index(greeting[start:], ">")
+	if end < 0 {
+		return ""
+	}
+	return greeting[start : start+end+1]
+}
+
+// pop3AuthAPOP performs APOP authentication using the challenge from the greeting.
+func pop3AuthAPOP(conn net.Conn, r *bufio.Reader, user, password, challenge string) (bool, error) {
+	// APOP digest = MD5(challenge + password)
+	hash := md5.Sum([]byte(challenge + password))
+	digest := hex.EncodeToString(hash[:])
+
+	_, err := fmt.Fprintf(conn, "APOP %s %s\r\n", user, digest)
+	if err != nil {
+		return false, err
+	}
+	resp, err := pop3ReadLine(r)
+	if err != nil {
+		return false, err
+	}
+	return strings.HasPrefix(resp, "+OK"), nil
 }
 
 // pop3AuthPlain performs SASL PLAIN authentication over POP3.
@@ -123,7 +156,7 @@ func pop3AuthLogin(conn net.Conn, r *bufio.Reader, user, password string) (bool,
 }
 
 // pop3Auth attempts authentication over an existing POP3 connection.
-// The authMethod parameter selects the mechanism: "PLAIN", "LOGIN", or "USER" (default).
+// The authMethod parameter selects the mechanism: "PLAIN", "LOGIN", "APOP", or "" (auto/USER-PASS).
 func pop3Auth(conn net.Conn, user, password, authMethod string, timeout time.Duration) *BruteResult {
 	deadline := time.Now().Add(timeout)
 	_ = conn.SetDeadline(deadline)
@@ -136,6 +169,9 @@ func pop3Auth(conn net.Conn, user, password, authMethod string, timeout time.Dur
 		return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
 	}
 
+	// Extract APOP challenge from greeting if present
+	challenge := pop3ExtractChallenge(greeting)
+
 	// Query CAPA for banner enrichment
 	capa := pop3GetCapa(conn, r)
 	banner := greeting
@@ -144,6 +180,21 @@ func pop3Auth(conn net.Conn, user, password, authMethod string, timeout time.Dur
 	}
 
 	switch authMethod {
+	case "APOP":
+		// Forced APOP mode
+		if challenge == "" {
+			// No challenge in greeting, can't do APOP
+			_, _ = fmt.Fprintf(conn, "QUIT\r\n")
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: true,
+				Error: fmt.Errorf("APOP requested but no challenge in greeting"), Banner: banner}
+		}
+		ok, err := pop3AuthAPOP(conn, r, user, password, challenge)
+		_, _ = fmt.Fprintf(conn, "QUIT\r\n")
+		if err != nil {
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: err, Banner: banner}
+		}
+		return &BruteResult{AuthSuccess: ok, ConnectionSuccess: true, Banner: banner}
+
 	case "PLAIN":
 		ok, err := pop3AuthPlain(conn, r, user, password)
 		_, _ = fmt.Fprintf(conn, "QUIT\r\n")
@@ -160,8 +211,20 @@ func pop3Auth(conn net.Conn, user, password, authMethod string, timeout time.Dur
 		}
 		return &BruteResult{AuthSuccess: ok, ConnectionSuccess: true, Banner: banner}
 
-	default: // USER/PASS (default)
-		// Send USER
+	default: // AUTO: try APOP if challenge present, then USER/PASS
+		if challenge != "" {
+			ok, err := pop3AuthAPOP(conn, r, user, password, challenge)
+			if err == nil && ok {
+				_, _ = fmt.Fprintf(conn, "QUIT\r\n")
+				return &BruteResult{AuthSuccess: true, ConnectionSuccess: true, Banner: banner}
+			}
+			// APOP failed, fall through to USER/PASS
+			// Need to reconnect since server state may be broken after failed APOP
+			_, _ = fmt.Fprintf(conn, "QUIT\r\n")
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Banner: banner}
+		}
+
+		// USER/PASS (default)
 		_, err = fmt.Fprintf(conn, "USER %s\r\n", user)
 		if err != nil {
 			return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: err, Banner: banner}
@@ -199,9 +262,12 @@ func BrutePOP3(host string, port int, user, password string, timeout time.Durati
 
 	// Determine auth method from params
 	authMethod := strings.ToUpper(params["auth"])
-	// Normalize: empty or "USER" both use the default USER/PASS flow
-	if authMethod != "PLAIN" && authMethod != "LOGIN" {
-		authMethod = ""
+	// Normalize: accept USER, PLAIN, LOGIN, APOP; empty = auto
+	switch authMethod {
+	case "PLAIN", "LOGIN", "APOP":
+		// use as-is
+	default:
+		authMethod = "" // auto mode
 	}
 
 	// Try plaintext first

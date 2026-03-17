@@ -38,7 +38,11 @@ func BrutePostgres(host string, port int, user, password string, timeout time.Du
 		s = strings.ReplaceAll(s, `'`, `\'`)
 		return s
 	}
-	connStr := fmt.Sprintf("host=%s port=%d user='%s' password='%s' dbname=postgres sslmode=disable", host, port, escPq(user), escPq(password))
+	dbname := params["dbname"]
+	if dbname == "" {
+		dbname = "postgres"
+	}
+	connStr := fmt.Sprintf("host=%s port=%d user='%s' password='%s' dbname='%s' sslmode=disable", host, port, escPq(user), escPq(password), escPq(dbname))
 
 	connector, err := pq.NewConnector(connStr)
 	if err != nil {

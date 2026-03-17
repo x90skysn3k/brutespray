@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -62,14 +63,40 @@ func BruteSSH(host string, port int, user, password string, timeout time.Duratio
 		}
 		authMethod = ssh.PublicKeys(signer)
 	} else {
-		authMethod = ssh.Password(password)
+		// Determine auth method from params
+		requestedAuth := strings.ToLower(params["auth"])
+
+		switch requestedAuth {
+		case "keyboard-interactive":
+			// Force keyboard-interactive only
+			authMethod = ssh.KeyboardInteractive(func(user, instruction string, questions []string, echos []bool) ([]string, error) {
+				answers := make([]string, len(questions))
+				for i := range questions {
+					answers[i] = password
+				}
+				return answers, nil
+			})
+		default:
+			authMethod = ssh.Password(password)
+		}
+	}
+
+	// Build auth methods list with automatic keyboard-interactive fallback
+	authMethods := []ssh.AuthMethod{authMethod}
+	if strings.ToLower(params["auth"]) != "keyboard-interactive" && keyParam == "" {
+		// Add keyboard-interactive as fallback for password auth
+		authMethods = append(authMethods, ssh.KeyboardInteractive(func(u, instruction string, questions []string, echos []bool) ([]string, error) {
+			answers := make([]string, len(questions))
+			for i := range questions {
+				answers[i] = password
+			}
+			return answers, nil
+		}))
 	}
 
 	config := &ssh.ClientConfig{
-		User: user,
-		Auth: []ssh.AuthMethod{
-			authMethod,
-		},
+		User:            user,
+		Auth:            authMethods,
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 	}
 	timer := time.NewTimer(timeout)
