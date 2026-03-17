@@ -96,8 +96,8 @@ func handleIMAPLogin(conn net.Conn, validUser, validPass string) {
 // vs client.go:223). This is a known upstream issue, not a bug in our code.
 
 func TestBruteIMAPLoginSuccess(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping in short mode")
+	if raceEnabled {
+		t.Skip("skipping under race detector: go-imap library has known internal data race")
 	}
 
 	port, cleanup := startMockIMAPServer(t, func(conn net.Conn) {
@@ -117,8 +117,8 @@ func TestBruteIMAPLoginSuccess(t *testing.T) {
 }
 
 func TestBruteIMAPLoginFailure(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping in short mode")
+	if raceEnabled {
+		t.Skip("skipping under race detector: go-imap library has known internal data race")
 	}
 
 	port, cleanup := startMockIMAPServer(t, func(conn net.Conn) {
@@ -138,8 +138,8 @@ func TestBruteIMAPLoginFailure(t *testing.T) {
 }
 
 func TestBruteIMAPBanner(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping in short mode")
+	if raceEnabled {
+		t.Skip("skipping under race detector: go-imap library has known internal data race")
 	}
 
 	port, cleanup := startMockIMAPServer(t, func(conn net.Conn) {
