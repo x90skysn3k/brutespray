@@ -23,8 +23,10 @@ func sanitizeCred(s string) string {
 type BruteResult struct {
 	AuthSuccess       bool
 	ConnectionSuccess bool
-	Error             error  // underlying error for diagnostics
-	Banner            string // service banner if captured (future use)
+	Error             error         // underlying error for diagnostics
+	Banner            string        // service banner if captured
+	RetryDelay        time.Duration // if > 0, module requests this delay before next retry (e.g. VNC anti-brute)
+	SkipUser          bool          // if true, skip remaining passwords for this user (e.g. FTP 530 user-not-found)
 }
 
 // CircuitBreaker tracks consecutive connection failures per host and trips
@@ -143,7 +145,7 @@ func calculateBackoff(retryCount int) time.Duration {
 	return backoff
 }
 
-func RunBrute(h modules.Host, u string, p string, timeout time.Duration, maxRetries int, output string, socks5 string, netInterface string, domain string, cm *modules.ConnectionManager) BruteResult {
+func RunBrute(h modules.Host, u string, p string, timeout time.Duration, maxRetries int, output string, socks5 string, netInterface string, domain string, cm *modules.ConnectionManager, params ModuleParams) BruteResult {
 	service := h.Service
 
 	// Start performance monitoring
@@ -160,6 +162,28 @@ func RunBrute(h modules.Host, u string, p string, timeout time.Duration, maxRetr
 		return BruteResult{AuthSuccess: false, ConnectionSuccess: false}
 	}
 
+	// Build effective params: merge domain and https into params if not already set
+	effectiveParams := make(ModuleParams)
+	for k, v := range params {
+		effectiveParams[k] = v
+	}
+	if effectiveParams["domain"] == "" && domain != "" {
+		effectiveParams["domain"] = domain
+	}
+	if effectiveParams["https"] == "" && (service == "https" || service == "https-form") {
+		effectiveParams["https"] = "true"
+	}
+
+	// Parse domain from user (DOMAIN\user format)
+	effectiveUser := u
+	if effectiveParams["domain"] == "" && strings.Contains(u, "\\") {
+		parts := strings.SplitN(u, "\\", 2)
+		if len(parts) == 2 {
+			effectiveParams["domain"] = parts[0]
+			effectiveUser = parts[1]
+		}
+	}
+
 	retries := 0
 	var modResult *BruteResult
 
@@ -174,30 +198,14 @@ func RunBrute(h modules.Host, u string, p string, timeout time.Duration, maxRetr
 		// Calculate backoff delay (decoupled from timeout)
 		delayTime := calculateBackoff(retries)
 
-		entry, ok := Lookup(service)
+		fn, ok := Lookup(service)
 		if !ok {
 			metrics.RecordAttempt(false, time.Since(startTime))
 			modules.RecordAttempt(false)
 			return BruteResult{AuthSuccess: false, ConnectionSuccess: false}
 		}
 
-		switch {
-		case entry.standard != nil:
-			modResult = entry.standard(h.Host, h.Port, u, p, timeout, cm)
-		case entry.withDomain != nil:
-			parsedUser := u
-			parsedDomain := domain
-			if parsedDomain == "" && strings.Contains(u, "\\") {
-				parts := strings.SplitN(u, "\\", 2)
-				if len(parts) == 2 {
-					parsedDomain = parts[0]
-					parsedUser = parts[1]
-				}
-			}
-			modResult = entry.withDomain(h.Host, h.Port, parsedUser, p, timeout, cm, parsedDomain)
-		case entry.http != nil:
-			modResult = entry.http(h.Host, h.Port, u, p, timeout, cm, service == "https")
-		}
+		modResult = fn(h.Host, h.Port, effectiveUser, p, timeout, cm, effectiveParams)
 
 		result := modResult.AuthSuccess
 		con_result := modResult.ConnectionSuccess
@@ -210,7 +218,7 @@ func RunBrute(h modules.Host, u string, p string, timeout time.Duration, maxRetr
 
 			if result {
 				// Authentication succeeded
-				modules.RecordSuccess(service, h.Host, h.Port, u, p, time.Since(startTime))
+				modules.RecordSuccess(service, h.Host, h.Port, u, p, time.Since(startTime), modResult.Banner)
 			} else {
 				// Authentication failed
 				modules.RecordError(false) // Authentication error
@@ -234,7 +242,13 @@ func RunBrute(h modules.Host, u string, p string, timeout time.Duration, maxRetr
 			modules.PrintResult(service, h.Host, h.Port, u, p, result, con_result, willRetry, output, delayTime)
 
 			if willRetry {
-				time.Sleep(delayTime)
+				// Use module-requested delay if set (e.g. VNC anti-brute)
+				if modResult.RetryDelay > 0 && modResult.RetryDelay > delayTime {
+					modules.PrintfColored(0, "[*] %s anti-brute-force detected, sleeping %v\n", service, modResult.RetryDelay)
+					time.Sleep(modResult.RetryDelay)
+				} else {
+					time.Sleep(delayTime)
+				}
 			} else {
 				// Either exhausted retries or circuit breaker tripped
 				metrics.RecordAttempt(false, time.Since(startTime))
@@ -244,6 +258,6 @@ func RunBrute(h modules.Host, u string, p string, timeout time.Duration, maxRetr
 		}
 	}
 
-	modules.PrintResult(service, h.Host, h.Port, u, p, modResult.AuthSuccess, modResult.ConnectionSuccess, false, output, 0)
-	return BruteResult{AuthSuccess: modResult.AuthSuccess, ConnectionSuccess: modResult.ConnectionSuccess}
+	modules.PrintResult(service, h.Host, h.Port, u, p, modResult.AuthSuccess, modResult.ConnectionSuccess, false, output, 0, modResult.Banner)
+	return BruteResult{AuthSuccess: modResult.AuthSuccess, ConnectionSuccess: modResult.ConnectionSuccess, Banner: modResult.Banner, SkipUser: modResult.SkipUser}
 }

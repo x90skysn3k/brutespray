@@ -32,6 +32,7 @@ func TestParseXML(t *testing.T) {
 
 	expected := []Host{
 		{Service: "ssh", Host: "10.0.0.1", Port: 22},
+		{Service: "http", Host: "10.0.0.1", Port: 80},
 		{Service: "mysql", Host: "10.0.0.2", Port: 3306},
 	}
 
@@ -39,12 +40,6 @@ func TestParseXML(t *testing.T) {
 		if _, ok := hosts[h]; !ok {
 			t.Errorf("ParseXML: missing host %+v", h)
 		}
-	}
-
-	// http is not in supported list for XML parser — should be absent
-	httpHost := Host{Service: "http", Host: "10.0.0.1", Port: 80}
-	if _, ok := hosts[httpHost]; ok {
-		t.Error("ParseXML: http should not be in results (not in supported list)")
 	}
 }
 
@@ -97,6 +92,11 @@ func TestMapService(t *testing.T) {
 		"smtps":        "smtp",
 		"ssh":          "ssh",
 		"unknown":      "unknown",
+		"exec":         "rexec",
+		"login":        "rlogin",
+		"shell":        "rsh",
+		"ftp-ssl":      "ftps",
+		"ftps":         "ftps",
 	}
 
 	for input, want := range tests {

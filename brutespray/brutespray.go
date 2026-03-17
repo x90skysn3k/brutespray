@@ -30,6 +30,22 @@ func Execute() {
 		os.Exit(1)
 	}
 
+	// Inject --allow-wrapper into module params so the wrapper module can check it
+	if cfg.AllowWrapper {
+		cfg.ModuleParams["allow-wrapper"] = "true"
+	}
+
+	// Set up proxy rotation if proxy list is provided
+	if cfg.ProxyList != "" {
+		if err := cm.LoadProxyList(cfg.ProxyList); err != nil {
+			fmt.Printf("Error loading proxy list: %v\n", err)
+			os.Exit(1)
+		}
+	}
+
+	// Set output format
+	modules.OutputFormatMode = cfg.OutputFormat
+
 	if cfg.TUI {
 		executeTUI(cfg, cm, totalHosts)
 	} else {
@@ -49,6 +65,8 @@ func executeTUI(cfg *Config, cm *modules.ConnectionManager, totalHosts int) {
 	workerPool.rateLimit = cfg.RateLimit
 	workerPool.sprayMode = cfg.SprayMode
 	workerPool.sprayDelay = cfg.SprayDelay
+	workerPool.useReversedPass = cfg.UseReversedPass
+	workerPool.passwordGen = cfg.PasswordGen
 
 	// Initialize checkpoint
 	var replayEntries []modules.SessionEntry
@@ -98,7 +116,7 @@ func executeTUI(cfg *Config, cm *modules.ConnectionManager, totalHosts int) {
 			case <-workerPool.globalStopChan:
 				return
 			default:
-				workerPool.ProcessHost(host, host.Service, cfg.Combo, cfg.User, cfg.Password, version, cfg.Timeout, cfg.Retry, cfg.Output, cm, cfg.Domain)
+				workerPool.ProcessHost(host, host.Service, cfg.Combo, cfg.User, cfg.Password, version, cfg.Timeout, cfg.Retry, cfg.Output, cm, cfg.Domain, brute.ModuleParams(cfg.ModuleParams), cfg.UseUsernameAsPass)
 			}
 		}(h)
 	}
@@ -147,6 +165,8 @@ func executeLegacy(cfg *Config, cm *modules.ConnectionManager, totalHosts int) {
 	workerPool.rateLimit = cfg.RateLimit
 	workerPool.sprayMode = cfg.SprayMode
 	workerPool.sprayDelay = cfg.SprayDelay
+	workerPool.useReversedPass = cfg.UseReversedPass
+	workerPool.passwordGen = cfg.PasswordGen
 
 	// Initialize checkpoint for resume capability
 	if cfg.ResumeFile != "" {
@@ -273,7 +293,7 @@ func executeLegacy(cfg *Config, cm *modules.ConnectionManager, totalHosts int) {
 			case <-workerPool.globalStopChan:
 				return
 			default:
-				workerPool.ProcessHost(host, host.Service, cfg.Combo, cfg.User, cfg.Password, version, cfg.Timeout, cfg.Retry, cfg.Output, cm, cfg.Domain)
+				workerPool.ProcessHost(host, host.Service, cfg.Combo, cfg.User, cfg.Password, version, cfg.Timeout, cfg.Retry, cfg.Output, cm, cfg.Domain, brute.ModuleParams(cfg.ModuleParams), cfg.UseUsernameAsPass)
 			}
 		}(h)
 	}

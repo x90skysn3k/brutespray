@@ -14,7 +14,7 @@ import (
 
 var mysqlDialerID int64
 
-func BruteMYSQL(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) *BruteResult {
+func BruteMYSQL(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager, params ModuleParams) *BruteResult {
 	addr := fmt.Sprintf("%s:%d", host, port)
 
 	// Use a unique dialer name per invocation to avoid a data race when
@@ -37,6 +37,7 @@ func BruteMYSQL(host string, port int, user, password string, timeout time.Durat
 		Passwd: password,
 		Net:    dialerName,
 		Addr:   addr,
+		DBName: params["dbname"], // empty string = MySQL default
 		Params: map[string]string{"timeout": timeout.String()},
 	}).FormatDSN()
 

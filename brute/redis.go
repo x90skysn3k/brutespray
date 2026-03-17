@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"strconv"
 	"strings"
 	"time"
 
@@ -11,15 +12,22 @@ import (
 	"github.com/x90skysn3k/brutespray/v2/modules"
 )
 
-func BruteRedis(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) *BruteResult {
+func BruteRedis(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager, params ModuleParams) *BruteResult {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
+
+	db := 0
+	if dbStr := params["db"]; dbStr != "" {
+		if v, err := strconv.Atoi(dbStr); err == nil && v >= 0 {
+			db = v
+		}
+	}
 
 	opts := &redis.Options{
 		Addr:     fmt.Sprintf("%s:%d", host, port),
 		Username: user, // Redis 6.0+ ACL
 		Password: password,
-		DB:       0,
+		DB:       db,
 		Dialer: func(ctx context.Context, network, addr string) (net.Conn, error) {
 			return cm.Dial(network, addr)
 		},

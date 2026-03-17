@@ -40,6 +40,9 @@ func TUIError(format string, args ...interface{}) {
 	fmt.Fprint(os.Stderr, msg)
 }
 
+// OutputFormatMode controls the per-attempt output format ("text" or "json")
+var OutputFormatMode = "text"
+
 // LogEvery controls attempt logging frequency; 1 = log every attempt
 var LogEvery int64 = 1
 var attemptCounter int64
@@ -53,6 +56,7 @@ type SuccessResult struct {
 	Password string    `json:"password"`
 	Time     time.Time `json:"time"`
 	Duration string    `json:"duration"`
+	Banner   string    `json:"banner,omitempty"`
 }
 
 // OutputStats tracks comprehensive statistics for the bruteforce session
@@ -178,7 +182,7 @@ func WriteToFile(service string, content string, port int, output string) error 
 }
 
 // RecordSuccess records a successful credential attempt
-func RecordSuccess(service string, host string, port int, user string, password string, duration time.Duration) {
+func RecordSuccess(service string, host string, port int, user string, password string, duration time.Duration, banner ...string) {
 	globalStats.mutex.Lock()
 	defer globalStats.mutex.Unlock()
 
@@ -190,6 +194,9 @@ func RecordSuccess(service string, host string, port int, user string, password 
 		Password: password,
 		Time:     time.Now(),
 		Duration: duration.String(),
+	}
+	if len(banner) > 0 && banner[0] != "" {
+		result.Banner = banner[0]
 	}
 
 	globalStats.SuccessfulResults = append(globalStats.SuccessfulResults, result)
@@ -311,21 +318,47 @@ func CalculateFinalStats() OutputStatsCopy {
 }
 
 // formatCredentialMsg formats a credential attempt message for display/logging.
-func formatCredentialMsg(service, host string, port int, user, pass, status string) string {
+func formatCredentialMsg(service, host string, port int, user, pass, status, banner string) string {
+	var msg string
 	if service == "vnc" || service == "snmp" {
-		return fmt.Sprintf("[%s] %s:%d - Password '%s' - %s", service, host, port, pass, status)
+		msg = fmt.Sprintf("[%s] %s:%d - Password '%s' - %s", service, host, port, pass, status)
+	} else {
+		msg = fmt.Sprintf("[%s] %s:%d - User '%s' - Pass '%s' - %s", service, host, port, user, pass, status)
 	}
-	return fmt.Sprintf("[%s] %s:%d - User '%s' - Pass '%s' - %s", service, host, port, user, pass, status)
+	if banner != "" {
+		msg += fmt.Sprintf(" [Banner: %s]", banner)
+	}
+	return msg
+}
+
+// AttemptResult represents a single brute-force attempt for JSON output.
+type AttemptResult struct {
+	Timestamp  string `json:"timestamp"`
+	Service    string `json:"service"`
+	Host       string `json:"host"`
+	Port       int    `json:"port"`
+	User       string `json:"user,omitempty"`
+	Password   string `json:"password"`
+	Success    bool   `json:"success"`
+	Connected  bool   `json:"connected"`
+	Banner     string `json:"banner,omitempty"`
+	Status     string `json:"status"`
 }
 
 // PrintResult prints individual results (legacy format for compatibility)
-func PrintResult(service string, host string, port int, user string, pass string, result bool, con_result bool, retrying bool, output string, delayTime time.Duration) {
+func PrintResult(service string, host string, port int, user string, pass string, result bool, con_result bool, retrying bool, output string, delayTime time.Duration, banner ...string) {
 	var msg string
 	var color pterm.Color
+	bannerStr := ""
+	if len(banner) > 0 {
+		bannerStr = banner[0]
+	}
 
+	var status string
 	switch {
 	case result && con_result:
-		msg = formatCredentialMsg(service, host, port, user, pass, "SUCCESS")
+		status = "SUCCESS"
+		msg = formatCredentialMsg(service, host, port, user, pass, status, bannerStr)
 		color = pterm.BgGreen
 		content := msg + "\n"
 		if err := WriteToFile(service, content, port, output); err != nil {
@@ -333,10 +366,12 @@ func PrintResult(service string, host string, port int, user string, pass string
 			PrintfColored(pterm.FgYellow, "[!] CREDENTIAL: %s", content)
 		}
 	case !result && con_result:
-		msg = formatCredentialMsg(service, host, port, user, pass, "FAILED")
+		status = "FAILED"
+		msg = formatCredentialMsg(service, host, port, user, pass, status, "")
 		color = pterm.FgLightRed
 	case !result && !con_result:
-		msg = formatCredentialMsg(service, host, port, user, pass, getConResultString(con_result, retrying, delayTime))
+		status = getConResultString(con_result, retrying, delayTime)
+		msg = formatCredentialMsg(service, host, port, user, pass, status, "")
 		color = pterm.FgRed
 	}
 
@@ -353,7 +388,24 @@ func PrintResult(service string, host string, port int, user string, pass string
 	}
 	if shouldPrint {
 		OutputMu.Lock()
-		if NoColorMode {
+		if OutputFormatMode == "json" {
+			attempt := AttemptResult{
+				Timestamp: time.Now().Format(time.RFC3339),
+				Service:   service,
+				Host:      host,
+				Port:      port,
+				User:      user,
+				Password:  pass,
+				Success:   result,
+				Connected: con_result,
+				Banner:    bannerStr,
+				Status:    status,
+			}
+			jsonBytes, err := json.Marshal(attempt)
+			if err == nil {
+				fmt.Println(string(jsonBytes))
+			}
+		} else if NoColorMode {
 			fmt.Println(msg)
 		} else {
 			pterm.Println(pterm.NewStyle(color).Sprint(msg))

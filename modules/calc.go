@@ -4,7 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
-	"strconv"
+	"regexp"
 	"strings"
 )
 
@@ -43,6 +43,10 @@ func GetUsersAndPasswordsCombo(h *Host, combo string, version string) ([]string,
 		}
 	} else {
 		splits := strings.SplitN(combo, ":", 2)
+		if len(splits) < 2 {
+			fmt.Printf("Invalid combo format %q (expected user:pass)\n", combo)
+			os.Exit(2)
+		}
 		userSlice = append(userSlice, splits[0])
 		passSlice = append(passSlice, splits[1])
 	}
@@ -51,6 +55,15 @@ func GetUsersAndPasswordsCombo(h *Host, combo string, version string) ([]string,
 }
 
 func GetUsersAndPasswords(h *Host, user string, password string, version string) ([]string, []string, error) {
+	// Auto-detect PwDump format in password file: extracts user+NTLM hash pairs
+	if password != "" && IsFile(password) && IsPwDumpFile(password) {
+		users, hashes, err := ReadPwDumpFile(password)
+		if err != nil {
+			return nil, nil, fmt.Errorf("reading PwDump file: %w", err)
+		}
+		return users, hashes, nil
+	}
+
 	type result struct {
 		words []string
 		err   error
@@ -111,43 +124,44 @@ func GetUsersAndPasswords(h *Host, user string, password string, version string)
 	return userResult.words, passResult.words, nil
 }
 
-func CalcCombinations(userCh []string, passCh []string) int {
-	var totalCombinations int
-	users := []string{}
-	passwords := []string{}
+// pwdumpRe matches lines in PwDump format: username:uid:LM_hash:NTLM_hash:::
+var pwdumpRe = regexp.MustCompile(`^([^:]+):\d+:[0-9a-fA-F]{32}:([0-9a-fA-F]{32}):::$`)
 
-	for u := range userCh {
-		users = append(users, strconv.Itoa(u))
+// IsPwDumpFile checks whether a file is in PwDump format by examining the first line.
+func IsPwDumpFile(filename string) bool {
+	file, err := os.Open(filename)
+	if err != nil {
+		return false
 	}
+	defer file.Close()
 
-	for p := range passCh {
-		passwords = append(passwords, strconv.Itoa(p))
+	scanner := bufio.NewScanner(file)
+	if scanner.Scan() {
+		return pwdumpRe.MatchString(scanner.Text())
 	}
-
-	totalCombinations = len(users) * len(passwords)
-	return totalCombinations
+	return false
 }
 
-func CalcCombinationsPass(passCh []string) int {
-	var totalCombinations int
-	passwords := []string{}
-
-	for p := range passCh {
-		passwords = append(passwords, strconv.Itoa(p))
+// ReadPwDumpFile parses a PwDump file and returns users and NTLM hashes.
+func ReadPwDumpFile(filename string) (users []string, hashes []string, err error) {
+	file, err := os.Open(filename)
+	if err != nil {
+		return nil, nil, err
 	}
+	defer file.Close()
 
-	totalCombinations = len(passwords)
-	return totalCombinations
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := scanner.Text()
+		matches := pwdumpRe.FindStringSubmatch(line)
+		if len(matches) == 3 {
+			users = append(users, matches[1])
+			hashes = append(hashes, matches[2])
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, nil, err
+	}
+	return users, hashes, nil
 }
 
-func CalcCombinationsCombo(userCh []string, passCh []string) int {
-	var totalCombinations int
-	users := []string{}
-
-	for u := range userCh {
-		users = append(users, strconv.Itoa(u))
-	}
-
-	totalCombinations = len(users)
-	return totalCombinations
-}

@@ -106,6 +106,12 @@ var NAME_MAP = map[string]string{
 	"ldaps":          "ldaps",
 	"wsman":          "winrm",
 	"wsmans":         "winrm",
+	"exec":           "rexec",
+	"login":          "rlogin",
+	"shell":          "rsh",
+	"ftp-ssl":        "ftps",
+	"ftps":           "ftps",
+	"ftps-data":      "ftps",
 }
 
 func MapService(service string) string {
@@ -115,11 +121,29 @@ func MapService(service string) string {
 	return service
 }
 
+// supportedScanServices is the canonical list of nmap/scanner service names
+// that brutespray recognises from scan input files. Names are pre-mapping
+// (i.e. the raw names scanners emit); MapService() converts them to
+// brutespray module names at parse time.
+var supportedScanServices = []string{
+	"ssh", "ftp", "ftp-ssl", "ftps", "postgres", "postgresql", "telnet",
+	"mysql", "ms-sql-s", "vnc", "imap", "imaps", "nntp",
+	"pcanywheredata", "pop3", "pop3s",
+	"exec", "login", "shell",
+	"microsoft-ds", "cifs",
+	"smtp", "smtps", "submission",
+	"svn", "iss-realsecure", "snmptrap", "snmp",
+	"ms-wbt-server", "mongod", "mongodb",
+	"oracle", "textui", "xmpp-client",
+	"redis", "ldap", "ldaps",
+	"wsman", "wsmans",
+	"http", "https",
+	"asterisk", "vmauthd", "teamspeak",
+	"rsh", "rexec", "rlogin",
+}
+
 func ParseGNMAP(filename string) (map[Host]int, error) {
-	supported := []string{"ssh", "ftp", "postgres", "telnet", "mysql", "ms-sql-s",
-		"vnc", "imap", "imaps", "nntp", "pcanywheredata", "pop3", "pop3s",
-		"exec", "login", "microsoft-ds", "smtp", "smtps", "submission",
-		"svn", "iss-realsecure", "snmptrap", "snmp", "ms-wbt-server", "mongod", "nntp", "oracle", "textui", "xmpp-client", "redis", "ldap", "ldaps", "wsman", "wsmans"}
+	supported := supportedScanServices
 
 	hosts := make(map[Host]int)
 
@@ -159,10 +183,7 @@ func ParseGNMAP(filename string) (map[Host]int, error) {
 	return hosts, nil
 }
 func ParseJSON(filename string) (map[Host]int, error) {
-	supported := []string{"ssh", "ftp", "postgres", "telnet", "mysql", "ms-sql-s",
-		"vnc", "imap", "imaps", "nntp", "pcanywheredata", "pop3", "pop3s",
-		"exec", "login", "microsoft-ds", "smtp", "smtps", "submission",
-		"svn", "iss-realsecure", "snmptrap", "snmp", "mongodb", "nntp", "oracle", "textui", "xmpp-client", "ms-wbt-server", "redis"}
+	supported := supportedScanServices
 
 	hosts := make(map[Host]int)
 
@@ -196,10 +217,7 @@ func ParseJSON(filename string) (map[Host]int, error) {
 	return hosts, nil
 }
 func ParseXML(filename string) (map[Host]int, error) {
-	supported := []string{"ssh", "ftp", "postgresql", "telnet", "mysql", "ms-sql-s", "rsh",
-		"vnc", "imap", "imaps", "nntp", "pcanywheredata", "pop3", "pop3s",
-		"exec", "login", "microsoft-ds", "smtp", "smtps", "submission",
-		"svn", "iss-realsecure", "snmptrap", "snmp", "mongod", "nntp", "oracle", "textui", "xmpp-client", "ms-wbt-server", "redis"}
+	supported := supportedScanServices
 
 	hosts := make(map[Host]int)
 
@@ -252,10 +270,7 @@ func ParseXML(filename string) (map[Host]int, error) {
 	return hosts, nil
 }
 func ParseNexpose(filename string) (map[Host]int, error) {
-	supported := []string{"ssh", "ftp", "postgresql", "telnet", "mysql", "ms-sql-s", "rsh",
-		"vnc", "imap", "imaps", "nntp", "pcanywheredata", "pop3", "pop3s",
-		"exec", "login", "microsoft-ds", "smtp", "smtps", "submission",
-		"svn", "iss-realsecure", "snmptrap", "snmp", "cifs", "mongod", "nntp", "oracle", "textui", "xmpp-client", "ms-wbt-server", "redis"}
+	supported := supportedScanServices
 
 	hosts := make(map[Host]int)
 	file, err := os.Open(filename)
@@ -305,10 +320,7 @@ func ParseNexpose(filename string) (map[Host]int, error) {
 	return hosts, nil
 }
 func ParseNessus(filename string) (map[Host]int, error) {
-	supported := []string{"ssh", "ftp", "postgresql", "telnet", "mysql", "ms-sql-s", "rsh",
-		"vnc", "imap", "imaps", "nntp", "pcanywheredata", "pop3", "pop3s",
-		"exec", "login", "microsoft-ds", "smtp", "smtps", "submission",
-		"svn", "iss-realsecure", "snmptrap", "snmp", "cifs", "mongod", "nntp", "oracle", "textui", "xmpp-client", "ms-wbt-server", "redis"}
+	supported := supportedScanServices
 
 	hosts := make(map[Host]int)
 	file, err := os.Open(filename)
@@ -344,7 +356,7 @@ func ParseNessus(filename string) (map[Host]int, error) {
 	return hosts, nil
 }
 func ParseList(filename string) (map[Host]int, error) {
-	supportedServices := []string{"ssh", "ftp", "smtp", "mssql", "telnet", "smbnt", "postgres", "imap", "pop3", "snmp", "mysql", "vmauthd", "asterisk", "vnc", "mongod", "nntp", "oracle", "teamspeak", "xmpp", "rdp", "http", "https", "redis", "ldap", "ldaps", "winrm"}
+	supportedServices := supportedScanServices
 	file, err := os.Open(filename)
 	if err != nil {
 		return nil, err
@@ -395,7 +407,9 @@ func (h *Host) Parse(host string) ([]Host, error) {
 	supportedServices := map[string]int{
 		"ssh":       22,
 		"ftp":       21,
+		"ftps":      990,
 		"smtp":      25,
+		"smtp-vrfy": 25,
 		"mssql":     1433,
 		"telnet":    23,
 		"smbnt":     445,
@@ -419,6 +433,13 @@ func (h *Host) Parse(host string) ([]Host, error) {
 		"ldap":      389,
 		"ldaps":     636,
 		"winrm":     5985,
+		"rexec":     512,
+		"rlogin":    513,
+		"rsh":        514,
+		"wrapper":    0,
+		"http-form":  80,
+		"https-form": 443,
+		"svn":        3690,
 	}
 
 	parts := strings.Split(host, "://")

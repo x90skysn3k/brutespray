@@ -19,6 +19,7 @@ type Credential struct {
 	User     string
 	Password string
 	Service  string
+	Params   brute.ModuleParams
 }
 
 // HostWorkerPool manages workers for a specific host
@@ -50,6 +51,11 @@ type HostWorkerPool struct {
 	pauseMu sync.Mutex
 	// Session log for resume replay
 	sessionLog *modules.SessionLog
+	// Missed credential recovery: credentials that failed due to connection errors
+	missedQueue []Credential
+	missedMu    sync.Mutex
+	// User enumeration skip: users confirmed non-existent by the service (e.g. FTP 530)
+	skipUsers sync.Map // user string → struct{}
 }
 
 // WorkerPool manages the worker goroutines for brute force attempts with per-host allocation
@@ -82,6 +88,9 @@ type WorkerPool struct {
 	checkpoint *modules.Checkpoint
 	// Session log for resume replay
 	sessionLog *modules.SessionLog
+	// Extra credential options
+	useReversedPass bool
+	passwordGen     *modules.PasswordGenerator
 }
 
 // NewHostWorkerPool creates a new host-specific worker pool
@@ -455,6 +464,11 @@ func (hwp *HostWorkerPool) applyAdaptiveBackoff(cred Credential) bool {
 }
 
 func (hwp *HostWorkerPool) processCredential(cred Credential, timeout time.Duration, retry int, output string, cm *modules.ConnectionManager, domain string, noStats bool) {
+	// Skip users that the service confirmed don't exist (e.g. FTP 530)
+	if _, skipped := hwp.skipUsers.Load(cred.User); skipped {
+		return
+	}
+
 	// Random jitter to prevent workers from re-synchronizing after completing
 	// jobs with similar response times. Scale jitter with timeout.
 	maxJitter := timeout / 10
@@ -482,7 +496,7 @@ func (hwp *HostWorkerPool) processCredential(cred Credential, timeout time.Durat
 	startTime := time.Now()
 
 	// Execute the brute force attempt
-	result := brute.RunBrute(cred.Host, cred.User, cred.Password, timeout, retry, output, "", "", domain, cm)
+	result := brute.RunBrute(cred.Host, cred.User, cred.Password, timeout, retry, output, "", "", domain, cm, cred.Params)
 
 	// Record statistics (if enabled) — only count connection errors, not auth failures
 	duration := time.Since(startTime)
@@ -492,11 +506,20 @@ func (hwp *HostWorkerPool) processCredential(cred Credential, timeout time.Durat
 		}
 	}
 
+	// Propagate user skip (e.g. FTP 530 user-not-found)
+	if result.SkipUser {
+		hwp.skipUsers.Store(cred.User, struct{}{})
+	}
+
 	// Update adaptive backoff counter
 	if result.ConnectionSuccess {
 		atomic.StoreInt64(&hwp.consecutiveConnFails, 0)
 	} else {
 		atomic.AddInt64(&hwp.consecutiveConnFails, 1)
+		// Record missed credential for retry pass
+		hwp.missedMu.Lock()
+		hwp.missedQueue = append(hwp.missedQueue, cred)
+		hwp.missedMu.Unlock()
 	}
 
 	// Stop-on-success: signal host pool to stop processing remaining credentials
@@ -521,6 +544,7 @@ func (hwp *HostWorkerPool) processCredential(cred Credential, timeout time.Durat
 		Error:     result.Error,
 		Duration:  duration,
 		Timestamp: startTime,
+		Banner:    result.Banner,
 	})
 
 	// Write to session log for resume replay
@@ -561,6 +585,31 @@ func (hwp *HostWorkerPool) updatePerformanceMetrics(success bool, responseTime t
 	} else {
 		hwp.successRate = hwp.successRate * float64(hwp.totalAttempts-1) / float64(hwp.totalAttempts)
 	}
+}
+
+// ResetForRetry resets the host worker pool state so it can be reused for a
+// retry pass. This clears stop-on-success state, worker counts, backoff
+// counters, and skip lists that would otherwise cause retried credentials to
+// be silently dropped.
+func (hwp *HostWorkerPool) ResetForRetry() {
+	hwp.stopChan = make(chan struct{})
+	hwp.stopOnce = sync.Once{}
+	atomic.StoreInt32(&hwp.foundSuccess, 0)
+	atomic.StoreInt32(&hwp.currentWorkers, 0)
+	atomic.StoreInt64(&hwp.consecutiveConnFails, 0)
+	hwp.skipUsers = sync.Map{}
+	hwp.missedMu.Lock()
+	hwp.missedQueue = nil
+	hwp.missedMu.Unlock()
+}
+
+// DrainMissedQueue returns and clears the missed credential queue for this host.
+func (hwp *HostWorkerPool) DrainMissedQueue() []Credential {
+	hwp.missedMu.Lock()
+	defer hwp.missedMu.Unlock()
+	missed := hwp.missedQueue
+	hwp.missedQueue = nil
+	return missed
 }
 
 // AddJob adds a credential to the appropriate host's job queue

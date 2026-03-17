@@ -9,7 +9,7 @@ import (
 	"github.com/x90skysn3k/brutespray/v2/modules"
 )
 
-func BruteTeamSpeak(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) *BruteResult {
+func BruteTeamSpeak(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager, params ModuleParams) *BruteResult {
 	addr := fmt.Sprintf("%s:%d", host, port)
 
 	conn, err := cm.Dial("tcp", addr)
@@ -35,13 +35,13 @@ func BruteTeamSpeak(host string, port int, user, password string, timeout time.D
 	loginCmd := fmt.Sprintf("login client_login_name=%s client_login_password=%s\n", sanitizeCred(user), sanitizeCred(password))
 	_, err = conn.Write([]byte(loginCmd))
 	if err != nil {
-		return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
+		return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: err}
 	}
 
 	// Read response
 	resp, err := r.ReadString('\n')
 	if err != nil {
-		return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
+		return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: err}
 	}
 	resp = strings.TrimSpace(resp)
 
@@ -50,7 +50,7 @@ func BruteTeamSpeak(host string, port int, user, password string, timeout time.D
 
 	// Success: "error id=0 msg=ok"
 	if strings.Contains(resp, "id=0") {
-		return &BruteResult{AuthSuccess: true, ConnectionSuccess: true}
+		return &BruteResult{AuthSuccess: true, ConnectionSuccess: true, Banner: strings.TrimSpace(banner)}
 	}
 
 	// Auth failure vs connection error

@@ -1,6 +1,7 @@
 package brute
 
 import (
+	"context"
 	"strconv"
 	"time"
 
@@ -9,26 +10,18 @@ import (
 	"gosrc.io/xmpp/stanza"
 )
 
-func BruteXMPP(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) *BruteResult {
+func BruteXMPP(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager, params ModuleParams) *BruteResult {
 	portstr := strconv.Itoa(port)
 	hoststr := host + ":" + portstr
-	timer := time.NewTimer(timeout)
-	defer timer.Stop()
 
-	type result struct {
-		session *xmpp.Client
-		err     error
-	}
-	done := make(chan result, 1)
-
-	// Dial outside the goroutine to avoid a data race on conn.
 	conn, err := cm.Dial("tcp", hoststr)
 	if err != nil {
 		return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
 	}
 
-	go func() {
+	return RunWithTimeout(timeout, func(ctx context.Context) *BruteResult {
 		defer conn.Close()
+		go func() { <-ctx.Done(); _ = conn.SetDeadline(time.Now()) }()
 
 		router := xmpp.NewRouter()
 		config := &xmpp.Config{
@@ -45,41 +38,19 @@ func BruteXMPP(host string, port int, user, password string, timeout time.Durati
 		client, err := xmpp.NewClient(config, router, func(err error) {})
 		router.HandleFunc("message", func(s xmpp.Sender, p stanza.Packet) {})
 
-		done <- result{client, err}
-	}()
-
-	select {
-	case <-timer.C:
-		_ = conn.SetDeadline(time.Now())
-		select {
-		case res := <-done:
-			if res.err != nil {
-				return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: res.err}
-			}
-			presence := stanza.NewPresence(stanza.Attrs{})
-			if err := res.session.Send(presence); err != nil {
-				_ = res.session.Disconnect()
-				return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: err}
-			}
-			_ = res.session.Disconnect()
-			return &BruteResult{AuthSuccess: true, ConnectionSuccess: true}
-		default:
-			return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: nil}
-		}
-	case res := <-done:
-		if res.err != nil {
-			return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: res.err}
-		}
-
-		presence := stanza.NewPresence(stanza.Attrs{})
-		if err := res.session.Send(presence); err != nil {
-			_ = res.session.Disconnect()
+		if err != nil {
 			return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: err}
 		}
 
-		_ = res.session.Disconnect()
+		presence := stanza.NewPresence(stanza.Attrs{})
+		if err := client.Send(presence); err != nil {
+			_ = client.Disconnect()
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: err}
+		}
+
+		_ = client.Disconnect()
 		return &BruteResult{AuthSuccess: true, ConnectionSuccess: true}
-	}
+	})
 }
 
 func init() { Register("xmpp", BruteXMPP) }

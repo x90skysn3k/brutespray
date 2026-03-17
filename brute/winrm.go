@@ -3,21 +3,22 @@ package brute
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/masterzen/winrm"
 	"github.com/x90skysn3k/brutespray/v2/modules"
 )
 
-func BruteWinRM(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager) *BruteResult {
+func BruteWinRM(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager, params ModuleParams) *BruteResult {
 	endpoint := winrm.NewEndpoint(host, port, port == 5986, true, nil, nil, nil, timeout)
 
-	params := winrm.DefaultParameters
-	params.TransportDecorator = func() winrm.Transporter {
+	winrmParams := winrm.DefaultParameters
+	winrmParams.TransportDecorator = func() winrm.Transporter {
 		return &winrm.ClientNTLM{}
 	}
 
-	client, err := winrm.NewClientWithParameters(endpoint, user, password, params)
+	client, err := winrm.NewClientWithParameters(endpoint, user, password, winrmParams)
 	if err != nil {
 		return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
 	}
@@ -39,8 +40,7 @@ func BruteWinRM(host string, port int, user, password string, timeout time.Durat
 		return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: err}
 	}
 
-	_ = stdout
-	return &BruteResult{AuthSuccess: true, ConnectionSuccess: true}
+	return &BruteResult{AuthSuccess: true, ConnectionSuccess: true, Banner: strings.TrimSpace(stdout)}
 }
 
 func contains401(s string) bool {

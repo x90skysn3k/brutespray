@@ -17,7 +17,7 @@ import (
 
 var masterServiceList = brute.Services()
 
-var BetaServiceList = []string{"asterisk", "nntp", "oracle", "xmpp", "rdp", "ldap", "ldaps", "winrm"}
+var BetaServiceList = []string{"asterisk", "nntp", "oracle", "xmpp", "ldap", "ldaps", "winrm", "ftps", "smtp-vrfy", "rexec", "rlogin", "rsh", "wrapper", "http-form", "https-form", "svn", "socks5-auth"}
 
 var version = "dev"
 var NoColorMode bool
@@ -43,40 +43,226 @@ func (h *hostListFlag) Set(value string) error {
 	return nil
 }
 
+// moduleParamsFlag collects multiple -m KEY:VALUE parameters
+type moduleParamsFlag []string
+
+func (m *moduleParamsFlag) String() string { return strings.Join(*m, ",") }
+func (m *moduleParamsFlag) Set(value string) error {
+	if !strings.Contains(value, ":") {
+		return fmt.Errorf("module param must be in KEY:VALUE format, got %q", value)
+	}
+	*m = append(*m, value)
+	return nil
+}
+
+// flagEntry describes a single flag for the custom help menu.
+type flagEntry struct {
+	name     string
+	typeHint string
+	desc     string
+}
+
+// flagGroup is a named section of flags.
+type flagGroup struct {
+	title   string
+	entries []flagEntry
+}
+
+var helpGroups = []flagGroup{
+	{
+		title: "TARGET",
+		entries: []flagEntry{
+			{"-H", "service://host:port", "Target host (repeatable, CIDR supported)"},
+			{"-f", "file", "Input file (Nmap/Nessus/Nexpose/list)"},
+			{"-s", "service", "Service filter (default: all)"},
+			{"-S", "", "List all supported services"},
+			{"-P", "", "Print parsed hosts and exit"},
+		},
+	},
+	{
+		title: "CREDENTIALS",
+		entries: []flagEntry{
+			{"-u", "user", "Username or user file"},
+			{"-p", "pass", "Password or password file"},
+			{"-C", "user:pass", "Combo entry or combo file"},
+			{"-e", "nsr", "Extra checks: n=blank, s=user-as-pass, r=reversed"},
+			{"-x", "MIN:MAX:CHARSET", "Generate passwords (a=lower, A=upper, 1=digit, !=sym)"},
+		},
+	},
+	{
+		title: "PERFORMANCE",
+		entries: []flagEntry{
+			{"-t", "threads", "Threads per host (default: 10)"},
+			{"-T", "hosts", "Concurrent hosts (default: 5)"},
+			{"-w", "timeout", "Attempt timeout (default: 5s)"},
+			{"-r", "retries", "Retry on connection failure (default: 3)"},
+			{"-rate", "n", "Per-host rate limit, attempts/sec (0=unlimited)"},
+			{"-spray", "", "Password spray mode (rotate passwords across users)"},
+			{"-spray-delay", "duration", "Delay between spray rounds (default: 30m)"},
+			{"-stop-on-success", "", "Stop host after first valid credential"},
+		},
+	},
+	{
+		title: "OUTPUT",
+		entries: []flagEntry{
+			{"-o", "dir", "Output directory (default: brutespray-output)"},
+			{"-output-format", "fmt", "Output format: text or json (default: text)"},
+			{"-summary", "", "Generate summary report with statistics"},
+			{"-silent", "", "Suppress per-attempt logs"},
+			{"-log-every", "n", "Log every Nth attempt (default: 1)"},
+			{"-q", "", "Suppress banner"},
+			{"-nc", "", "Disable colored output"},
+			{"-no-tui", "", "Disable interactive TUI"},
+			{"-no-stats", "", "Disable statistics tracking"},
+		},
+	},
+	{
+		title: "NETWORK",
+		entries: []flagEntry{
+			{"-socks5", "proxy", "SOCKS5 proxy (socks5://user:pass@host:port)"},
+			{"-proxy-list", "file", "Proxy list for rotation (one per line)"},
+			{"-iface", "name", "Bind to network interface"},
+		},
+	},
+	{
+		title: "ADVANCED",
+		entries: []flagEntry{
+			{"-m", "KEY:VALUE", "Module parameter (repeatable)"},
+			{"-d", "domain", "Domain for RDP/SMB auth"},
+			{"-config", "file", "YAML config file"},
+			{"-checkpoint", "file", "Checkpoint file (default: brutespray-checkpoint.json)"},
+			{"-resume", "file", "Resume from checkpoint"},
+			{"-allow-wrapper", "", "Allow wrapper module (executes commands)"},
+		},
+	},
+}
+
+var helpExamples = []string{
+	"brutespray -H ssh://10.0.0.1:22 -u admin -p passwords.txt",
+	"brutespray -f scan.gnmap -s ssh,ftp -t 5 -T 3",
+	"brutespray -H rdp://10.0.0.0/24:3389 -C creds.txt -spray",
+}
+
+// customUsage prints a grouped, formatted help menu.
+// It checks os.Args for -nc since NoColorMode isn't set yet when flag.Usage fires.
+func customUsage() {
+	nc := false
+	for _, a := range os.Args {
+		if a == "-nc" || a == "--nc" {
+			nc = true
+			break
+		}
+	}
+
+	printSection := func(title string) {
+		if nc {
+			fmt.Fprintf(os.Stderr, "\n%s:\n", title)
+		} else {
+			fmt.Fprintf(os.Stderr, "\n %s\n", pterm.NewStyle(pterm.FgCyan, pterm.Bold).Sprint(title+":"))
+		}
+	}
+
+	// Header
+	fmt.Fprintln(os.Stderr, "Usage: brutespray [options]")
+
+	// Flag groups
+	for _, g := range helpGroups {
+		printSection(g.title)
+		for _, e := range g.entries {
+			label := e.name
+			if e.typeHint != "" {
+				label += " " + e.typeHint
+			}
+			if nc {
+				fmt.Fprintf(os.Stderr, "  %-28s %s\n", label, e.desc)
+			} else {
+				fmt.Fprintf(os.Stderr, "  %s %s\n",
+					pterm.FgGreen.Sprintf("%-28s", label),
+					e.desc)
+			}
+		}
+	}
+
+	// Examples
+	printSection("EXAMPLES")
+	for _, ex := range helpExamples {
+		if nc {
+			fmt.Fprintf(os.Stderr, "  %s\n", ex)
+		} else {
+			fmt.Fprintf(os.Stderr, "  %s\n", pterm.FgYellow.Sprint(ex))
+		}
+	}
+	fmt.Fprintln(os.Stderr)
+}
+
 // Config holds all parsed configuration for a brutespray run
 type Config struct {
-	User              string
-	Password          string
-	Combo             string
-	Output            string
-	Summary           bool
-	NoStats           bool
-	Silent            bool
-	LogEvery          int
-	Threads           int
-	HostParallelism   int
-	SocksProxy        string
-	NetInterface      string
-	ServiceType       string
-	File              string
-	HostArgs          hostListFlag
-	Quiet             bool
-	Timeout           time.Duration
-	Retry             int
-	PrintHosts        bool
-	Domain            string
-	NoColor           bool
-	StopOnSuccess     bool
-	RateLimit         float64
-	SprayMode         bool
-	SprayDelay        time.Duration
-	ResumeFile        string
-	CheckpointFile    string
-	ConfigFile        string
-	TUI               bool
-	Hosts             []modules.Host
-	SupportedServices []string
-	TotalCombinations int
+	User                string
+	Password            string
+	Combo               string
+	Output              string
+	Summary             bool
+	NoStats             bool
+	Silent              bool
+	LogEvery            int
+	Threads             int
+	HostParallelism     int
+	SocksProxy          string
+	ProxyList           string
+	NetInterface        string
+	ServiceType         string
+	File                string
+	HostArgs            hostListFlag
+	Quiet               bool
+	Timeout             time.Duration
+	Retry               int
+	PrintHosts          bool
+	Domain              string
+	NoColor             bool
+	StopOnSuccess       bool
+	RateLimit           float64
+	SprayMode           bool
+	SprayDelay          time.Duration
+	ResumeFile          string
+	CheckpointFile      string
+	ConfigFile          string
+	TUI                 bool
+	Hosts               []modules.Host
+	SupportedServices   []string
+	TotalCombinations   int
+	ModuleParams        map[string]string
+	UseUsernameAsPass   bool
+	UseReversedPass     bool
+	AllowWrapper        bool
+	PasswordGenSpec     string
+	PasswordGen         *modules.PasswordGenerator
+	OutputFormat        string
+}
+
+// Validate checks for mutually exclusive flags, contradictory options,
+// and unknown service names. It is called after ParseConfig populates the
+// Config struct.
+func (cfg *Config) Validate() error {
+	// Mutually exclusive flags
+	if cfg.User != "" && cfg.Combo != "" {
+		return fmt.Errorf("-u and -C are mutually exclusive")
+	}
+
+	// Contradictory flags (warn, don't error)
+	if cfg.SprayMode && cfg.StopOnSuccess {
+		fmt.Fprintf(os.Stderr, "Warning: --spray with --stop-on-success may produce incomplete spray rounds\n")
+	}
+
+	// Validate service types exist when user specified specific services
+	if cfg.ServiceType != "all" {
+		for _, s := range cfg.SupportedServices {
+			if !brute.IsRegistered(s) {
+				return fmt.Errorf("unknown service %q (use -S to list available services)", s)
+			}
+		}
+	}
+
+	return nil
 }
 
 // ParseConfig parses CLI flags, loads config file, and validates inputs.
@@ -115,6 +301,15 @@ func ParseConfig() *Config {
 	checkpointFile := flag.String("checkpoint", "brutespray-checkpoint.json", "Checkpoint file path for resume capability")
 	configFile := flag.String("config", "", "YAML config file (CLI flags override config values)")
 	noTUI := flag.Bool("no-tui", false, "Disable interactive terminal UI, use legacy output mode")
+	var moduleParamsArgs moduleParamsFlag
+	flag.Var(&moduleParamsArgs, "m", "Module-specific parameter in KEY:VALUE format (repeatable). Example: -m auth:NTLM -m dir:/admin")
+	extraCreds := flag.String("e", "", "Extra password checks: n=blank password, s=password=username, r=reversed username, combine: nsr")
+	allowWrapper := flag.Bool("allow-wrapper", false, "Allow the wrapper module to execute arbitrary commands (required for security)")
+	passwordGen := flag.String("x", "", "Generate passwords: MIN:MAX:CHARSET (a=lower, A=upper, 1=digits, !=symbols). Example: -x 4:4:1")
+	outputFormat := flag.String("output-format", "text", "Output format: text (default) or json (JSONL per-attempt)")
+	proxyList := flag.String("proxy-list", "", "File containing proxy list (one socks5://host:port per line) for rotation")
+
+	flag.Usage = customUsage
 
 	flag.Parse()
 
@@ -193,6 +388,15 @@ func ParseConfig() *Config {
 		if !setFlags["f"] && fileCfg.File != "" {
 			*file = fileCfg.File
 		}
+		// Load module params from config if not set via CLI
+		if len(moduleParamsArgs) == 0 && len(fileCfg.ModuleParams) > 0 {
+			for k, v := range fileCfg.ModuleParams {
+				moduleParamsArgs = append(moduleParamsArgs, k+":"+v)
+			}
+		}
+		if !setFlags["e"] && fileCfg.ExtraCreds != "" {
+			*extraCreds = fileCfg.ExtraCreds
+		}
 		if len(fileCfg.Hosts) > 0 && len(cfg.HostArgs) == 0 {
 			for _, h := range fileCfg.Hosts {
 				cfg.HostArgs = append(cfg.HostArgs, h)
@@ -233,8 +437,43 @@ func ParseConfig() *Config {
 	cfg.ResumeFile = resume
 	cfg.CheckpointFile = *checkpointFile
 	cfg.ConfigFile = *configFile
-	// TUI is default for interactive terminals; --no-tui or --nc disables it
-	cfg.TUI = !*noTUI && !cfg.NoColor && term.IsTerminal(int(os.Stdout.Fd()))
+	cfg.AllowWrapper = *allowWrapper
+	cfg.PasswordGenSpec = *passwordGen
+	cfg.OutputFormat = *outputFormat
+	cfg.ProxyList = *proxyList
+	// TUI is default for interactive terminals; --no-tui, --nc, or --output-format json disables it
+	cfg.TUI = !*noTUI && !cfg.NoColor && cfg.OutputFormat != "json" && term.IsTerminal(int(os.Stdout.Fd()))
+
+	// Parse module parameters from -m flags
+	cfg.ModuleParams = make(map[string]string)
+	for _, mp := range moduleParamsArgs {
+		parts := strings.SplitN(mp, ":", 2)
+		cfg.ModuleParams[parts[0]] = parts[1]
+	}
+
+	// Parse -e flag for extra credential checks
+	if *extraCreds != "" {
+		e := strings.ToLower(*extraCreds)
+		if strings.Contains(e, "s") {
+			cfg.UseUsernameAsPass = true
+		}
+		if strings.Contains(e, "n") {
+			modules.UseEmptyPassword = true
+		}
+		if strings.Contains(e, "r") {
+			cfg.UseReversedPass = true
+		}
+	}
+
+	// Parse -x password generation spec
+	if cfg.PasswordGenSpec != "" {
+		gen, err := modules.ParsePasswordGenerator(cfg.PasswordGenSpec)
+		if err != nil {
+			fmt.Printf("Error parsing -x flag: %v\n", err)
+			os.Exit(2)
+		}
+		cfg.PasswordGen = gen
+	}
 
 	// Apply global settings
 	NoColorMode = cfg.NoColor
@@ -340,8 +579,8 @@ func ParseConfig() *Config {
 					}
 				}
 				if cfg.Combo != "" {
-					users, passwords := modules.GetUsersAndPasswordsCombo(&h, cfg.Combo, version)
-					cfg.TotalCombinations += modules.CalcCombinationsCombo(users, passwords)
+					users, _ := modules.GetUsersAndPasswordsCombo(&h, cfg.Combo, version)
+					cfg.TotalCombinations += len(users)
 				} else {
 					if service == "vnc" || service == "snmp" {
 						_, passwords, err := modules.GetUsersAndPasswords(&h, cfg.User, cfg.Password, version)
@@ -349,18 +588,39 @@ func ParseConfig() *Config {
 							fmt.Printf("Error loading wordlist for %s: %v\n", service, err)
 							continue
 						}
-						cfg.TotalCombinations += modules.CalcCombinationsPass(passwords)
+						passCount := len(passwords)
+						if cfg.PasswordGen != nil {
+							passCount = cfg.PasswordGen.Count()
+						}
+						cfg.TotalCombinations += passCount
 					} else {
 						users, passwords, err := modules.GetUsersAndPasswords(&h, cfg.User, cfg.Password, version)
 						if err != nil {
 							fmt.Printf("Error loading wordlist for %s: %v\n", service, err)
 							continue
 						}
-						cfg.TotalCombinations += modules.CalcCombinations(users, passwords)
+						passCount := len(passwords)
+						if cfg.PasswordGen != nil {
+							passCount = cfg.PasswordGen.Count()
+						}
+						combos := len(users) * passCount
+						// Add extra creds: -e s (username as pass) and -e r (reversed)
+						if cfg.UseUsernameAsPass {
+							combos += len(users)
+						}
+						if cfg.UseReversedPass {
+							combos += len(users)
+						}
+						cfg.TotalCombinations += combos
 					}
 				}
 			}
 		}
+	}
+
+	if err := cfg.Validate(); err != nil {
+		fmt.Fprintln(os.Stderr, "Error:", err)
+		os.Exit(2)
 	}
 
 	// Validate threads per host (no upper limit)

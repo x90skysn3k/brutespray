@@ -168,3 +168,218 @@ brutespray -config engagement.yaml -t 50 -T 20
 ```bash
 brutespray -f nmap.gnmap -u admin -p passlist.txt -stop-on-success
 ```
+
+## HTTP Form Brute Forcing
+
+**Login form with failure detection:**
+```bash
+brutespray -H "http-form://10.0.0.1:8080" -u admin -p passlist.txt \
+  -m "url:/login" -m "body:username=%U&password=%W" -m "fail:Invalid credentials"
+```
+
+**Login form with success detection:**
+```bash
+brutespray -H "http-form://10.0.0.1:8080" -u admin -p passlist.txt \
+  -m "url:/login" -m "body:user=%U&pass=%W" -m "success:Dashboard"
+```
+
+**GET-based login with redirect following:**
+```bash
+brutespray -H "http-form://10.0.0.1:8080" -u admin -p passlist.txt \
+  -m "url:/login" -m "body:user=%U&pass=%W" -m "method:GET" \
+  -m "follow:true" -m "success:Welcome"
+```
+
+**With custom cookie:**
+```bash
+brutespray -H "http-form://10.0.0.1:8080" -u admin -p passlist.txt \
+  -m "url:/login" -m "body:user=%U&pass=%W" -m "fail:Invalid" \
+  -m "cookie:PHPSESSID=abc123"
+```
+
+## HTTP Authentication Methods
+
+**Digest auth:**
+```bash
+brutespray -H http://10.0.0.1:8080 -u admin -p passlist.txt -m auth:DIGEST
+```
+
+**NTLM auth:**
+```bash
+brutespray -H http://10.0.0.1:8080 -u admin -p passlist.txt -m auth:NTLM
+```
+
+## SMTP NTLM Authentication
+
+```bash
+brutespray -H smtp://10.0.0.1:25 -u admin -p passlist.txt -m auth:NTLM
+```
+
+## Password Generation
+
+**All 4-digit PINs (0000-9999):**
+```bash
+brutespray -H ssh://10.0.0.1:22 -u admin -x 4:4:1
+```
+
+**1-4 character lowercase passwords:**
+```bash
+brutespray -H ssh://10.0.0.1:22 -u admin -x 1:4:a
+```
+
+**3-6 character alphanumeric:**
+```bash
+brutespray -H ssh://10.0.0.1:22 -u admin -x 3:6:aA1
+```
+
+## Extra Credential Checks
+
+**Try blank password, username-as-password, and reversed username:**
+```bash
+brutespray -f nmap.gnmap -u admin -p passlist.txt -e nsr
+```
+
+## Pass-the-Hash with PwDump
+
+**Auto-detected PwDump format:**
+```bash
+brutespray -H smbnt://10.0.0.1:445 -p hashdump.txt
+```
+
+## SSH Key Authentication
+
+**Test SSH keys:**
+```bash
+brutespray -H ssh://10.0.0.1:22 -u root -p /path/to/id_rsa -m key:true
+```
+
+## SVN Repository
+
+```bash
+brutespray -H svn://10.0.0.1:3690 -u admin -p passlist.txt -m path:/svn/repo
+```
+
+## Wrapper Module
+
+**Custom command execution:**
+```bash
+brutespray -H wrapper://10.0.0.1:8080 -u admin -p passlist.txt \
+  -m "cmd:curl -s -o /dev/null -w '%{http_code}' -u %U:%W http://%H:%P/" \
+  --allow-wrapper
+```
+
+## JSON Output
+
+**Per-attempt JSONL output for tool integration:**
+```bash
+brutespray -f nmap.gnmap -u admin -p passlist.txt --output-format json --no-tui
+```
+
+## Proxy List Rotation
+
+**Rotate through multiple SOCKS5 proxies:**
+```bash
+brutespray -f nmap.gnmap -u admin -p passlist.txt --proxy-list proxies.txt
+```
+
+Where `proxies.txt` contains one proxy per line:
+```
+socks5://proxy1:1080
+socks5://user:pass@proxy2:1080
+proxy3:1080
+```
+
+## FTPS (FTP over TLS)
+
+```bash
+brutespray -H ftps://10.0.0.1:990 -u admin -p passlist.txt
+```
+
+## SNMPv3
+
+**MD5 auth (default):**
+```bash
+brutespray -H snmp://10.0.0.1:161 -u snmpuser -p authpass -m version:3
+```
+
+**SHA auth with AES privacy:**
+```bash
+brutespray -H snmp://10.0.0.1:161 -u snmpuser -p authpass \
+  -m version:3 -m auth:SHA -m priv:AES -m privpass:privpass123
+```
+
+## HTTP-Form with CSRF Token
+
+**Auto-extract CSRF token before login:**
+```bash
+brutespray -H "http-form://10.0.0.1:8080" -u admin -p passlist.txt \
+  -m "url:/login" -m "body:user=%U&pass=%W&token=%C" \
+  -m "fail:Invalid" -m "csrf:csrf_token"
+```
+
+**CSRF with separate form page:**
+```bash
+brutespray -H "http-form://10.0.0.1:8080" -u admin -p passlist.txt \
+  -m "url:/api/login" -m "body:user=%U&pass=%W&_token=%C" \
+  -m "fail:Unauthorized" -m "csrf:_token" -m "form-url:/login"
+```
+
+## HTTP-Form with Base64 Credentials
+
+```bash
+brutespray -H "http-form://10.0.0.1:8080" -u admin -p passlist.txt \
+  -m 'url:/api/auth' -m 'body:{"credentials":"%U64:%W64"}' \
+  -m 'content-type:application/json' -m 'fail:invalid'
+```
+
+## SSH Keyboard-Interactive
+
+**Force keyboard-interactive auth (for servers that disable password auth):**
+```bash
+brutespray -H ssh://10.0.0.1:22 -u root -p passlist.txt -m auth:keyboard-interactive
+```
+
+## SOCKS5 Proxy Authentication
+
+**Brute-force SOCKS5 proxy credentials:**
+```bash
+brutespray -H socks5-auth://10.0.0.1:1080 -u admin -p passlist.txt
+```
+
+## Postgres with Custom Database
+
+```bash
+brutespray -H postgres://10.0.0.1:5432 -u admin -p passlist.txt -m dbname:mydb
+```
+
+## MySQL with Custom Database
+
+```bash
+brutespray -H mysql://10.0.0.1:3306 -u admin -p passlist.txt -m dbname:webapp
+```
+
+## MSSQL with Domain Authentication
+
+```bash
+brutespray -H mssql://10.0.0.1:1433 -u sa -p passlist.txt -m domain:CORP
+```
+
+## Redis with Custom Database
+
+```bash
+brutespray -H redis://10.0.0.1:6379 -u default -p passlist.txt -m db:3
+```
+
+## POP3 APOP Authentication
+
+**Force APOP auth:**
+```bash
+brutespray -H pop3://10.0.0.1:110 -u admin -p passlist.txt -m auth:APOP
+```
+
+## IMAP CRAM-MD5 Authentication
+
+**Force CRAM-MD5 auth:**
+```bash
+brutespray -H imap://10.0.0.1:143 -u admin -p passlist.txt -m auth:CRAM-MD5
+```

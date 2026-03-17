@@ -15,7 +15,7 @@ import (
 	"github.com/x90skysn3k/grdp/protocol/pdu"
 )
 
-func BruteRDP(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager, domain string) *BruteResult {
+func BruteRDP(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager, params ModuleParams) *BruteResult {
 	glog.SetLevel(pdu.STREAM_LOW)
 	logger := log.New(io.Discard, "", 0)
 	glog.SetLogger(logger)
@@ -24,8 +24,8 @@ func BruteRDP(host string, port int, user, password string, timeout time.Duratio
 		target := fmt.Sprintf("%s:%d", host, port)
 
 		loginUser := user
-		if domain != "" {
-			loginUser = domain + "\\" + user
+		if params["domain"] != "" {
+			loginUser = params["domain"] + "\\" + user
 		}
 
 		rdpClient := &client.RdpClient{}
@@ -51,4 +51,4 @@ func BruteRDP(host string, port int, user, password string, timeout time.Duratio
 	})
 }
 
-func init() { RegisterWithDomain("rdp", BruteRDP) }
+func init() { Register("rdp", BruteRDP) }

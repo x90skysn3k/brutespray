@@ -1,0 +1,279 @@
+###############################################################################
+# BruteSpray Integration Test Environment
+#
+# Provides services with known credentials for end-to-end testing.
+# All host ports start at 20000+ to avoid conflicts with local services.
+#
+# Usage:
+#   docker compose up -d
+#   ./run-integration.sh        # or run brutespray manually
+#   docker compose down -v
+###############################################################################
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # SSH  --  testuser:testpass  --  port 20022
+  # ---------------------------------------------------------------------------
+  openssh:
+    image: lscr.io/linuxserver/openssh-server:latest
+    container_name: bs-test-ssh
+    hostname: bs-test-ssh
+    environment:
+      PUID: 1000
+      PGID: 1000
+      TZ: UTC
+      USER_NAME: testuser
+      USER_PASSWORD: testpass
+      PASSWORD_ACCESS: "true"
+      SUDO_ACCESS: "false"
+    ports:
+      - "20022:2222"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "ss -tlnp | grep -q 2222"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+  # ---------------------------------------------------------------------------
+  # FTP  --  ftpuser:ftppass  --  port 20021
+  # Using fauria/vsftpd which properly handles passive mode
+  # ---------------------------------------------------------------------------
+  vsftpd:
+    image: fauria/vsftpd
+    container_name: bs-test-ftp
+    hostname: bs-test-ftp
+    environment:
+      FTP_USER: ftpuser
+      FTP_PASS: ftppass
+      PASV_ENABLE: "YES"
+      PASV_MIN_PORT: 20200
+      PASV_MAX_PORT: 20210
+      PASV_ADDRESS: 127.0.0.1
+      LOCAL_UMASK: "022"
+    ports:
+      - "20021:21"
+      - "20200-20210:20200-20210"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "ss -tlnp | grep -q ':21 ' || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+  # ---------------------------------------------------------------------------
+  # SMTP/POP3/IMAP  --  test@test.local:testpass
+  # GreenMail: SMTP=3025, POP3=3110, IMAP=3143
+  # ---------------------------------------------------------------------------
+  greenmail:
+    image: greenmail/standalone:2.1.2
+    container_name: bs-test-mail
+    hostname: bs-test-mail
+    environment:
+      GREENMAIL_OPTS: >-
+        -Dgreenmail.setup.test.smtp
+        -Dgreenmail.setup.test.pop3
+        -Dgreenmail.setup.test.imap
+        -Dgreenmail.users=test@test.local:testpass
+    ports:
+      - "20025:3025"    # SMTP
+      - "20110:3110"    # POP3
+      - "20143:3143"    # IMAP
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 3025 && nc -z 127.0.0.1 3110 && nc -z 127.0.0.1 3143"]
+      interval: 5s
+      timeout: 3s
+      retries: 15
+      start_period: 15s
+
+  # ---------------------------------------------------------------------------
+  # HTTP Basic Auth  --  admin:secret  --  port 20080
+  # ---------------------------------------------------------------------------
+  apache-basic:
+    image: httpd:2.4-alpine
+    container_name: bs-test-http-basic
+    hostname: bs-test-http-basic
+    ports:
+      - "20080:80"
+    volumes:
+      - ./config/httpd-basic.conf:/usr/local/apache2/conf/httpd.conf:ro
+      - ./config/htpasswd:/usr/local/apache2/conf/htpasswd:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:80/ 2>&1 | grep -q '401' || wget -q --spider http://127.0.0.1:80/ || true"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+  # ---------------------------------------------------------------------------
+  # HTTP Digest Auth  --  admin:secret  --  port 20081
+  # ---------------------------------------------------------------------------
+  apache-digest:
+    image: httpd:2.4-alpine
+    container_name: bs-test-http-digest
+    hostname: bs-test-http-digest
+    ports:
+      - "20081:80"
+    volumes:
+      - ./config/httpd-digest.conf:/usr/local/apache2/conf/httpd.conf:ro
+      - ./config/htdigest:/usr/local/apache2/conf/htdigest:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:80/ 2>&1 | grep -q '401' || wget -q --spider http://127.0.0.1:80/ || true"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+  # ---------------------------------------------------------------------------
+  # Samba / SMB  --  smbuser:smbpass  --  port 20445
+  # ---------------------------------------------------------------------------
+  samba:
+    image: dperson/samba
+    container_name: bs-test-samba
+    hostname: bs-test-samba
+    command: >
+      -u "smbuser;smbpass"
+      -s "ADMIN$;/tmp/samba-admin;no;no;no;smbuser"
+      -p
+    ports:
+      - "20445:445"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "smbclient -L //127.0.0.1 -U smbuser%smbpass -N 2>&1 | grep -qi 'admin' || nc -z 127.0.0.1 445"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+      start_period: 15s
+
+  # ---------------------------------------------------------------------------
+  # MySQL 8  --  root:rootpass  --  port 23306
+  # ---------------------------------------------------------------------------
+  mysql:
+    image: mysql:8
+    container_name: bs-test-mysql
+    hostname: bs-test-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass
+      MYSQL_ROOT_HOST: "%"
+    ports:
+      - "23306:3306"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-u", "root", "-prootpass"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+
+  # ---------------------------------------------------------------------------
+  # PostgreSQL 16  --  postgres:pgpass  --  port 25432
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    container_name: bs-test-postgres
+    hostname: bs-test-postgres
+    environment:
+      POSTGRES_PASSWORD: pgpass
+    ports:
+      - "25432:5432"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 15
+      start_period: 10s
+
+  # ---------------------------------------------------------------------------
+  # Redis  --  password: testpass  --  port 26379
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:alpine
+    container_name: bs-test-redis
+    hostname: bs-test-redis
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
+    volumes:
+      - ./config/redis.conf:/usr/local/etc/redis/redis.conf:ro
+    ports:
+      - "26379:6379"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "testpass", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+  # ---------------------------------------------------------------------------
+  # MongoDB 7  --  admin:mongopass  --  port 27018
+  # ---------------------------------------------------------------------------
+  mongodb:
+    image: mongo:7
+    container_name: bs-test-mongodb
+    hostname: bs-test-mongodb
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: mongopass
+    ports:
+      - "27018:27017"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+      start_period: 15s
+
+  # ---------------------------------------------------------------------------
+  # VNC  --  password: vncpass  --  port 25900
+  # Uses TigerVNC which supports standard VNC Authentication (Type 2)
+  # ---------------------------------------------------------------------------
+  vnc:
+    image: consol/rocky-xfce-vnc:latest
+    container_name: bs-test-vnc
+    hostname: bs-test-vnc
+    environment:
+      VNC_PW: vncpass
+      VNC_RESOLUTION: 800x600
+    ports:
+      - "25900:5901"     # VNC protocol (TigerVNC listens on 5901)
+      - "26080:6901"     # noVNC web
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "ss -tlnp | grep -q ':5901 ' || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 20s
+
+  # ---------------------------------------------------------------------------
+  # Telnet  --  testuser:testpass  --  port 20023
+  # Uses Debian with proper telnetd package
+  # ---------------------------------------------------------------------------
+  telnet:
+    image: alpine:3.14
+    container_name: bs-test-telnet
+    hostname: bs-test-telnet
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - |
+        apk add --no-cache busybox-extras > /dev/null 2>&1
+        adduser -D testuser 2>/dev/null || true
+        echo "testuser:testpass" | chpasswd
+        exec busybox-extras telnetd -F -p 23 -l /bin/login
+    ports:
+      - "20023:23"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "ss -tlnp | grep -q ':23 ' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s

@@ -15,6 +15,7 @@ type AttemptResultMsg struct {
 	Duration  time.Duration
 	Retrying  bool
 	Timestamp time.Time
+	Banner    string
 }
 
 // HostStartedMsg is sent when a host begins processing.
