@@ -1,6 +1,7 @@
 package brute
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	"net"
@@ -11,33 +12,21 @@ import (
 )
 
 func BruteVMAuthd(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager, params ModuleParams) *BruteResult {
-	timer := time.NewTimer(timeout)
-	defer timer.Stop()
-
-	type result struct {
-		authSuccess bool
-		connSuccess bool
-	}
-	done := make(chan result, 1)
-
 	conn, err := cm.Dial("tcp", fmt.Sprintf("%s:%d", host, port))
 	if err != nil {
 		return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
 	}
 
-	go func() {
+	return RunWithTimeout(timeout, func(ctx context.Context) *BruteResult {
 		defer conn.Close()
+		go func() { <-ctx.Done(); _ = conn.SetDeadline(time.Now()) }()
 
-		stepDeadline := func() {
-			_ = conn.SetReadDeadline(time.Now().Add(timeout))
-		}
+		_ = conn.SetDeadline(time.Now().Add(timeout))
 
-		stepDeadline()
 		buf := make([]byte, 1024)
 		n, err := conn.Read(buf)
 		if err != nil {
-			done <- result{false, false}
-			return
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: false}
 		}
 		response := string(buf[:n])
 
@@ -47,63 +36,40 @@ func BruteVMAuthd(host string, port int, user, password string, timeout time.Dur
 			activeConn = tlsConn
 		}
 
-		stepDeadline()
 		cmd := fmt.Sprintf("USER %s\r\n", sanitizeCred(user))
 		_, err = activeConn.Write([]byte(cmd))
 		if err != nil {
-			done <- result{false, true}
-			return
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: true}
 		}
 
-		stepDeadline()
 		buf = make([]byte, 1024)
 		n, err = activeConn.Read(buf)
 		if err != nil {
-			done <- result{false, true}
-			return
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: true}
 		}
 		response = string(buf[:n])
 		if !strings.HasPrefix(response, "331 ") {
-			done <- result{false, true}
-			return
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: true}
 		}
 
-		stepDeadline()
 		cmd = fmt.Sprintf("PASS %s\r\n", sanitizeCred(password))
 		_, err = activeConn.Write([]byte(cmd))
 		if err != nil {
-			done <- result{false, true}
-			return
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: true}
 		}
 
-		stepDeadline()
 		buf = make([]byte, 1024)
 		n, err = activeConn.Read(buf)
 		if err != nil {
-			done <- result{false, true}
-			return
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: true}
 		}
 		response = string(buf[:n])
 
 		if strings.HasPrefix(response, "230 ") {
-			done <- result{true, true}
-		} else {
-			done <- result{false, true}
+			return &BruteResult{AuthSuccess: true, ConnectionSuccess: true}
 		}
-	}()
-
-	select {
-	case <-timer.C:
-		_ = conn.SetDeadline(time.Now())
-		select {
-		case r := <-done:
-			return &BruteResult{AuthSuccess: r.authSuccess, ConnectionSuccess: r.connSuccess}
-		default:
-			return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: nil}
-		}
-	case r := <-done:
-		return &BruteResult{AuthSuccess: r.authSuccess, ConnectionSuccess: r.connSuccess}
-	}
+		return &BruteResult{AuthSuccess: false, ConnectionSuccess: true}
+	})
 }
 
 func init() { Register("vmauthd", BruteVMAuthd) }

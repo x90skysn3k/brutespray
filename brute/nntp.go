@@ -1,6 +1,7 @@
 package brute
 
 import (
+	"context"
 	"fmt"
 	"net/textproto"
 	"time"
@@ -9,17 +10,14 @@ import (
 )
 
 func BruteNNTP(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager, params ModuleParams) *BruteResult {
-	timer := time.NewTimer(timeout)
-	defer timer.Stop()
-
 	conn, err := cm.Dial("tcp", fmt.Sprintf("%s:%d", host, port))
 	if err != nil {
 		return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
 	}
 
-	done := make(chan error, 1)
-	go func() {
+	return RunWithTimeout(timeout, func(ctx context.Context) *BruteResult {
 		defer conn.Close()
+		go func() { <-ctx.Done(); _ = conn.SetDeadline(time.Now()) }()
 
 		_ = conn.SetDeadline(time.Now().Add(timeout))
 
@@ -27,53 +25,29 @@ func BruteNNTP(host string, port int, user, password string, timeout time.Durati
 
 		_, _, err := textConn.ReadResponse(200)
 		if err != nil {
-			done <- err
-			return
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: err}
 		}
 
 		err = textConn.PrintfLine("AUTHINFO USER %s", sanitizeCred(user))
 		if err != nil {
-			done <- err
-			return
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: err}
 		}
 		_, _, err = textConn.ReadResponse(381)
 		if err != nil {
-			done <- err
-			return
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: err}
 		}
 
 		err = textConn.PrintfLine("AUTHINFO PASS %s", sanitizeCred(password))
 		if err != nil {
-			done <- err
-			return
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: err}
 		}
 		_, _, err = textConn.ReadResponse(281)
 		if err != nil {
-			done <- err
-			return
-		}
-
-		done <- nil
-	}()
-
-	select {
-	case <-timer.C:
-		_ = conn.SetDeadline(time.Now())
-		select {
-		case err := <-done:
-			if err != nil {
-				return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: err}
-			}
-			return &BruteResult{AuthSuccess: true, ConnectionSuccess: true}
-		default:
-			return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: nil}
-		}
-	case err := <-done:
-		if err != nil {
 			return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: err}
 		}
+
 		return &BruteResult{AuthSuccess: true, ConnectionSuccess: true}
-	}
+	})
 }
 
 func init() { Register("nntp", BruteNNTP) }

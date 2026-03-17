@@ -296,6 +296,87 @@ func TestBrutePOP3Banner(t *testing.T) {
 	}
 }
 
+// handlePOP3APOPChallenge handles a POP3 server that sends an APOP challenge,
+// rejects APOP auth, but accepts USER/PASS. This tests the APOP fallthrough
+// in auto mode: the module should detect APOP failure and reconnect with USER/PASS.
+func handlePOP3APOPChallenge(conn net.Conn, validUser, validPass string) {
+	defer conn.Close()
+	_ = conn.SetDeadline(time.Now().Add(5 * time.Second))
+	r := bufio.NewReader(conn)
+
+	// Send greeting WITH APOP challenge
+	fmt.Fprintf(conn, "+OK POP3 server ready <12345.67890@example.com>\r\n")
+
+	for {
+		line, err := r.ReadString('\n')
+		if err != nil {
+			return
+		}
+		line = strings.TrimRight(line, "\r\n")
+		upper := strings.ToUpper(line)
+
+		switch {
+		case strings.HasPrefix(upper, "CAPA"):
+			fmt.Fprintf(conn, "+OK Capability list follows\r\n")
+			fmt.Fprintf(conn, "USER\r\n")
+			fmt.Fprintf(conn, ".\r\n")
+
+		case strings.HasPrefix(upper, "APOP "):
+			// Always reject APOP
+			fmt.Fprintf(conn, "-ERR APOP authentication failed\r\n")
+
+		case strings.HasPrefix(upper, "USER "):
+			fmt.Fprintf(conn, "+OK\r\n")
+
+		case strings.HasPrefix(upper, "PASS "):
+			pass := line[5:]
+			if pass == validPass {
+				fmt.Fprintf(conn, "+OK Logged in\r\n")
+			} else {
+				fmt.Fprintf(conn, "-ERR Authentication failed\r\n")
+			}
+
+		case strings.HasPrefix(upper, "QUIT"):
+			fmt.Fprintf(conn, "+OK Bye\r\n")
+			return
+
+		default:
+			fmt.Fprintf(conn, "-ERR Unknown command\r\n")
+		}
+	}
+}
+
+func TestBrutePOP3APOPFallthrough(t *testing.T) {
+	port, cleanup := startMockPOP3Server(t, func(conn net.Conn) {
+		handlePOP3APOPChallenge(conn, "apopuser", "apoppass")
+	})
+	defer cleanup()
+
+	cm, _ := modules.NewConnectionManager("", 5*time.Second, "")
+
+	t.Run("FallthroughSuccess", func(t *testing.T) {
+		// Auto mode: APOP fails, should fall through to USER/PASS on reconnect
+		result := BrutePOP3("127.0.0.1", port, "apopuser", "apoppass", 5*time.Second, cm, ModuleParams{})
+		if !result.AuthSuccess {
+			t.Fatalf("expected auth success after APOP fallthrough to USER/PASS, got error: %v", result.Error)
+		}
+		if !result.ConnectionSuccess {
+			t.Fatal("expected connection success")
+		}
+	})
+
+	t.Run("FallthroughFailure", func(t *testing.T) {
+		// Auto mode: APOP fails, USER/PASS also fails with wrong password
+		result := BrutePOP3("127.0.0.1", port, "apopuser", "wrongpass", 5*time.Second, cm, ModuleParams{})
+		if result.AuthSuccess {
+			t.Fatal("expected auth failure")
+		}
+		if !result.ConnectionSuccess {
+			t.Fatal("expected connection success (server responded)")
+		}
+	})
+}
+
 func TestBrutePOP3TLSFallback(t *testing.T) {
 	// The plaintext connection should succeed, so TLS fallback is not triggered.
 	// To test the fallback path, we need the plaintext path to report

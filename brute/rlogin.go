@@ -2,6 +2,7 @@ package brute
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -12,22 +13,14 @@ import (
 // BruteRlogin implements the rlogin protocol (TCP port 513).
 // Protocol: \0local_user\0remote_user\0terminal/speed\0
 func BruteRlogin(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager, params ModuleParams) *BruteResult {
-	timer := time.NewTimer(timeout)
-	defer timer.Stop()
-
-	type result struct {
-		authSuccess bool
-		connSuccess bool
-	}
-	done := make(chan result, 1)
-
 	conn, err := cm.Dial("tcp", fmt.Sprintf("%s:%d", host, port))
 	if err != nil {
 		return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
 	}
 
-	go func() {
+	return RunWithTimeout(timeout, func(ctx context.Context) *BruteResult {
 		defer conn.Close()
+		go func() { <-ctx.Done(); _ = conn.SetDeadline(time.Now()) }()
 
 		_ = conn.SetDeadline(time.Now().Add(timeout))
 
@@ -43,16 +36,14 @@ func BruteRlogin(host string, port int, user, password string, timeout time.Dura
 		// rlogin protocol: \0local_user\0remote_user\0terminal/speed\0
 		payload := fmt.Sprintf("\x00%s\x00%s\x00%s\x00", sanitizeCred(localUser), sanitizeCred(user), terminal)
 		if _, err := conn.Write([]byte(payload)); err != nil {
-			done <- result{false, false}
-			return
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: false}
 		}
 
 		// Read response
 		r := bufio.NewReader(conn)
 		b, err := r.ReadByte()
 		if err != nil {
-			done <- result{false, true}
-			return
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: true}
 		}
 
 		// Null byte = success, then read banner
@@ -62,28 +53,13 @@ func BruteRlogin(host string, port int, user, password string, timeout time.Dura
 			n, _ := r.Read(output)
 			resp := strings.ToLower(string(output[:n]))
 			if strings.Contains(resp, "denied") || strings.Contains(resp, "permission") || strings.Contains(resp, "incorrect") {
-				done <- result{false, true}
-				return
+				return &BruteResult{AuthSuccess: false, ConnectionSuccess: true}
 			}
-			done <- result{true, true}
-			return
+			return &BruteResult{AuthSuccess: true, ConnectionSuccess: true}
 		}
 
-		done <- result{false, true}
-	}()
-
-	select {
-	case <-timer.C:
-		_ = conn.SetDeadline(time.Now())
-		select {
-		case r := <-done:
-			return &BruteResult{AuthSuccess: r.authSuccess, ConnectionSuccess: r.connSuccess}
-		default:
-			return &BruteResult{AuthSuccess: false, ConnectionSuccess: false}
-		}
-	case r := <-done:
-		return &BruteResult{AuthSuccess: r.authSuccess, ConnectionSuccess: r.connSuccess}
-	}
+		return &BruteResult{AuthSuccess: false, ConnectionSuccess: true}
+	})
 }
 
 func init() { Register("rlogin", BruteRlogin) }

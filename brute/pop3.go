@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"net"
 	"strings"
@@ -13,6 +14,10 @@ import (
 
 	"github.com/x90skysn3k/brutespray/v2/modules"
 )
+
+// errAPOPFallthrough signals that APOP authentication failed in auto mode
+// and BrutePOP3 should reconnect and retry with USER/PASS.
+var errAPOPFallthrough = errors.New("APOP failed, retry USER/PASS")
 
 // pop3ReadLine reads a single response line from the POP3 server.
 func pop3ReadLine(r *bufio.Reader) (string, error) {
@@ -211,17 +216,16 @@ func pop3Auth(conn net.Conn, user, password, authMethod string, timeout time.Dur
 		}
 		return &BruteResult{AuthSuccess: ok, ConnectionSuccess: true, Banner: banner}
 
-	default: // AUTO: try APOP if challenge present, then USER/PASS
-		if challenge != "" {
+	default: // AUTO or USER (forced): try APOP if challenge present (unless USER forced), then USER/PASS
+		if authMethod != "USER" && challenge != "" {
 			ok, err := pop3AuthAPOP(conn, r, user, password, challenge)
 			if err == nil && ok {
 				_, _ = fmt.Fprintf(conn, "QUIT\r\n")
 				return &BruteResult{AuthSuccess: true, ConnectionSuccess: true, Banner: banner}
 			}
-			// APOP failed, fall through to USER/PASS
-			// Need to reconnect since server state may be broken after failed APOP
+			// APOP failed — signal caller to reconnect and retry with USER/PASS
 			_, _ = fmt.Fprintf(conn, "QUIT\r\n")
-			return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Banner: banner}
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Banner: banner, Error: errAPOPFallthrough}
 		}
 
 		// USER/PASS (default)
@@ -277,6 +281,17 @@ func BrutePOP3(host string, port int, user, password string, timeout time.Durati
 	}
 	result := pop3Auth(conn, user, password, authMethod, timeout)
 	conn.Close()
+
+	// APOP failed in auto mode — reconnect and retry with USER/PASS
+	if errors.Is(result.Error, errAPOPFallthrough) {
+		conn, err = cm.Dial("tcp", addr)
+		if err != nil {
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
+		}
+		result = pop3Auth(conn, user, password, "USER", timeout)
+		conn.Close()
+	}
+
 	if result.ConnectionSuccess {
 		return result
 	}
@@ -296,6 +311,25 @@ func BrutePOP3(host string, port int, user, password string, timeout time.Durati
 	}
 	result = pop3Auth(tlsConn, user, password, authMethod, timeout)
 	tlsConn.Close()
+
+	// APOP failed in auto mode over TLS — reconnect with TLS and retry USER/PASS
+	if errors.Is(result.Error, errAPOPFallthrough) {
+		conn, err = cm.Dial("tcp", addr)
+		if err != nil {
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
+		}
+		tlsConn = tls.Client(conn, &tls.Config{
+			InsecureSkipVerify: true,
+			ServerName:         host,
+		})
+		if err := tlsConn.Handshake(); err != nil {
+			conn.Close()
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
+		}
+		result = pop3Auth(tlsConn, user, password, "USER", timeout)
+		tlsConn.Close()
+	}
+
 	return result
 }
 

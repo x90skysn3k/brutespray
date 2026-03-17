@@ -99,16 +99,16 @@ func handleIAC(data []byte, conn interface{ Write([]byte) (int, error) }) []byte
 			case will:
 				// Accept SGA, ECHO; reject others
 				if opt == sga || opt == echo {
-					conn.Write([]byte{iac, do, opt})
+					_, _ = conn.Write([]byte{iac, do, opt})
 				} else {
-					conn.Write([]byte{iac, dont, opt})
+					_, _ = conn.Write([]byte{iac, dont, opt})
 				}
 			case do:
 				// Accept SGA, LINEMODE; reject others
 				if opt == sga || opt == linemode {
-					conn.Write([]byte{iac, will, opt})
+					_, _ = conn.Write([]byte{iac, will, opt})
 				} else {
-					conn.Write([]byte{iac, wont, opt})
+					_, _ = conn.Write([]byte{iac, wont, opt})
 				}
 			}
 			i += 3

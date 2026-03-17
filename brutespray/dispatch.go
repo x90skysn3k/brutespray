@@ -292,8 +292,9 @@ func (wp *WorkerPool) ProcessHost(host modules.Host, service string, combo strin
 	if len(missed) > 0 {
 		modules.PrintfColored(pterm.FgLightYellow, "[*] Retrying %d missed credentials for %s:%d\n", len(missed), host.Host, host.Port)
 
-		// Re-create job queue for retry pass
+		// Re-create job queue for retry pass and reset stop-on-success state
 		retryPool := wp.getOrCreateHostPool(host)
+		retryPool.ResetForRetry()
 		retryPool.jobQueue = make(chan Credential, retryPool.workers*10)
 		retryPool.Start(timeout, retry, output, cm, domain, wp.noStats)
 

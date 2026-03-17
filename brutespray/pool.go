@@ -587,6 +587,22 @@ func (hwp *HostWorkerPool) updatePerformanceMetrics(success bool, responseTime t
 	}
 }
 
+// ResetForRetry resets the host worker pool state so it can be reused for a
+// retry pass. This clears stop-on-success state, worker counts, backoff
+// counters, and skip lists that would otherwise cause retried credentials to
+// be silently dropped.
+func (hwp *HostWorkerPool) ResetForRetry() {
+	hwp.stopChan = make(chan struct{})
+	hwp.stopOnce = sync.Once{}
+	atomic.StoreInt32(&hwp.foundSuccess, 0)
+	atomic.StoreInt32(&hwp.currentWorkers, 0)
+	atomic.StoreInt64(&hwp.consecutiveConnFails, 0)
+	hwp.skipUsers = sync.Map{}
+	hwp.missedMu.Lock()
+	hwp.missedQueue = nil
+	hwp.missedMu.Unlock()
+}
+
 // DrainMissedQueue returns and clears the missed credential queue for this host.
 func (hwp *HostWorkerPool) DrainMissedQueue() []Credential {
 	hwp.missedMu.Lock()

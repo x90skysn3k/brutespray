@@ -179,3 +179,63 @@ func TestHostListFlagEmpty(t *testing.T) {
 		t.Fatal("expected error for empty host")
 	}
 }
+
+// TestValidateMutuallyExclusive tests that -u and -C are rejected together.
+func TestValidateMutuallyExclusive(t *testing.T) {
+	cfg := &Config{User: "admin", Combo: "combos.txt"}
+	err := cfg.Validate()
+	if err == nil {
+		t.Fatal("expected error for -u and -C used together")
+	}
+	if !strings.Contains(err.Error(), "mutually exclusive") {
+		t.Fatalf("expected mutually exclusive error, got: %v", err)
+	}
+}
+
+// TestValidateUnknownService tests that unknown service names are rejected.
+func TestValidateUnknownService(t *testing.T) {
+	cfg := &Config{
+		ServiceType:       "nonexistent",
+		SupportedServices: []string{"nonexistent"},
+	}
+	err := cfg.Validate()
+	if err == nil {
+		t.Fatal("expected error for unknown service")
+	}
+	if !strings.Contains(err.Error(), "unknown service") {
+		t.Fatalf("expected unknown service error, got: %v", err)
+	}
+}
+
+// TestValidateKnownService tests that known service names are accepted.
+func TestValidateKnownService(t *testing.T) {
+	cfg := &Config{
+		ServiceType:       "ssh",
+		SupportedServices: []string{"ssh"},
+	}
+	err := cfg.Validate()
+	if err != nil {
+		t.Fatalf("expected no error for known service, got: %v", err)
+	}
+}
+
+// TestValidateAllServices tests that "all" skips service validation.
+func TestValidateAllServices(t *testing.T) {
+	cfg := &Config{
+		ServiceType:       "all",
+		SupportedServices: []string{"ssh", "ftp"},
+	}
+	err := cfg.Validate()
+	if err != nil {
+		t.Fatalf("expected no error for 'all' service type, got: %v", err)
+	}
+}
+
+// TestValidateEmptyConfig tests that an empty config validates successfully.
+func TestValidateEmptyConfig(t *testing.T) {
+	cfg := &Config{}
+	err := cfg.Validate()
+	if err != nil {
+		t.Fatalf("expected no error for empty config, got: %v", err)
+	}
+}
