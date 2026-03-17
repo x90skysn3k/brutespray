@@ -90,11 +90,11 @@ func BruteSMB(host string, port int, user, password string, timeout time.Duratio
 	select {
 	case <-timer.C:
 		_ = conn.SetDeadline(time.Now())
-		conn.Close()
 		select {
 		case r := <-done:
 			return handleResult(r)
 		default:
+			conn.Close()
 			return &BruteResult{AuthSuccess: false, ConnectionSuccess: false}
 		}
 	case r := <-done:

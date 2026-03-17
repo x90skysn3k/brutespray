@@ -43,6 +43,10 @@ func GetUsersAndPasswordsCombo(h *Host, combo string, version string) ([]string,
 		}
 	} else {
 		splits := strings.SplitN(combo, ":", 2)
+		if len(splits) < 2 {
+			fmt.Printf("Invalid combo format %q (expected user:pass)\n", combo)
+			os.Exit(2)
+		}
 		userSlice = append(userSlice, splits[0])
 		passSlice = append(passSlice, splits[1])
 	}
