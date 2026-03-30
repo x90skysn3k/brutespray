@@ -73,7 +73,7 @@ Print discovered services from a scan file with `-P -q`:
 |-------|-------------|
 | [Installation](docs/installation.md) | Go install, release binaries, build from source, Docker |
 | [Usage](docs/usage.md) | CLI flags, config files, input formats |
-| [Services](docs/services.md) | All 32 protocols with ports, status, and notes |
+| [Services](docs/services.md) | All 30+ protocols with ports, status, and notes |
 | [Examples](docs/examples.md) | Common usage patterns and recipes |
 | [Interactive TUI](docs/tui.md) | Keybindings, tabs, live settings |
 | [Advanced](docs/advanced.md) | Spray mode, proxy, resume, performance tuning |
