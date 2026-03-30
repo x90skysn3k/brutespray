@@ -39,7 +39,7 @@ brutespray -H ssh://target:22 -socks5 socks5h://user:pass@proxy:1080
 Features:
 - Username/password authentication
 - Local (`socks5://`) and remote (`socks5h://`) hostname resolution
-- Works with all 24 supported services
+- Works with all 30+ supported services
 - Compatible with interface binding
 
 ## Network Interface Binding
