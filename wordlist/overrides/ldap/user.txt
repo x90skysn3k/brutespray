@@ -5,3 +5,4 @@ cn=admin
 administrator
 admin
 ldapadmin
+lam
