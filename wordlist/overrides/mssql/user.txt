@@ -2,3 +2,6 @@ sa
 root
 admin
 BUILTIN\Administrators
+NT SERVICE\MSSQLSERVER
+Windows Authentication (local administrator)
+Administrator
