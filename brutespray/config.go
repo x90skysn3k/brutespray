@@ -19,7 +19,7 @@ var masterServiceList = brute.Services()
 
 var BetaServiceList = []string{"asterisk", "nntp", "oracle", "xmpp", "ldap", "ldaps", "winrm", "ftps", "smtp-vrfy", "rexec", "rlogin", "rsh", "wrapper", "http-form", "https-form", "svn", "socks5-auth"}
 
-var version = "dev"
+var version = "2.6.1"
 var NoColorMode bool
 
 func init() {
