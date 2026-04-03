@@ -661,7 +661,7 @@ func (wp *WorkerPool) getOrCreateHostPool(host modules.Host) *HostWorkerPool {
 }
 
 // calculateOptimalThreadsForHost returns the exact threads per host as specified by user
-func (wp *WorkerPool) calculateOptimalThreadsForHost(host modules.Host) int {
+func (wp *WorkerPool) calculateOptimalThreadsForHost(_ modules.Host) int {
 	// Backward-compatible default used when not using host pool state
 	return wp.threadsPerHost
 }

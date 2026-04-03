@@ -431,8 +431,8 @@ func ParseConfig() *Config {
 	cfg.SprayDelay = *sprayDelay
 	// If user passed the .jsonl session log, resolve to the .json checkpoint
 	resume := *resumeFile
-	if strings.HasSuffix(resume, ".jsonl") {
-		resume = strings.TrimSuffix(resume, ".jsonl") + ".json"
+	if r, ok := strings.CutSuffix(resume, ".jsonl"); ok {
+		resume = r + ".json"
 	}
 	cfg.ResumeFile = resume
 	cfg.CheckpointFile = *checkpointFile
