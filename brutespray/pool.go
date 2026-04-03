@@ -137,9 +137,7 @@ func (hwp *HostWorkerPool) Start(timeout time.Duration, retry int, output string
 	stagger := time.Duration(0)
 	if hwp.workers > 1 {
 		stagger = timeout / time.Duration(hwp.workers)
-		if stagger > time.Second {
-			stagger = time.Second
-		}
+		stagger = min(stagger, time.Second)
 	}
 	for i := 0; i < hwp.workers; i++ {
 		hwp.wg.Add(1)
@@ -444,9 +442,7 @@ func (hwp *HostWorkerPool) applyAdaptiveBackoff(cred Credential) bool {
 		return false
 	}
 	backoff := time.Duration(1<<uint(fails)) * time.Second
-	if backoff > 30*time.Second {
-		backoff = 30 * time.Second
-	}
+	backoff = min(backoff, 30*time.Second)
 	if fails >= 3 {
 		hostKey := fmt.Sprintf("%s:%d", cred.Host.Host, cred.Host.Port)
 		if modules.TUIMode {
@@ -472,9 +468,7 @@ func (hwp *HostWorkerPool) processCredential(cred Credential, timeout time.Durat
 	// Random jitter to prevent workers from re-synchronizing after completing
 	// jobs with similar response times. Scale jitter with timeout.
 	maxJitter := timeout / 10
-	if maxJitter > 500*time.Millisecond {
-		maxJitter = 500 * time.Millisecond
-	}
+	maxJitter = min(maxJitter, 500*time.Millisecond)
 	if maxJitter > 0 {
 		time.Sleep(time.Duration(rand.Int63n(int64(maxJitter))))
 	}
@@ -687,9 +681,7 @@ func (wp *WorkerPool) calculateOptimalThreadsForPool(hp *HostWorkerPool) int {
 	} else if avg > 2*time.Second {
 		// Slow responses -> halve threads (down to min)
 		target = wp.threadsPerHost / 2
-		if target < 1 {
-			target = 1
-		}
+		target = max(target, 1)
 	}
 
 	// If success rate high, reduce retries via speed-up threads modestly
