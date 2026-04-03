@@ -299,7 +299,7 @@ func TestBrutePOP3Banner(t *testing.T) {
 // handlePOP3APOPChallenge handles a POP3 server that sends an APOP challenge,
 // rejects APOP auth, but accepts USER/PASS. This tests the APOP fallthrough
 // in auto mode: the module should detect APOP failure and reconnect with USER/PASS.
-func handlePOP3APOPChallenge(conn net.Conn, validUser, validPass string) {
+func handlePOP3APOPChallenge(conn net.Conn, _ , validPass string) {
 	defer conn.Close()
 	_ = conn.SetDeadline(time.Now().Add(5 * time.Second))
 	r := bufio.NewReader(conn)

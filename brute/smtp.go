@@ -228,7 +228,7 @@ func smtpNTLMAuth(conn net.Conn, user, password, domain string) bool {
 	}
 
 	// Generate authenticate message
-	authenticateMsg, err := ntlmssp.ProcessChallenge(challengeBytes, user, password, domain == "")
+	authenticateMsg, err := ntlmssp.NewAuthenticateMessage(challengeBytes, user, password, nil)
 	if err != nil {
 		return false
 	}
