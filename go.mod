@@ -1,6 +1,6 @@
 module github.com/x90skysn3k/brutespray/v2
 
-go 1.26
+go 1.26.1
 
 require (
 	github.com/Azure/go-ntlmssp v0.1.0
@@ -21,7 +21,7 @@ require (
 	github.com/mitchellh/go-vnc v0.0.0-20150629162542-723ed9867aed
 	github.com/pterm/pterm v0.12.83
 	github.com/sijms/go-ora/v2 v2.9.0
-	github.com/x90skysn3k/grdp v1.0.1
+	github.com/x90skysn3k/grdp v1.0.2
 	go.mongodb.org/mongo-driver v1.17.9
 	golang.org/x/crypto v0.49.0
 	golang.org/x/net v0.52.0
