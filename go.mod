@@ -3,7 +3,7 @@ module github.com/x90skysn3k/brutespray/v2
 go 1.26.1
 
 require (
-	github.com/Azure/go-ntlmssp v0.1.0
+	github.com/Azure/go-ntlmssp v0.1.1
 	github.com/charmbracelet/bubbles v1.0.0
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/lipgloss v1.1.0
