@@ -1,6 +1,6 @@
 # Brutespray
 
-![Version](https://img.shields.io/badge/Version-2.6.0-red)[![goreleaser](https://github.com/x90skysn3k/brutespray/actions/workflows/release.yml/badge.svg)](https://github.com/x90skysn3k/brutespray/actions/workflows/release.yml)[![Go Report Card](https://goreportcard.com/badge/github.com/x90skysn3k/brutespray/v2)](https://goreportcard.com/report/github.com/x90skysn3k/brutespray/v2)
+![Version](https://img.shields.io/badge/Version-2.6.1-red)[![goreleaser](https://github.com/x90skysn3k/brutespray/actions/workflows/release.yml/badge.svg)](https://github.com/x90skysn3k/brutespray/actions/workflows/release.yml)[![Go Report Card](https://goreportcard.com/badge/github.com/x90skysn3k/brutespray/v2)](https://goreportcard.com/report/github.com/x90skysn3k/brutespray/v2)
 
 Created by: Shane Young/@t1d3nio && Jacob Robles/@shellfail
 
@@ -73,7 +73,7 @@ Print discovered services from a scan file with `-P -q`:
 |-------|-------------|
 | [Installation](docs/installation.md) | Go install, release binaries, build from source, Docker |
 | [Usage](docs/usage.md) | CLI flags, config files, input formats |
-| [Services](docs/services.md) | All 32 protocols with ports, status, and notes |
+| [Services](docs/services.md) | All 30+ protocols with ports, status, and notes |
 | [Examples](docs/examples.md) | Common usage patterns and recipes |
 | [Interactive TUI](docs/tui.md) | Keybindings, tabs, live settings |
 | [Advanced](docs/advanced.md) | Spray mode, proxy, resume, performance tuning |

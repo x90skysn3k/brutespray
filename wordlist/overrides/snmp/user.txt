@@ -1,3 +1,5 @@
 public
 cisco
 default
+private
+admin

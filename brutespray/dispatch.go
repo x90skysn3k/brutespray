@@ -81,9 +81,7 @@ func (wp *WorkerPool) ProcessHost(host modules.Host, service string, combo strin
 	if combo != "" {
 		users, passwords := modules.GetUsersAndPasswordsCombo(&host, combo, version)
 		n := len(users)
-		if len(passwords) < n {
-			n = len(passwords)
-		}
+		n = min(n, len(passwords))
 		for i := 0; i < n; i++ {
 			// Check if we should stop before processing each credential
 			select {
@@ -299,11 +297,12 @@ func (wp *WorkerPool) ProcessHost(host modules.Host, service string, combo strin
 		retryPool.jobQueue = make(chan Credential, retryPool.workers*10)
 		retryPool.Start(timeout, retry, output, cm, domain, wp.noStats)
 
+	credLoop:
 		for _, cred := range missed {
 			select {
 			case retryPool.jobQueue <- cred:
 			case <-retryPool.stopChan:
-				break
+				break credLoop
 			case <-wp.globalStopChan:
 				retryPool.Stop()
 				return

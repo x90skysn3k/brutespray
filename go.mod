@@ -1,27 +1,27 @@
 module github.com/x90skysn3k/brutespray/v2
 
-go 1.26
+go 1.26.1
 
 require (
-	github.com/Azure/go-ntlmssp v0.0.0-20221128193559-754e69321358
+	github.com/Azure/go-ntlmssp v0.1.0
 	github.com/charmbracelet/bubbles v1.0.0
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/denisenkom/go-mssqldb v0.12.3
 	github.com/emersion/go-imap v1.2.1
 	github.com/emersion/go-sasl v0.0.0-20241020182733-b788ff22d5a6
-	github.com/go-ldap/ldap/v3 v3.4.12
+	github.com/go-ldap/ldap/v3 v3.4.13
 	github.com/go-redis/redis/v8 v8.11.5
 	github.com/go-sql-driver/mysql v1.9.3
 	github.com/gosnmp/gosnmp v1.43.2
 	github.com/hirochachacha/go-smb2 v1.1.0
 	github.com/jlaffaye/ftp v0.2.0
-	github.com/lib/pq v1.11.2
+	github.com/lib/pq v1.12.0
 	github.com/masterzen/winrm v0.0.0-20250927112105-5f8e6c707321
 	github.com/mitchellh/go-vnc v0.0.0-20150629162542-723ed9867aed
 	github.com/pterm/pterm v0.12.83
 	github.com/sijms/go-ora/v2 v2.9.0
-	github.com/x90skysn3k/grdp v1.0.1
+	github.com/x90skysn3k/grdp v1.0.2
 	go.mongodb.org/mongo-driver v1.17.9
 	golang.org/x/crypto v0.49.0
 	golang.org/x/net v0.52.0

@@ -1,6 +1,6 @@
 # Supported Services
 
-Brutespray supports 36+ protocols. Services marked as **beta** may have edge cases — please [open an issue](https://github.com/x90skysn3k/brutespray/issues) if you encounter problems.
+Brutespray supports 30+ protocols. Services marked as **beta** may have edge cases — please [open an issue](https://github.com/x90skysn3k/brutespray/issues) if you encounter problems.
 
 | Service | Default Port | Status | Notes |
 |---------|-------------|--------|-------|
