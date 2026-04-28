@@ -1,0 +1,29 @@
+name: govulncheck
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+  schedule:
+    - cron: '0 12 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+  govulncheck:
+    name: Scan Go dependencies for known vulnerabilities
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "stable"
+          cache-dependency-path: go.sum
+
+      - name: Run govulncheck
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./...
