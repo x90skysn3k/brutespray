@@ -19,7 +19,7 @@ var masterServiceList = brute.Services()
 
 var BetaServiceList = []string{"asterisk", "nntp", "oracle", "xmpp", "ldap", "ldaps", "winrm", "ftps", "smtp-vrfy", "rexec", "rlogin", "rsh", "wrapper", "http-form", "https-form", "svn", "socks5-auth"}
 
-var version = "dev"
+var version = "2.6.1"
 var NoColorMode bool
 
 func init() {
@@ -96,7 +96,8 @@ var helpGroups = []flagGroup{
 			{"-T", "hosts", "Concurrent hosts (default: 5)"},
 			{"-w", "timeout", "Attempt timeout (default: 5s)"},
 			{"-r", "retries", "Retry on connection failure (default: 3)"},
-			{"-rate", "n", "Per-host rate limit, attempts/sec (0=unlimited)"},
+			{"-rate", "n", "Per-host rate limit, attempts/sec (fractional ok, e.g. 0.1; 0=unlimited)"},
+			{"-delay", "duration", "Per-host delay between attempts (e.g. 10s); alias for -rate"},
 			{"-spray", "", "Password spray mode (rotate passwords across users)"},
 			{"-spray-delay", "duration", "Delay between spray rounds (default: 30m)"},
 			{"-stop-on-success", "", "Stop host after first valid credential"},
@@ -294,7 +295,8 @@ func ParseConfig() *Config {
 	domain := flag.String("d", "", "Domain to use for RDP authentication (optional)")
 	noColor := flag.Bool("nc", false, "Disable colored output")
 	stopOnSuccess := flag.Bool("stop-on-success", false, "Stop testing a host after finding valid credentials")
-	rateLimit := flag.Float64("rate", 0, "Per-host rate limit in attempts/second (0 = unlimited)")
+	rateLimit := flag.Float64("rate", 0, "Per-host rate limit in attempts/second; fractional values supported (e.g. 0.1 = 1 attempt every 10s; 0 = unlimited)")
+	attemptDelay := flag.Duration("delay", 0, "Per-host delay between attempts (e.g. 10s); alias for -rate, mutually exclusive")
 	sprayMode := flag.Bool("spray", false, "Spray mode: try each password across all users before next password (avoids lockouts)")
 	sprayDelay := flag.Duration("spray-delay", 30*time.Minute, "Delay between password rounds in spray mode")
 	resumeFile := flag.String("resume", "", "Resume from a checkpoint file (saved automatically on interrupt)")
@@ -427,12 +429,19 @@ func ParseConfig() *Config {
 	cfg.NoColor = *noColor
 	cfg.StopOnSuccess = *stopOnSuccess
 	cfg.RateLimit = *rateLimit
+	if *attemptDelay > 0 {
+		if cfg.RateLimit > 0 {
+			fmt.Fprintln(os.Stderr, "Error: -delay and -rate are mutually exclusive")
+			os.Exit(2)
+		}
+		cfg.RateLimit = 1.0 / attemptDelay.Seconds()
+	}
 	cfg.SprayMode = *sprayMode
 	cfg.SprayDelay = *sprayDelay
 	// If user passed the .jsonl session log, resolve to the .json checkpoint
 	resume := *resumeFile
-	if strings.HasSuffix(resume, ".jsonl") {
-		resume = strings.TrimSuffix(resume, ".jsonl") + ".json"
+	if r, ok := strings.CutSuffix(resume, ".jsonl"); ok {
+		resume = r + ".json"
 	}
 	cfg.ResumeFile = resume
 	cfg.CheckpointFile = *checkpointFile

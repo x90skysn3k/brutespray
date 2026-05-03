@@ -10,3 +10,6 @@ sa
 pi
 ubuntu
 arduino
+anonymous
+N/A
+default

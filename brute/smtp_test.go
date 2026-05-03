@@ -391,7 +391,7 @@ func TestBruteSMTPStartTLS(t *testing.T) {
 //  1. Client sends AUTH NTLM <negotiate>
 //  2. Server replies 334 <challenge>
 //  3. Client sends <authenticate>, server replies 235/535
-func handleSMTPNTLMAuth(conn net.Conn, validUser, validPass string) {
+func handleSMTPNTLMAuth(conn net.Conn, _, _ string) {
 	defer conn.Close()
 	_ = conn.SetDeadline(time.Now().Add(5 * time.Second))
 

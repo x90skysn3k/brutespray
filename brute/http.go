@@ -188,7 +188,7 @@ func bruteHTTPNTLM(client *http.Client, req *http.Request, user, password, domai
 	}
 
 	// Generate authenticate message
-	authenticateMsg, err := ntlmssp.ProcessChallenge(challengeBytes, user, password, domain == "")
+	authenticateMsg, err := ntlmssp.NewAuthenticateMessage(challengeBytes, user, password, nil)
 	if err != nil {
 		return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: err}
 	}
@@ -315,9 +315,8 @@ func parseDigestField(header, field string) string {
 	val := header[idx+len(key):]
 	if len(val) > 0 && val[0] == '"' {
 		val = val[1:]
-		end := strings.Index(val, "\"")
-		if end >= 0 {
-			return val[:end]
+		if before, _, ok := strings.Cut(val, "\""); ok {
+			return before
 		}
 		return val
 	}

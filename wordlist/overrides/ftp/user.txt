@@ -12,3 +12,12 @@ admin
 marketing
 user
 roxon
+local admin
+default
+instrument
+supervisor
+nmt
+none
+adtec
+a
+user1
