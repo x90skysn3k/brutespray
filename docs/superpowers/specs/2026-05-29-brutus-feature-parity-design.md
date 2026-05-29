@@ -57,7 +57,7 @@ Refresh cadence: monthly `chore(badkeys)` PR mirroring the existing `chore: mont
 
 **RDP Sticky-Keys backdoor scan** — after NLA fingerprint, if the target accepts standard RDP, connect to the logon screen via `x90skysn3k/grdp` (existing dep). Send 5× Shift down/up scancodes (sticky-keys trigger) and capture the resulting bitmap region around the active window. Detection is two-stage: (1) the post-trigger framebuffer must change meaningfully versus the pre-trigger frame (rules out servers ignoring input); (2) the top-left active-window region is OCR'd via a small embedded title-bar font matcher looking for `cmd.exe`, `C:\Windows\system32`, or a black console background. Finding emits as `[CRITICAL] rdp 10.0.0.5:3389 sticky-keys backdoor detected`. If detection is inconclusive (framebuffer changed but no console match), emit `[INFO] rdp 10.0.0.5:3389 sticky-keys inconclusive` so the operator can verify manually. Opt-out via `--no-rdp-scan`.
 
-**Implementation note:** the sticky-keys probe is the highest-risk piece in this spec because `grdp`'s framebuffer API may not expose the level of bitmap access this needs. If `grdp` proves too limited, fall back to a simpler signal: connect to the logon screen, send the trigger, and report `[WARN] rdp 10.0.0.5:3389 sticky-keys probe possible — manual verification required` without attempting OCR. Phase A still ships; the feature is downgraded from CRITICAL detection to WARN advisory.
+**Implementation note:** brutespray's `x90skysn3k/grdp` dependency lives at `../grdp/` and is owned by this project. The sticky-keys probe will be implemented by adding `client.RdpClient.CaptureLogonScreen(trigger LogonTrigger) (*image.RGBA, error)` (plus supporting framebuffer plumbing) to grdp, then consuming it from `brute/rdp.go`. Coordinated change across the two repos.
 
 Result type expansion in `brute/run.go`:
 
@@ -149,7 +149,8 @@ Each module follows the standard pattern from `CLAUDE.md`: `BruteXxx(host, port,
 - `brute/run.go` — `BruteResult` extension with `Finding` and `KeyMatch`
 - `brute/registry.go` — register 5 new modules
 - `brute/badkeys/` (new package) — embedded ssh-badkeys bundle
-- `brute/{neo4j,cassandra,couchdb,elasticsearch,influxdb}.go` (new) — each follows the existing module pattern; tests follow `brute/redis_test.go` / `brute/postgres_test.go` shape
+- `brute/{neo4j,cassandra,couchdb,elasticsearch,influxdb}.go` (new) — each follows the existing module pattern; tests follow `brute/redis_test.go` / `brute/postgres_test.go` shape. `wordlist/{neo4j,influxdb}` already exist with user+password files; `wordlist/{cassandra,couchdb,elasticsearch}` are empty placeholders that get populated as part of this PR.
+- `../grdp/client/` — add `CaptureLogonScreen` and `LogonTrigger` types (sibling repo, owned)
 - `brutespray/config.go` — new flags (`--no-badkeys`, `--badkeys-only`, `--no-rdp-scan`, `-c/--creds`); stable/beta service lists
 - `brutespray/dispatch.go` — inline-pairs expansion
 - `brutespray/brutespray.go` — stdin pipeline detection at `Execute()` entry
