@@ -85,6 +85,7 @@ var helpGroups = []flagGroup{
 			{"-u", "user", "Username or user file"},
 			{"-p", "pass", "Password or password file"},
 			{"-C", "user:pass", "Combo entry or combo file"},
+			{"-c", "user:pass,...", "Inline credential pairs, comma-separated (e.g. admin:admin,root:toor)"},
 			{"-e", "nsr", "Extra checks: n=blank, s=user-as-pass, r=reversed"},
 			{"-x", "MIN:MAX:CHARSET", "Generate passwords (a=lower, A=upper, 1=digit, !=sym)"},
 		},
@@ -204,6 +205,7 @@ type Config struct {
 	User              string
 	Password          string
 	Combo             string
+	Creds             string
 	Output            string
 	Summary           bool
 	NoStats           bool
@@ -318,6 +320,8 @@ func ParseConfig() *Config {
 	var moduleParamsArgs moduleParamsFlag
 	flag.Var(&moduleParamsArgs, "m", "Module-specific parameter in KEY:VALUE format (repeatable). Example: -m auth:NTLM -m dir:/admin")
 	extraCreds := flag.String("e", "", "Extra password checks: n=blank password, s=password=username, r=reversed username, combine: nsr")
+	inlineCreds := flag.String("creds", "", "Inline credential pairs, comma-separated: user:pass,user2:pass2")
+	flag.StringVar(inlineCreds, "c", "", "Alias for --creds")
 	allowWrapper := flag.Bool("allow-wrapper", false, "Allow the wrapper module to execute arbitrary commands (required for security)")
 	passwordGen := flag.String("x", "", "Generate passwords: MIN:MAX:CHARSET (a=lower, A=upper, 1=digits, !=symbols). Example: -x 4:4:1")
 	outputFormat := flag.String("output-format", "text", "Output format: text (default) or json (JSONL per-attempt)")
@@ -422,6 +426,7 @@ func ParseConfig() *Config {
 	cfg.User = *user
 	cfg.Password = *password
 	cfg.Combo = *combo
+	cfg.Creds = *inlineCreds
 	cfg.Output = *output
 	cfg.Summary = *summary
 	cfg.NoStats = *noStats

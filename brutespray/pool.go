@@ -96,6 +96,8 @@ type WorkerPool struct {
 	badKeysOnly bool
 	// RDP pre-auth recon control
 	noRDPScan bool
+	// Inline credential pairs from --creds / -c
+	inlineCreds string
 }
 
 // NewHostWorkerPool creates a new host-specific worker pool

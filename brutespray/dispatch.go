@@ -3,6 +3,7 @@ package brutespray
 import (
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/pterm/pterm"
@@ -35,6 +36,24 @@ func BuildBadKeyCreds(bundle []badkeys.Entry, userOverride string) []BadKeyCred 
 			User:     u,
 			Password: fmt.Sprintf("::badkey::%d", i),
 		})
+	}
+	return out
+}
+
+// ParseInlineCreds parses "user:pass,user2:pass2" form into BadKeyCred-shaped
+// pairs (reusing the same struct for symmetry with the bad-keys path).
+// Splits each pair on the FIRST colon so passwords containing colons survive.
+func ParseInlineCreds(s string) []BadKeyCred {
+	if s == "" {
+		return nil
+	}
+	var out []BadKeyCred
+	for _, part := range strings.Split(s, ",") {
+		idx := strings.Index(part, ":")
+		if idx < 0 {
+			continue
+		}
+		out = append(out, BadKeyCred{User: part[:idx], Password: part[idx+1:]})
 	}
 	return out
 }
@@ -218,6 +237,15 @@ func (wp *WorkerPool) ProcessHost(host modules.Host, service string, combo strin
 					return false
 				case <-wp.globalStopChan:
 					return false
+				}
+			}
+
+			// Inline credential pairs from --creds / -c — fire first across ALL services.
+			if wp.inlineCreds != "" {
+				for _, p := range ParseInlineCreds(wp.inlineCreds) {
+					if !queueCred(p.User, p.Password) {
+						break
+					}
 				}
 			}
 

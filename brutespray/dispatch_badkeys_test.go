@@ -61,3 +61,39 @@ func TestBuildBadKeyCredsUsesMetadataUserByDefault(t *testing.T) {
 	}
 	t.Fatal("no Vagrant entry in bundle")
 }
+
+func TestParseInlineCredsBasic(t *testing.T) {
+	pairs := ParseInlineCreds("admin:admin,root:toor")
+	if len(pairs) != 2 {
+		t.Fatalf("got %d pairs, want 2: %+v", len(pairs), pairs)
+	}
+	if pairs[0].User != "admin" || pairs[0].Password != "admin" {
+		t.Fatalf("pair[0]: %+v", pairs[0])
+	}
+	if pairs[1].User != "root" || pairs[1].Password != "toor" {
+		t.Fatalf("pair[1]: %+v", pairs[1])
+	}
+}
+
+func TestParseInlineCredsPasswordWithColon(t *testing.T) {
+	pairs := ParseInlineCreds("user::pass:word")
+	if len(pairs) != 1 {
+		t.Fatalf("got %d, want 1", len(pairs))
+	}
+	if pairs[0].User != "user" || pairs[0].Password != ":pass:word" {
+		t.Fatalf("colon-in-password not preserved: %+v", pairs[0])
+	}
+}
+
+func TestParseInlineCredsEmpty(t *testing.T) {
+	if got := ParseInlineCreds(""); got != nil {
+		t.Fatalf("empty input should be nil, got %+v", got)
+	}
+}
+
+func TestParseInlineCredsSkipsInvalidPair(t *testing.T) {
+	pairs := ParseInlineCreds("admin:admin,notapair,root:toor")
+	if len(pairs) != 2 {
+		t.Fatalf("invalid middle pair should be skipped: got %d", len(pairs))
+	}
+}
