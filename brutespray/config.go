@@ -200,48 +200,48 @@ func customUsage() {
 
 // Config holds all parsed configuration for a brutespray run
 type Config struct {
-	User                string
-	Password            string
-	Combo               string
-	Output              string
-	Summary             bool
-	NoStats             bool
-	Silent              bool
-	LogEvery            int
-	Threads             int
-	HostParallelism     int
-	SocksProxy          string
-	ProxyList           string
-	NetInterface        string
-	ServiceType         string
-	File                string
-	HostArgs            hostListFlag
-	Quiet               bool
-	Timeout             time.Duration
-	Retry               int
-	PrintHosts          bool
-	Domain              string
-	NoColor             bool
-	StopOnSuccess       bool
-	RateLimit           float64
-	SprayMode           bool
-	SprayDelay          time.Duration
-	ResumeFile          string
-	CheckpointFile      string
-	ConfigFile          string
-	TUI                 bool
-	Hosts               []modules.Host
-	SupportedServices   []string
-	TotalCombinations   int
-	ModuleParams        map[string]string
-	UseUsernameAsPass   bool
-	UseReversedPass     bool
-	AllowWrapper        bool
-	BadKeysOnly         bool
-	NoBadKeys           bool
-	PasswordGenSpec     string
-	PasswordGen         *modules.PasswordGenerator
-	OutputFormat        string
+	User              string
+	Password          string
+	Combo             string
+	Output            string
+	Summary           bool
+	NoStats           bool
+	Silent            bool
+	LogEvery          int
+	Threads           int
+	HostParallelism   int
+	SocksProxy        string
+	ProxyList         string
+	NetInterface      string
+	ServiceType       string
+	File              string
+	HostArgs          hostListFlag
+	Quiet             bool
+	Timeout           time.Duration
+	Retry             int
+	PrintHosts        bool
+	Domain            string
+	NoColor           bool
+	StopOnSuccess     bool
+	RateLimit         float64
+	SprayMode         bool
+	SprayDelay        time.Duration
+	ResumeFile        string
+	CheckpointFile    string
+	ConfigFile        string
+	TUI               bool
+	Hosts             []modules.Host
+	SupportedServices []string
+	TotalCombinations int
+	ModuleParams      map[string]string
+	UseUsernameAsPass bool
+	UseReversedPass   bool
+	AllowWrapper      bool
+	BadKeysOnly       bool
+	NoBadKeys         bool
+	PasswordGenSpec   string
+	PasswordGen       *modules.PasswordGenerator
+	OutputFormat      string
 }
 
 // Validate checks for mutually exclusive flags, contradictory options,
@@ -251,6 +251,9 @@ func (cfg *Config) Validate() error {
 	// Mutually exclusive flags
 	if cfg.User != "" && cfg.Combo != "" {
 		return fmt.Errorf("-u and -C are mutually exclusive")
+	}
+	if cfg.NoBadKeys && cfg.BadKeysOnly {
+		return fmt.Errorf("--no-badkeys and --badkeys-only are mutually exclusive")
 	}
 
 	// Contradictory flags (warn, don't error)
