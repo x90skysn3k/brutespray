@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
+	"github.com/neo4j/neo4j-go-driver/v5/neo4j/config"
 	"github.com/x90skysn3k/brutespray/v2/modules"
 )
 
@@ -19,7 +20,7 @@ func BruteNeo4j(host string, port int, user, password string, timeout time.Durat
 	return RunWithTimeout(timeout, func(ctx context.Context) *BruteResult {
 		uri := fmt.Sprintf("bolt://%s:%d", host, port)
 		driver, err := neo4j.NewDriverWithContext(uri, neo4j.BasicAuth(user, password, ""),
-			func(c *neo4j.Config) {
+			func(c *config.Config) {
 				c.SocketConnectTimeout = timeout
 			})
 		if err != nil {
