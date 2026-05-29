@@ -48,16 +48,10 @@ func reverseString(s string) string {
 	return string(runes)
 }
 
-// emitFinding writes a pre-auth recon finding to the operator's output stream.
-// Task A8 replaces this with text/JSONL/TUI dispatch; for now it lands on
-// stderr so findings are visible during development.
+// emitFinding routes a pre-auth recon finding through the output layer
+// (text/JSONL/TUI) via modules.WriteFinding.
 func emitFinding(host modules.Host, f *brute.Finding) {
-	cve := ""
-	if f.CVE != "" {
-		cve = " (" + f.CVE + ")"
-	}
-	fmt.Fprintf(os.Stderr, "[%s] %s %s:%d %s%s\n",
-		f.Severity, host.Service, host.Host, host.Port, f.Message, cve)
+	modules.WriteFinding(f.Severity, f.Code, host.Service, host.Host, host.Port, f.Message, f.CVE)
 }
 
 // ProcessHost processes a single host with all its credentials using dedicated host worker pool
