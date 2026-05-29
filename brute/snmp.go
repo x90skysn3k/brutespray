@@ -24,7 +24,16 @@ func BruteSNMP(host string, port int, user, password string, timeout time.Durati
 	hasher.Write([]byte(password))
 	md5Password := hex.EncodeToString(hasher.Sum(nil))
 
-	communityStrings := []string{user, md5Password}
+	var communityStrings []string
+	tier := params["mode"]
+	if tier != "" {
+		if tierList, terr := modules.SNMPCommunities(tier); terr == nil {
+			communityStrings = tierList
+		}
+	}
+	if len(communityStrings) == 0 {
+		communityStrings = []string{user, md5Password}
+	}
 
 	// Pre-dial to check connectivity (UDP proxy not supported)
 	udpConn, err := cm.DialUDP("udp", fmt.Sprintf("%s:%d", host, port))
