@@ -105,3 +105,6 @@ services:
   wrapper:
     users: [sysadmin_users]
     passwords: [common_passwords]
+  couchdb:
+    users: ["couchdb/user"]
+    passwords: ["couchdb/password"]
