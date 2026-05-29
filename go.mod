@@ -2,6 +2,8 @@ module github.com/x90skysn3k/brutespray/v2
 
 go 1.26.1
 
+replace github.com/x90skysn3k/grdp => ../grdp
+
 require (
 	github.com/Azure/go-ntlmssp v0.1.1
 	github.com/charmbracelet/bubbles v1.0.0
@@ -63,6 +65,8 @@ require (
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/hashicorp/go-uuid v1.0.3 // indirect
+	github.com/huin/asn1ber v0.0.0-20120622192748-af09f62e6358 // indirect
+	github.com/icodeface/tls v0.0.0-20190904083142-17aec93c60e5 // indirect
 	github.com/jcmturner/aescts/v2 v2.0.0 // indirect
 	github.com/jcmturner/dnsutils/v2 v2.0.0 // indirect
 	github.com/jcmturner/gofork v1.7.6 // indirect

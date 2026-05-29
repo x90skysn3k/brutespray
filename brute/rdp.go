@@ -52,3 +52,42 @@ func BruteRDP(host string, port int, user, password string, timeout time.Duratio
 }
 
 func init() { Register("rdp", BruteRDP) }
+
+func nlaFinding(status string) *Finding {
+	switch status {
+	case "required":
+		return &Finding{Severity: "INFO", Code: "rdp-nla-required",
+			Message: "NLA (CredSSP) enforced"}
+	case "not-enforced":
+		return &Finding{Severity: "WARN", Code: "rdp-nla-missing",
+			Message: "NLA not enforced — server accepts standard RDP without pre-auth"}
+	case "hybrid-ex":
+		return &Finding{Severity: "INFO", Code: "rdp-nla-hybridex",
+			Message: "HybridEx (NLA + CredSSP early-user auth) enforced"}
+	}
+	return nil
+}
+
+// ScanRDPRecon runs pre-auth RDP recon (NLA fingerprint, sticky-keys probe)
+// against a single target. Returns a slice of findings to emit. Called once
+// per host by the dispatcher before any brute attempts.
+func ScanRDPRecon(host string, port int, timeout time.Duration) []*Finding {
+	target := fmt.Sprintf("%s:%d", host, port)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	status, err := client.FingerprintNLA(ctx, target, timeout)
+	if err != nil {
+		return nil
+	}
+	var out []*Finding
+	switch status {
+	case client.NLARequired:
+		out = append(out, nlaFinding("required"))
+	case client.NLANotEnforced:
+		out = append(out, nlaFinding("not-enforced"))
+	case client.NLAHybridEx:
+		out = append(out, nlaFinding("hybrid-ex"))
+	}
+	// Sticky-keys probe slots in here in Task A6.
+	return out
+}
