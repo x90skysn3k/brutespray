@@ -49,3 +49,19 @@ type ErrorMsg struct {
 	Message   string
 	Timestamp time.Time
 }
+
+// FindingEntry holds a single pre-auth recon finding.
+type FindingEntry struct {
+	Severity string
+	Code     string
+	Service  string
+	Target   string
+	Message  string
+	CVE      string
+	Time     time.Time
+}
+
+// FindingMsg is sent when a pre-auth recon finding is produced.
+type FindingMsg struct {
+	Entry FindingEntry
+}
