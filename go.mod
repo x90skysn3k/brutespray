@@ -21,6 +21,7 @@ require (
 	github.com/lib/pq v1.12.3
 	github.com/masterzen/winrm v0.0.0-20250927112105-5f8e6c707321
 	github.com/mitchellh/go-vnc v0.0.0-20150629162542-723ed9867aed
+	github.com/neo4j/neo4j-go-driver/v5 v5.28.4
 	github.com/pterm/pterm v0.12.83
 	github.com/sijms/go-ora/v2 v2.9.0
 	github.com/x90skysn3k/grdp v1.0.2
