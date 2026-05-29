@@ -91,6 +91,13 @@ type WorkerPool struct {
 	// Extra credential options
 	useReversedPass bool
 	passwordGen     *modules.PasswordGenerator
+	// SSH bad-keys pre-pass control
+	noBadKeys   bool
+	badKeysOnly bool
+	// RDP pre-auth recon control
+	noRDPScan bool
+	// Inline credential pairs from --creds / -c
+	inlineCreds string
 }
 
 // NewHostWorkerPool creates a new host-specific worker pool
@@ -539,6 +546,7 @@ func (hwp *HostWorkerPool) processCredential(cred Credential, timeout time.Durat
 		Duration:  duration,
 		Timestamp: startTime,
 		Banner:    result.Banner,
+		KeyMatch:  result.KeyMatch,
 	})
 
 	// Write to session log for resume replay

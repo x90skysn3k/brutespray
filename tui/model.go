@@ -89,6 +89,8 @@ type Model struct {
 	version string
 
 	splashActive bool
+
+	findings []FindingEntry
 }
 
 // NewModel creates a new TUI model. resumedProgress is the number of attempts
@@ -200,6 +202,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			state.Completed = true
 		}
 		m.completedView.AddCompleted(msg)
+		return m, nil
+
+	case FindingMsg:
+		m.findings = append(m.findings, msg.Entry)
 		return m, nil
 
 	case doneMsg:
@@ -389,6 +395,7 @@ func (m Model) View() string {
 		TabCompleted: m.completedView.Count(),
 		TabSuccess:   m.successView.Count(),
 		TabErrors:    m.errorsView.Count(),
+		TabFindings:  len(m.findings),
 	}
 
 	tabBar := RenderTabBar(m.activeTab, m.width, &m.scheme, badges, m.tabBarFocused, m.version)
@@ -407,6 +414,8 @@ func (m Model) View() string {
 		content = m.successView.View(&m.scheme)
 	case TabErrors:
 		content = m.errorsView.View(&m.scheme)
+	case TabFindings:
+		content = m.viewFindings()
 	case TabSettings:
 		content = m.settingsView.View(&m.scheme)
 	}

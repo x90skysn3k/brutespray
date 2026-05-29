@@ -140,3 +140,22 @@ brutespray wordlist research     # AI-powered wordlist research via Ollama
 brutespray wordlist merge        # Merge research candidates into wordlists
 brutespray wordlist download -o path  # Download rockyou.txt
 ```
+
+## SNMP community-string tiers
+
+The `snmp` module ships three embedded tiers of community strings, selected
+via `-m mode:<tier>`. Default behavior (no `-m mode`) uses the operator's
+`-u` / `-p` values as community strings (legacy mode); the tiers replace
+that with a curated list:
+
+| Tier | Size | Contents |
+|---|---|---|
+| `default` | 20 | classic public/private/cisco-style community strings |
+| `extended` | 55 | + per-vendor (Cisco / HP / Juniper) enterprise defaults |
+| `full` | 92 | + SCADA controllers, IP cameras, NAS / storage arrays |
+
+Example:
+
+```
+brutespray -s snmp -H 10.0.0.0/24 -m mode:full
+```

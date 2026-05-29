@@ -40,6 +40,10 @@
 | `--allow-wrapper` | Allow wrapper module to execute commands | `--allow-wrapper` |
 | `--output-format` | Per-attempt output format: text (default) or json | `--output-format json` |
 | `--proxy-list` | File with proxy list for rotation (one per line) | `--proxy-list proxies.txt` |
+| `--no-badkeys` | Skip the embedded SSH bad-keys pre-pass | `--no-badkeys` |
+| `--badkeys-only` | Run the embedded SSH bad-keys pre-pass only; skip passwords | `--badkeys-only` |
+| `--no-rdp-scan` | Skip pre-auth RDP recon (NLA + sticky-keys) | `--no-rdp-scan` |
+| `-c`, `--creds` | Inline credential pairs, comma-separated: `admin:admin,root:toor` | `-c admin:admin,root:toor` |
 
 ## YAML Config File
 
@@ -188,4 +192,17 @@ For use with `-C`:
 root:root
 admin:admin
 user1:password123
+```
+
+### Reading targets from stdin
+
+When `-f` is not supplied and stdin is a pipe, brutespray reads targets
+from stdin and auto-detects the input format (naabu line, Nerva URI,
+Nerva JSON, fingerprintx JSON, masscan JSON). The target list is
+appended to whatever `-H` arguments were given on the CLI.
+
+```
+naabu -host 10.0.0.0/24 -p 22 -silent | brutespray -u root -P wordlist/ssh/password
+masscan -p22,3389 10.0.0.0/24 -oJ - | brutespray -u admin -p admin
+fingerprintx -t 10.0.0.0/24 --json | brutespray --no-badkeys
 ```

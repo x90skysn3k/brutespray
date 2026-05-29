@@ -1,13 +1,62 @@
 package brutespray
 
 import (
+	"fmt"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/pterm/pterm"
 	"github.com/x90skysn3k/brutespray/v2/brute"
+	"github.com/x90skysn3k/brutespray/v2/brute/badkeys"
 	"github.com/x90skysn3k/brutespray/v2/modules"
 	"github.com/x90skysn3k/brutespray/v2/tui"
 )
+
+// BadKeyCred is a synthetic user/password pair for the SSH bad-keys pre-pass.
+// Password carries the marker "::badkey::N" where N indexes into the bundle;
+// BruteSSH unpacks this marker (see brute/ssh.go:badKeyMarker).
+type BadKeyCred struct {
+	User     string
+	Password string
+}
+
+// BuildBadKeyCreds turns the embedded bad-keys bundle into a list of synthetic
+// credential pairs. When userOverride is set (operator passed -u explicitly),
+// every pair uses that username; otherwise each entry's metadata-suggested
+// user is used (root for F5, vagrant for Vagrant, etc.).
+func BuildBadKeyCreds(bundle []badkeys.Entry, userOverride string) []BadKeyCred {
+	out := make([]BadKeyCred, 0, len(bundle))
+	for i, e := range bundle {
+		u := e.Username
+		if userOverride != "" {
+			u = userOverride
+		}
+		out = append(out, BadKeyCred{
+			User:     u,
+			Password: fmt.Sprintf("::badkey::%d", i),
+		})
+	}
+	return out
+}
+
+// ParseInlineCreds parses "user:pass,user2:pass2" form into BadKeyCred-shaped
+// pairs (reusing the same struct for symmetry with the bad-keys path).
+// Splits each pair on the FIRST colon so passwords containing colons survive.
+func ParseInlineCreds(s string) []BadKeyCred {
+	if s == "" {
+		return nil
+	}
+	var out []BadKeyCred
+	for _, part := range strings.Split(s, ",") {
+		idx := strings.Index(part, ":")
+		if idx < 0 {
+			continue
+		}
+		out = append(out, BadKeyCred{User: part[:idx], Password: part[idx+1:]})
+	}
+	return out
+}
 
 // reverseString returns the reversed version of a string.
 func reverseString(s string) string {
@@ -16,6 +65,12 @@ func reverseString(s string) string {
 		runes[i], runes[j] = runes[j], runes[i]
 	}
 	return string(runes)
+}
+
+// emitFinding routes a pre-auth recon finding through the output layer
+// (text/JSONL/TUI) via modules.WriteFinding.
+func emitFinding(host modules.Host, f *brute.Finding) {
+	modules.WriteFinding(f.Severity, f.Code, host.Service, host.Host, host.Port, f.Message, f.CVE)
 }
 
 // ProcessHost processes a single host with all its credentials using dedicated host worker pool
@@ -185,7 +240,57 @@ func (wp *WorkerPool) ProcessHost(host modules.Host, service string, combo strin
 				}
 			}
 
-				if wp.sprayMode {
+			// Inline credential pairs from --creds / -c — fire first across ALL services.
+			if wp.inlineCreds != "" {
+				for _, p := range ParseInlineCreds(wp.inlineCreds) {
+					if !queueCred(p.User, p.Password) {
+						break
+					}
+				}
+			}
+
+			// SSH bad-keys pre-pass: try the embedded bundle before any password list.
+			// Opt-out via --no-badkeys; --badkeys-only short-circuits the regular loop.
+			if service == "ssh" && !wp.noBadKeys {
+				// effectiveBadKeyUser is the username to apply across the bad-keys pre-pass.
+				// When -u is a file path (wordlist), we cannot use a single value — fall back
+				// to each entry's metadata-suggested user. When -u is a bare username, use it
+				// as the override.
+				effectiveBadKeyUser := ""
+				if user != "" {
+					if _, statErr := os.Stat(user); statErr != nil {
+						// Not a file → treat as a bare username
+						effectiveBadKeyUser = user
+					}
+				}
+				if bundle, err := badkeys.Load(); err == nil {
+					for _, pair := range BuildBadKeyCreds(bundle, effectiveBadKeyUser) {
+						if !queueCred(pair.User, pair.Password) {
+							break
+						}
+					}
+				} else {
+					fmt.Fprintf(os.Stderr, "warning: bad-keys bundle load failed (skipping pre-pass): %v\n", err)
+				}
+			}
+			// RDP pre-auth recon: NLA fingerprint + sticky-keys probe.
+			// Opt-out via --no-rdp-scan. Unlike --badkeys-only there is no
+			// RDP-scan-only mode — regular cred attempts always continue after.
+			if service == "rdp" && !wp.noRDPScan {
+				findings := brute.ScanRDPRecon(host.Host, host.Port, timeout)
+				for _, f := range findings {
+					emitFinding(host, f)
+				}
+			}
+
+			if service == "ssh" && wp.badKeysOnly {
+				// NOTE: --badkeys-only returns before the regular cred loop, which means
+				// hostPool.jobQueue is not closed here. Global wp.Stop() handles eventual
+				// cleanup; tighten if profiling shows the premature exit matters.
+				return
+			}
+
+			if wp.sprayMode {
 				// Spray: try each password across all users before next password
 
 				// Prepend username-as-password round if -e s

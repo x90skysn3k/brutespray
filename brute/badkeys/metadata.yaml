@@ -1,0 +1,59 @@
+# Rapid7 ssh-badkeys snapshot + Vagrant insecure key
+# Only the authorized/ directory (client private keys found in real-world
+# authorized_keys files) is mirrored here. The host/ directory (SSH server
+# identity keys extracted from firmware) is intentionally excluded — host keys
+# are not usable for client-side authentication.
+
+- file: vagrant-default.key
+  username: vagrant
+  vendor: HashiCorp Vagrant
+  cve: ""
+  description: Vagrant insecure default SSH key (any Vagrant VM using the default insecure keypair)
+
+- file: f5-bigip-cve-2012-1493.key
+  username: root
+  vendor: F5 BIG-IP
+  cve: CVE-2012-1493
+  description: F5 BIG-IP 9.x-11.x hardcoded root SSH key used for device communication
+
+- file: exagrid-cve-2016-1561.key
+  username: root
+  vendor: ExaGrid
+  cve: CVE-2016-1561
+  description: ExaGrid EX-series backup appliance hardcoded backdoor SSH key
+
+- file: ceragon-fibeair-cve-2015-0936.key
+  username: mateidu
+  vendor: Ceragon FibeAir
+  cve: CVE-2015-0936
+  description: Ceragon FibeAir IP-10 microwave radio hardcoded support/admin SSH key
+
+- file: monroe-dasdec-cve-2013-0137.key
+  username: root
+  vendor: Monroe Electronics DASDEC
+  cve: CVE-2013-0137
+  description: Monroe Electronics / Digital Alert Systems DASDEC EAS device hardcoded key
+
+- file: barracuda_load_balancer_vm.key
+  username: cluster
+  vendor: Barracuda Networks
+  cve: CVE-2014-8428
+  description: Barracuda Load Balancer VM hardcoded cluster SSH key
+
+- file: array-networks-vapv-vxag.key
+  username: sync
+  vendor: Array Networks
+  cve: ""
+  description: Array Networks vAPV / vxAG SSL VPN hardcoded sync user SSH key
+
+- file: loadbalancer.org-enterprise-va.key
+  username: root
+  vendor: Loadbalancer.org
+  cve: ""
+  description: Loadbalancer.org Enterprise VA 7.5.2 static root SSH key
+
+- file: quantum-dxi-v1000.key
+  username: root
+  vendor: Quantum
+  cve: ""
+  description: Quantum DXi V1000 deduplication appliance hardcoded root SSH key

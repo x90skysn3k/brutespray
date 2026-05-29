@@ -12,10 +12,27 @@ import (
 	"github.com/x90skysn3k/brutespray/v2/brute"
 	"github.com/x90skysn3k/brutespray/v2/modules"
 	"github.com/x90skysn3k/brutespray/v2/tui"
+	"golang.org/x/term"
 )
 
 func Execute() {
 	cfg := ParseConfig()
+
+	// Read targets from stdin only when NO other target source is supplied
+	// (-f file, -H host args) AND stdin is actually piped (not a TTY).
+	// Auto-detects naabu/nerva URI/Nerva JSON/fingerprintx JSON/masscan JSON.
+	// The HostArgs / File guard prevents CI/test runs where stdin is redirected
+	// to /dev/null but the operator passed targets explicitly via -H from
+	// triggering an empty-stream error.
+	if cfg.File == "" && len(cfg.HostArgs) == 0 && len(cfg.Hosts) == 0 && !term.IsTerminal(int(os.Stdin.Fd())) {
+		hosts, err := modules.ParseStream(os.Stdin)
+		if err == nil && len(hosts) > 0 {
+			cfg.Hosts = append(cfg.Hosts, hosts...)
+		}
+		// Silently no-op on empty/unrecognized stdin: the operator may have
+		// run brutespray with no targets at all (which the existing flow
+		// already handles by printing the help banner).
+	}
 
 	totalHosts := len(cfg.Hosts)
 
@@ -60,6 +77,19 @@ func executeTUI(cfg *Config, cm *modules.ConnectionManager, totalHosts int) {
 
 	eventBus := tui.NewEventBus()
 	modules.ErrorSink = eventBus.SendError
+	modules.FindingSink = func(severity, code, service, target, message, cve string) {
+		eventBus.Send(tui.FindingMsg{
+			Entry: tui.FindingEntry{
+				Severity: severity,
+				Code:     code,
+				Service:  service,
+				Target:   target,
+				Message:  message,
+				CVE:      cve,
+				Time:     time.Now(),
+			},
+		})
+	}
 	workerPool := NewWorkerPool(cfg.Threads, eventBus, cfg.HostParallelism, totalHosts)
 	workerPool.stopOnSuccess = cfg.StopOnSuccess
 	workerPool.rateLimit = cfg.RateLimit
@@ -67,6 +97,10 @@ func executeTUI(cfg *Config, cm *modules.ConnectionManager, totalHosts int) {
 	workerPool.sprayDelay = cfg.SprayDelay
 	workerPool.useReversedPass = cfg.UseReversedPass
 	workerPool.passwordGen = cfg.PasswordGen
+	workerPool.noBadKeys = cfg.NoBadKeys
+	workerPool.badKeysOnly = cfg.BadKeysOnly
+	workerPool.noRDPScan = cfg.NoRDPScan
+	workerPool.inlineCreds = cfg.Creds
 
 	// Initialize checkpoint
 	var replayEntries []modules.SessionEntry
@@ -167,6 +201,10 @@ func executeLegacy(cfg *Config, cm *modules.ConnectionManager, totalHosts int) {
 	workerPool.sprayDelay = cfg.SprayDelay
 	workerPool.useReversedPass = cfg.UseReversedPass
 	workerPool.passwordGen = cfg.PasswordGen
+	workerPool.noBadKeys = cfg.NoBadKeys
+	workerPool.badKeysOnly = cfg.BadKeysOnly
+	workerPool.noRDPScan = cfg.NoRDPScan
+	workerPool.inlineCreds = cfg.Creds
 
 	// Initialize checkpoint for resume capability
 	if cfg.ResumeFile != "" {

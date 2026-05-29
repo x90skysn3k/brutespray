@@ -17,9 +17,9 @@ import (
 
 var masterServiceList = brute.Services()
 
-var BetaServiceList = []string{"asterisk", "nntp", "oracle", "xmpp", "ldap", "ldaps", "winrm", "ftps", "smtp-vrfy", "rexec", "rlogin", "rsh", "wrapper", "http-form", "https-form", "svn", "socks5-auth"}
+var BetaServiceList = []string{"asterisk", "nntp", "oracle", "xmpp", "ldap", "ldaps", "winrm", "ftps", "smtp-vrfy", "rexec", "rlogin", "rsh", "wrapper", "http-form", "https-form", "svn", "socks5-auth", "neo4j", "cassandra"}
 
-var version = "2.6.1"
+var version = "2.6.2"
 var NoColorMode bool
 
 func init() {
@@ -85,6 +85,7 @@ var helpGroups = []flagGroup{
 			{"-u", "user", "Username or user file"},
 			{"-p", "pass", "Password or password file"},
 			{"-C", "user:pass", "Combo entry or combo file"},
+			{"-c", "user:pass,...", "Inline credential pairs, comma-separated (e.g. admin:admin,root:toor)"},
 			{"-e", "nsr", "Extra checks: n=blank, s=user-as-pass, r=reversed"},
 			{"-x", "MIN:MAX:CHARSET", "Generate passwords (a=lower, A=upper, 1=digit, !=sym)"},
 		},
@@ -134,6 +135,9 @@ var helpGroups = []flagGroup{
 			{"-checkpoint", "file", "Checkpoint file (default: brutespray-checkpoint.json)"},
 			{"-resume", "file", "Resume from checkpoint"},
 			{"-allow-wrapper", "", "Allow wrapper module (executes commands)"},
+			{"-no-badkeys", "", "Skip SSH bad-keys pre-pass for SSH targets"},
+			{"-badkeys-only", "", "Run SSH bad-keys pre-pass only; skip password attempts"},
+			{"-no-rdp-scan", "", "Skip pre-auth RDP recon (NLA fingerprint, sticky-keys probe)"},
 		},
 	},
 }
@@ -198,46 +202,50 @@ func customUsage() {
 
 // Config holds all parsed configuration for a brutespray run
 type Config struct {
-	User                string
-	Password            string
-	Combo               string
-	Output              string
-	Summary             bool
-	NoStats             bool
-	Silent              bool
-	LogEvery            int
-	Threads             int
-	HostParallelism     int
-	SocksProxy          string
-	ProxyList           string
-	NetInterface        string
-	ServiceType         string
-	File                string
-	HostArgs            hostListFlag
-	Quiet               bool
-	Timeout             time.Duration
-	Retry               int
-	PrintHosts          bool
-	Domain              string
-	NoColor             bool
-	StopOnSuccess       bool
-	RateLimit           float64
-	SprayMode           bool
-	SprayDelay          time.Duration
-	ResumeFile          string
-	CheckpointFile      string
-	ConfigFile          string
-	TUI                 bool
-	Hosts               []modules.Host
-	SupportedServices   []string
-	TotalCombinations   int
-	ModuleParams        map[string]string
-	UseUsernameAsPass   bool
-	UseReversedPass     bool
-	AllowWrapper        bool
-	PasswordGenSpec     string
-	PasswordGen         *modules.PasswordGenerator
-	OutputFormat        string
+	User              string
+	Password          string
+	Combo             string
+	Creds             string
+	Output            string
+	Summary           bool
+	NoStats           bool
+	Silent            bool
+	LogEvery          int
+	Threads           int
+	HostParallelism   int
+	SocksProxy        string
+	ProxyList         string
+	NetInterface      string
+	ServiceType       string
+	File              string
+	HostArgs          hostListFlag
+	Quiet             bool
+	Timeout           time.Duration
+	Retry             int
+	PrintHosts        bool
+	Domain            string
+	NoColor           bool
+	StopOnSuccess     bool
+	RateLimit         float64
+	SprayMode         bool
+	SprayDelay        time.Duration
+	ResumeFile        string
+	CheckpointFile    string
+	ConfigFile        string
+	TUI               bool
+	Hosts             []modules.Host
+	SupportedServices []string
+	TotalCombinations int
+	ModuleParams      map[string]string
+	UseUsernameAsPass bool
+	UseReversedPass   bool
+	AllowWrapper      bool
+	BadKeysOnly       bool
+	NoBadKeys         bool
+	NoRDPScan         bool
+	PasswordGenSpec   string
+	PasswordGen       *modules.PasswordGenerator
+	OutputFormat      string
 }
 
 // Validate checks for mutually exclusive flags, contradictory options,
@@ -247,6 +255,9 @@ func (cfg *Config) Validate() error {
 	// Mutually exclusive flags
 	if cfg.User != "" && cfg.Combo != "" {
 		return fmt.Errorf("-u and -C are mutually exclusive")
+	}
+	if cfg.NoBadKeys && cfg.BadKeysOnly {
+		return fmt.Errorf("--no-badkeys and --badkeys-only are mutually exclusive")
 	}
 
 	// Contradictory flags (warn, don't error)
@@ -295,6 +306,9 @@ func ParseConfig() *Config {
 	domain := flag.String("d", "", "Domain to use for RDP authentication (optional)")
 	noColor := flag.Bool("nc", false, "Disable colored output")
 	stopOnSuccess := flag.Bool("stop-on-success", false, "Stop testing a host after finding valid credentials")
+	noBadKeys := flag.Bool("no-badkeys", false, "Skip SSH bad-keys pre-pass for SSH targets")
+	badKeysOnly := flag.Bool("badkeys-only", false, "Run SSH bad-keys pre-pass only; skip password attempts")
+	noRDPScan := flag.Bool("no-rdp-scan", false, "Skip pre-auth RDP recon (NLA fingerprint, sticky-keys probe)")
 	rateLimit := flag.Float64("rate", 0, "Per-host rate limit in attempts/second; fractional values supported (e.g. 0.1 = 1 attempt every 10s; 0 = unlimited)")
 	attemptDelay := flag.Duration("delay", 0, "Per-host delay between attempts (e.g. 10s); alias for -rate, mutually exclusive")
 	sprayMode := flag.Bool("spray", false, "Spray mode: try each password across all users before next password (avoids lockouts)")
@@ -306,6 +320,8 @@ func ParseConfig() *Config {
 	var moduleParamsArgs moduleParamsFlag
 	flag.Var(&moduleParamsArgs, "m", "Module-specific parameter in KEY:VALUE format (repeatable). Example: -m auth:NTLM -m dir:/admin")
 	extraCreds := flag.String("e", "", "Extra password checks: n=blank password, s=password=username, r=reversed username, combine: nsr")
+	inlineCreds := flag.String("creds", "", "Inline credential pairs, comma-separated: user:pass,user2:pass2")
+	flag.StringVar(inlineCreds, "c", "", "Alias for --creds")
 	allowWrapper := flag.Bool("allow-wrapper", false, "Allow the wrapper module to execute arbitrary commands (required for security)")
 	passwordGen := flag.String("x", "", "Generate passwords: MIN:MAX:CHARSET (a=lower, A=upper, 1=digits, !=symbols). Example: -x 4:4:1")
 	outputFormat := flag.String("output-format", "text", "Output format: text (default) or json (JSONL per-attempt)")
@@ -410,6 +426,7 @@ func ParseConfig() *Config {
 	cfg.User = *user
 	cfg.Password = *password
 	cfg.Combo = *combo
+	cfg.Creds = *inlineCreds
 	cfg.Output = *output
 	cfg.Summary = *summary
 	cfg.NoStats = *noStats
@@ -428,6 +445,9 @@ func ParseConfig() *Config {
 	cfg.Domain = *domain
 	cfg.NoColor = *noColor
 	cfg.StopOnSuccess = *stopOnSuccess
+	cfg.NoBadKeys = *noBadKeys
+	cfg.BadKeysOnly = *badKeysOnly
+	cfg.NoRDPScan = *noRDPScan
 	cfg.RateLimit = *rateLimit
 	if *attemptDelay > 0 {
 		if cfg.RateLimit > 0 {

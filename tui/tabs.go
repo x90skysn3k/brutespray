@@ -17,11 +17,12 @@ const (
 	TabCompleted
 	TabSuccess
 	TabErrors
+	TabFindings
 	TabSettings
 	tabCount // sentinel for total count
 )
 
-var tabNames = []string{"All", "By Host", "By Service", "Completed", "Successes", "Errors", "Settings"}
+var tabNames = []string{"All", "By Host", "By Service", "Completed", "Successes", "Errors", "Findings", "Settings"}
 
 // brandText is the compact brand name shown in the top-right of the tab bar.
 const brandText = "BRUTESPRAY"

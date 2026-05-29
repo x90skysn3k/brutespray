@@ -1,6 +1,6 @@
 # Supported Services
 
-Brutespray supports 30+ protocols. Services marked as **beta** may have edge cases — please [open an issue](https://github.com/x90skysn3k/brutespray/issues) if you encounter problems.
+Brutespray supports 40+ protocols. Services marked as **beta** may have edge cases — please [open an issue](https://github.com/x90skysn3k/brutespray/issues) if you encounter problems.
 
 | Service | Default Port | Status | Notes |
 |---------|-------------|--------|-------|
@@ -17,6 +17,11 @@ Brutespray supports 30+ protocols. Services marked as **beta** may have edge cas
 | mssql | 1433 | Stable | Configurable domain (`-m domain:CORP`) |
 | mongodb | 27017 | Stable | |
 | redis | 6379 | Stable | Password-only auth, configurable DB (`-m db:N`) |
+| couchdb | 5984 | Stable | HTTP POST to `/_session`; `-m tls:true` for HTTPS |
+| elasticsearch | 9200 | Stable | HTTP basic auth on `/_cluster/health`; `-m tls:true` for HTTPS |
+| influxdb | 8086 | Stable | v2 token by default; `-m mode:v1` for InfluxDB 1.x basic auth |
+| neo4j | 7687 | Beta | Bolt v5 protocol (gocql); proxy/iface routing not applied |
+| cassandra | 9042 | Beta | CQL native protocol with PasswordAuthenticator |
 | vnc | 5900 | Stable | Password-only auth (no username) |
 | snmp | 161 | Stable | Supports v1/v2c (default) and v3 (`-m version:3`) |
 | smbnt | 445 | Stable | Use `-d DOMAIN` for domain auth |

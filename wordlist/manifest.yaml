@@ -105,3 +105,12 @@ services:
   wrapper:
     users: [sysadmin_users]
     passwords: [common_passwords]
+  couchdb:
+    users: ["couchdb/user"]
+    passwords: ["couchdb/password"]
+  elasticsearch:
+    users: ["elasticsearch/user"]
+    passwords: ["elasticsearch/password"]
+  influxdb:
+    users: ["influxdb/user"]
+    passwords: ["influxdb/password"]

@@ -1,6 +1,10 @@
 package tui
 
-import "time"
+import (
+	"time"
+
+	"github.com/x90skysn3k/brutespray/v2/brute"
+)
 
 // AttemptResultMsg is sent by workers after each credential attempt.
 type AttemptResultMsg struct {
@@ -16,6 +20,7 @@ type AttemptResultMsg struct {
 	Retrying  bool
 	Timestamp time.Time
 	Banner    string
+	KeyMatch  *brute.KeyMatch // non-nil when the attempt matched a known-bad SSH key
 }
 
 // HostStartedMsg is sent when a host begins processing.
@@ -43,4 +48,20 @@ type BatchAttemptMsg []AttemptResultMsg
 type ErrorMsg struct {
 	Message   string
 	Timestamp time.Time
+}
+
+// FindingEntry holds a single pre-auth recon finding.
+type FindingEntry struct {
+	Severity string
+	Code     string
+	Service  string
+	Target   string
+	Message  string
+	CVE      string
+	Time     time.Time
+}
+
+// FindingMsg is sent when a pre-auth recon finding is produced.
+type FindingMsg struct {
+	Entry FindingEntry
 }

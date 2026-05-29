@@ -303,3 +303,66 @@ Use `-m form-url:/path` if the CSRF form page differs from the login URL.
 | wrapper | `cmd` | command | Command template with %H/%P/%U/%W |
 | smbnt | `domain` | string | SMB domain |
 | rdp | `domain` | string | RDP domain |
+
+## SSH bad-keys
+
+Brutespray ships an embedded bundle of known-compromised SSH client private
+keys (Rapid7 ssh-badkeys + HashiCorp Vagrant + per-vendor defaults). When
+the target service is SSH, brutespray tries each bundle key with its
+metadata-suggested default username before any password attempts.
+
+| Flag | Effect |
+|---|---|
+| (default) | Bad-keys pass runs first; passwords follow if no key matches |
+| `--no-badkeys` | Skip the bad-keys pass entirely |
+| `--badkeys-only` | Run the bad-keys pass only; skip password attempts |
+
+Successful matches surface as `BADKEY` lines (text mode) or `type:badkey`
+JSONL records (JSON mode) carrying the vendor and CVE identifier.
+
+### Bundled keys
+
+| Vendor | Default user | CVE |
+|---|---|---|
+| HashiCorp Vagrant | vagrant | (insecure default — no CVE) |
+| F5 BIG-IP | root | CVE-2012-1493 |
+| ExaGrid EX | root | CVE-2016-1561 |
+| Ceragon FibeAir | mateidu | CVE-2015-0936 |
+| Monroe Electronics DASDEC | root | CVE-2013-0137 |
+| Barracuda Load Balancer | root | CVE-2014-8428 |
+| Array Networks vAPV/vxAG | sync | — |
+| Loadbalancer.org Enterprise VA | root | — |
+| Quantum DXi V1000 | root | — |
+
+The bundle refreshes alongside the monthly wordlist update cadence.
+
+## Pre-auth RDP recon
+
+When the target service is `rdp`, brutespray runs two pre-auth probes
+before any credential attempt. Findings flow through normal output
+channels (text, JSONL, TUI Findings tab) without consuming credential
+attempts. Opt out with `--no-rdp-scan`.
+
+### NLA fingerprint
+
+A single X.224 Connection Request classifies the server's RDPneg response:
+
+- `[INFO] rdp <host> NLA (CredSSP) enforced` — standard RDP refused
+- `[INFO] rdp <host> HybridEx (NLA + CredSSP early-user) enforced`
+- `[WARN] rdp <host> NLA not enforced — server accepts standard RDP`
+
+### Sticky-keys backdoor probe
+
+When NLA is not enforced, brutespray connects to the GINA logon screen,
+sends 5× Shift keypresses (the sticky-keys trigger), and compares
+framebuffer snapshots before and after. If the post-trigger frame
+matches the heuristic for a cmd.exe console (predominantly black with
+monospaced white text in the top region), the finding is:
+
+`[CRITICAL] rdp <host> sticky-keys backdoor detected`
+
+If the framebuffer changed but the console signature does not match:
+
+`[INFO] rdp <host> sticky-keys inconclusive — manual verification recommended`
+
+Probe errors land on stderr; no finding is emitted unless detection completes.

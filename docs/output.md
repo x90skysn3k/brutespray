@@ -71,3 +71,32 @@ chmod +x brutespray-nxc.sh
 | `-nc` | Disable colored output |
 | `-q` | Suppress the banner |
 | `--no-tui` | Use legacy text output instead of interactive TUI |
+
+## Finding records (JSONL)
+
+Pre-auth recon results emit one JSON object per line in JSONL mode:
+
+```json
+{"type":"finding","severity":"WARN","code":"rdp-nla-missing","service":"rdp","target":"10.0.0.5:3389","message":"NLA not enforced — server accepts standard RDP without pre-auth"}
+{"type":"finding","severity":"CRITICAL","code":"rdp-stickykeys","service":"rdp","target":"10.0.0.5:3389","message":"sticky-keys backdoor detected (cmd.exe shell at logon screen)"}
+```
+
+| Field | Description |
+|---|---|
+| `type` | Always `"finding"` |
+| `severity` | `INFO`, `WARN`, `HIGH`, `CRITICAL` |
+| `code` | Stable machine identifier: `rdp-nla-required`, `rdp-nla-missing`, `rdp-nla-hybridex`, `rdp-stickykeys`, `rdp-stickykeys-inconclusive` |
+| `service` / `target` | Target identification |
+| `message` | Human-readable description |
+| `cve` | Present only when a CVE applies |
+
+## BADKEY records (JSONL)
+
+When SSH authentication succeeds against an embedded bad key, the per-success
+output channel emits a distinct `badkey` record alongside the regular `success`
+line:
+
+```json
+{"type":"badkey","service":"ssh","target":"10.0.0.5:22","username":"vagrant","vendor":"HashiCorp Vagrant","description":"Vagrant insecure default key (any Vagrant VM pre-2014)"}
+{"type":"badkey","service":"ssh","target":"10.0.0.6:22","username":"root","vendor":"F5 BIG-IP","cve":"CVE-2012-1493","description":"F5 BIG-IP 9.x-11.x default root SSH key"}
+```
