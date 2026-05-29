@@ -17,6 +17,25 @@ func sanitizeCred(s string) string {
 	return strings.NewReplacer("\r", "", "\n", "", "\x00", "").Replace(s)
 }
 
+// Finding represents a pre-auth recon result (e.g. SSH bad-key match,
+// RDP NLA missing, RDP sticky-keys backdoor). Modules can return findings
+// without a successful authentication attempt.
+type Finding struct {
+	Severity string // INFO, WARN, HIGH, CRITICAL
+	Code     string // e.g. "rdp-nla-missing", "rdp-stickykeys", "ssh-badkey"
+	Message  string
+	CVE      string // optional, e.g. "CVE-2012-1493"
+}
+
+// KeyMatch records a successful SSH key authentication originating from
+// the embedded bad-keys bundle.
+type KeyMatch struct {
+	Fingerprint string
+	Vendor      string
+	CVE         string
+	Description string
+}
+
 // BruteResult captures the outcome of a single credential attempt including
 // whether the connection itself succeeded (to distinguish auth failures from
 // network failures).
@@ -27,6 +46,8 @@ type BruteResult struct {
 	Banner            string        // service banner if captured
 	RetryDelay        time.Duration // if > 0, module requests this delay before next retry (e.g. VNC anti-brute)
 	SkipUser          bool          // if true, skip remaining passwords for this user (e.g. FTP 530 user-not-found)
+	Finding           *Finding      // pre-auth recon result, nil if none
+	KeyMatch          *KeyMatch     // SSH bad-key match, nil if none
 }
 
 // CircuitBreaker tracks consecutive connection failures per host and trips
@@ -259,5 +280,12 @@ func RunBrute(h modules.Host, u string, p string, timeout time.Duration, maxRetr
 	}
 
 	modules.PrintResult(service, h.Host, h.Port, u, p, modResult.AuthSuccess, modResult.ConnectionSuccess, false, output, 0, modResult.Banner)
-	return BruteResult{AuthSuccess: modResult.AuthSuccess, ConnectionSuccess: modResult.ConnectionSuccess, Banner: modResult.Banner, SkipUser: modResult.SkipUser}
+	return BruteResult{
+		AuthSuccess:       modResult.AuthSuccess,
+		ConnectionSuccess: modResult.ConnectionSuccess,
+		Banner:            modResult.Banner,
+		SkipUser:          modResult.SkipUser,
+		Finding:           modResult.Finding,
+		KeyMatch:          modResult.KeyMatch,
+	}
 }
