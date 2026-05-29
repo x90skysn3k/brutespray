@@ -94,6 +94,8 @@ type WorkerPool struct {
 	// SSH bad-keys pre-pass control
 	noBadKeys   bool
 	badKeysOnly bool
+	// RDP pre-auth recon control
+	noRDPScan bool
 }
 
 // NewHostWorkerPool creates a new host-specific worker pool

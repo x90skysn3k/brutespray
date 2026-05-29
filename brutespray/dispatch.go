@@ -48,6 +48,18 @@ func reverseString(s string) string {
 	return string(runes)
 }
 
+// emitFinding writes a pre-auth recon finding to the operator's output stream.
+// Task A8 replaces this with text/JSONL/TUI dispatch; for now it lands on
+// stderr so findings are visible during development.
+func emitFinding(host modules.Host, f *brute.Finding) {
+	cve := ""
+	if f.CVE != "" {
+		cve = " (" + f.CVE + ")"
+	}
+	fmt.Fprintf(os.Stderr, "[%s] %s %s:%d %s%s\n",
+		f.Severity, host.Service, host.Host, host.Port, f.Message, cve)
+}
+
 // ProcessHost processes a single host with all its credentials using dedicated host worker pool
 func (wp *WorkerPool) ProcessHost(host modules.Host, service string, combo string, user string, password string, version string, timeout time.Duration, retry int, output string, cm *modules.ConnectionManager, domain string, moduleParams brute.ModuleParams, useUsernameAsPass bool) {
 	// Skip hosts already completed in a previous run
@@ -239,6 +251,16 @@ func (wp *WorkerPool) ProcessHost(host modules.Host, service string, combo strin
 					fmt.Fprintf(os.Stderr, "warning: bad-keys bundle load failed (skipping pre-pass): %v\n", err)
 				}
 			}
+			// RDP pre-auth recon: NLA fingerprint + sticky-keys probe.
+			// Opt-out via --no-rdp-scan. Unlike --badkeys-only there is no
+			// RDP-scan-only mode — regular cred attempts always continue after.
+			if service == "rdp" && !wp.noRDPScan {
+				findings := brute.ScanRDPRecon(host.Host, host.Port, timeout)
+				for _, f := range findings {
+					emitFinding(host, f)
+				}
+			}
+
 			if service == "ssh" && wp.badKeysOnly {
 				// NOTE: --badkeys-only returns before the regular cred loop, which means
 				// hostPool.jobQueue is not closed here. Global wp.Stop() handles eventual
