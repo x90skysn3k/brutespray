@@ -108,3 +108,6 @@ services:
   couchdb:
     users: ["couchdb/user"]
     passwords: ["couchdb/password"]
+  elasticsearch:
+    users: ["elasticsearch/user"]
+    passwords: ["elasticsearch/password"]
