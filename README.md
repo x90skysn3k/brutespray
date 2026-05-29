@@ -2,7 +2,7 @@
 
 ![Version](https://img.shields.io/badge/Version-2.6.1-red)[![goreleaser](https://github.com/x90skysn3k/brutespray/actions/workflows/release.yml/badge.svg)](https://github.com/x90skysn3k/brutespray/actions/workflows/release.yml)[![Go Report Card](https://goreportcard.com/badge/github.com/x90skysn3k/brutespray/v2)](https://goreportcard.com/report/github.com/x90skysn3k/brutespray/v2)
 
-Created by: Shane Young/@t1d3nio && Jacob Robles/@shellfail
+Created by: Shane Young/@x90sky && Jacob Robles/@shellfail
 
 Inspired by: Leon Johnson/@sho-luv
 
