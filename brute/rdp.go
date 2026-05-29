@@ -9,6 +9,7 @@ import (
 	_ "image/png"
 	"io"
 	"log"
+	"os"
 	"time"
 
 	"github.com/x90skysn3k/brutespray/v2/modules"
@@ -106,6 +107,11 @@ func ScanRDPRecon(host string, port int, timeout time.Duration) []*Finding {
 			); f != nil {
 				out = append(out, f)
 			}
+		} else {
+			// Probe error suppressed from output — emitting a stickykeys
+			// finding without a successful capture would mislead. Diagnostics
+			// land on stderr for operators who care.
+			fmt.Fprintf(os.Stderr, "rdp sticky-keys probe %s: %v\n", target, stickyErr)
 		}
 	}
 	return out
