@@ -12,10 +12,22 @@ import (
 	"github.com/x90skysn3k/brutespray/v2/brute"
 	"github.com/x90skysn3k/brutespray/v2/modules"
 	"github.com/x90skysn3k/brutespray/v2/tui"
+	"golang.org/x/term"
 )
 
 func Execute() {
 	cfg := ParseConfig()
+
+	// Read targets from stdin when -f is unset and stdin is piped (not a TTY).
+	// Auto-detects naabu/nerva URI/Nerva JSON/fingerprintx JSON/masscan JSON.
+	if cfg.File == "" && !term.IsTerminal(int(os.Stdin.Fd())) {
+		hosts, err := modules.ParseStream(os.Stdin)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "stdin parse: %v\n", err)
+			os.Exit(2)
+		}
+		cfg.Hosts = append(cfg.Hosts, hosts...)
+	}
 
 	totalHosts := len(cfg.Hosts)
 
