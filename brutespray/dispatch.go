@@ -229,7 +229,7 @@ func (wp *WorkerPool) ProcessHost(host modules.Host, service string, combo strin
 				return
 			}
 
-				if wp.sprayMode {
+			if wp.sprayMode {
 				// Spray: try each password across all users before next password
 
 				// Prepend username-as-password round if -e s
