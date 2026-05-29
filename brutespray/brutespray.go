@@ -95,6 +95,7 @@ func executeTUI(cfg *Config, cm *modules.ConnectionManager, totalHosts int) {
 	workerPool.noBadKeys = cfg.NoBadKeys
 	workerPool.badKeysOnly = cfg.BadKeysOnly
 	workerPool.noRDPScan = cfg.NoRDPScan
+	workerPool.inlineCreds = cfg.Creds
 
 	// Initialize checkpoint
 	var replayEntries []modules.SessionEntry
@@ -198,6 +199,7 @@ func executeLegacy(cfg *Config, cm *modules.ConnectionManager, totalHosts int) {
 	workerPool.noBadKeys = cfg.NoBadKeys
 	workerPool.badKeysOnly = cfg.BadKeysOnly
 	workerPool.noRDPScan = cfg.NoRDPScan
+	workerPool.inlineCreds = cfg.Creds
 
 	// Initialize checkpoint for resume capability
 	if cfg.ResumeFile != "" {
