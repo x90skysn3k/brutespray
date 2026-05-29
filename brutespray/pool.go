@@ -539,6 +539,7 @@ func (hwp *HostWorkerPool) processCredential(cred Credential, timeout time.Durat
 		Duration:  duration,
 		Timestamp: startTime,
 		Banner:    result.Banner,
+		KeyMatch:  result.KeyMatch,
 	})
 
 	// Write to session log for resume replay
