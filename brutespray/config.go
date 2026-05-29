@@ -17,7 +17,7 @@ import (
 
 var masterServiceList = brute.Services()
 
-var BetaServiceList = []string{"asterisk", "nntp", "oracle", "xmpp", "ldap", "ldaps", "winrm", "ftps", "smtp-vrfy", "rexec", "rlogin", "rsh", "wrapper", "http-form", "https-form", "svn", "socks5-auth"}
+var BetaServiceList = []string{"asterisk", "nntp", "oracle", "xmpp", "ldap", "ldaps", "winrm", "ftps", "smtp-vrfy", "rexec", "rlogin", "rsh", "wrapper", "http-form", "https-form", "svn", "socks5-auth", "neo4j", "cassandra"}
 
 var version = "2.6.1"
 var NoColorMode bool
