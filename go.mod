@@ -2,8 +2,6 @@ module github.com/x90skysn3k/brutespray/v2
 
 go 1.26.1
 
-replace github.com/x90skysn3k/grdp => ../grdp
-
 require (
 	github.com/Azure/go-ntlmssp v0.1.1
 	github.com/charmbracelet/bubbles v1.0.0
@@ -25,7 +23,7 @@ require (
 	github.com/neo4j/neo4j-go-driver/v5 v5.28.4
 	github.com/pterm/pterm v0.12.83
 	github.com/sijms/go-ora/v2 v2.9.0
-	github.com/x90skysn3k/grdp v1.0.2
+	github.com/x90skysn3k/grdp v1.0.3
 	go.mongodb.org/mongo-driver v1.17.9
 	golang.org/x/crypto v0.50.0
 	golang.org/x/net v0.53.0
