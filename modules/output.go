@@ -414,6 +414,98 @@ func PrintResult(service string, host string, port int, user string, pass string
 	}
 }
 
+// FindingSink routes a finding line to the TUI when in TUI mode. Set by
+// brutespray.executeTUI() — mirrors ErrorSink.
+// NOTE: FindingSink is declared here but not yet wired to a TUI sink tab —
+// that wiring happens in Task A9 when the TUI Findings tab lands. Until then
+// it remains nil and TUI mode falls back to the standard text path.
+var FindingSink func(severity, code, service, target, message, cve string)
+
+// WriteFinding renders a pre-auth recon finding. The output channel is
+// chosen by OutputFormatMode + TUIMode: JSONL when format=="json", a TUI
+// event when TUIMode is on with FindingSink wired, otherwise a colored
+// stdout line. Primitive args to avoid a modules→brute import cycle.
+func WriteFinding(severity, code, service, host string, port int, message, cve string) {
+	target := fmt.Sprintf("%s:%d", host, port)
+	if OutputFormatMode == "json" {
+		rec := map[string]any{
+			"type":     "finding",
+			"severity": severity,
+			"code":     code,
+			"service":  service,
+			"target":   target,
+			"message":  message,
+		}
+		if cve != "" {
+			rec["cve"] = cve
+		}
+		_ = json.NewEncoder(os.Stdout).Encode(rec)
+		return
+	}
+	if TUIMode && FindingSink != nil {
+		FindingSink(severity, code, service, target, message, cve)
+		return
+	}
+	if Silent {
+		return
+	}
+	cveTrailer := ""
+	if cve != "" {
+		cveTrailer = " (" + cve + ")"
+	}
+	if NoColorMode {
+		fmt.Printf("[%s] %s %s %s%s\n", severity, service, target, message, cveTrailer)
+		return
+	}
+	color := pterm.FgYellow
+	switch severity {
+	case "CRITICAL":
+		color = pterm.FgRed
+	case "HIGH":
+		color = pterm.FgLightRed
+	case "WARN":
+		color = pterm.FgYellow
+	case "INFO":
+		color = pterm.FgCyan
+	}
+	PrintfColored(color, "[%s] %s %s %s%s\n", severity, service, target, message, cveTrailer)
+}
+
+// PrintBadKeyResult renders a successful SSH bad-key match. Distinct from
+// PrintResult so the message clearly signals embedded-bundle authentication.
+// In JSON mode produces a JSONL "badkey" record.
+func PrintBadKeyResult(service, host string, port int, user, vendor, cve, description string) {
+	target := fmt.Sprintf("%s:%d", host, port)
+	if OutputFormatMode == "json" {
+		rec := map[string]any{
+			"type":        "badkey",
+			"service":     service,
+			"target":      target,
+			"username":    user,
+			"vendor":      vendor,
+			"description": description,
+		}
+		if cve != "" {
+			rec["cve"] = cve
+		}
+		_ = json.NewEncoder(os.Stdout).Encode(rec)
+		return
+	}
+	if Silent {
+		return
+	}
+	cveTrailer := ""
+	if cve != "" {
+		cveTrailer = " (" + cve + ")"
+	}
+	msg := fmt.Sprintf("[+] BADKEY %s %s@%s %s%s\n", service, user, target, vendor, cveTrailer)
+	if NoColorMode {
+		fmt.Print(msg)
+		return
+	}
+	PrintfColored(pterm.FgLightGreen, "%s", msg)
+}
+
 // PrintWarningBeta prints beta service warnings
 func PrintWarningBeta(service string) {
 	if TUIMode {

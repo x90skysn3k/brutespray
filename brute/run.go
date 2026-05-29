@@ -221,6 +221,10 @@ func RunBrute(h modules.Host, u string, p string, timeout time.Duration, maxRetr
 			if result {
 				// Authentication succeeded
 				modules.RecordSuccess(service, h.Host, h.Port, u, p, time.Since(startTime), modResult.Banner)
+				if modResult.KeyMatch != nil {
+					modules.PrintBadKeyResult(service, h.Host, h.Port, u,
+						modResult.KeyMatch.Vendor, modResult.KeyMatch.CVE, modResult.KeyMatch.Description)
+				}
 			} else {
 				// Authentication failed
 				modules.RecordError(false) // Authentication error
