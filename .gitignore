@@ -29,3 +29,5 @@ wordlist/winrm/
 wordlist/asterisk/
 wordlist/teamspeak/
 wordlist/xmpp/
+go.work
+go.work.sum
