@@ -1,9 +1,12 @@
 package brute
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"image"
+	_ "image/png"
 	"io"
 	"log"
 	"time"
@@ -88,6 +91,98 @@ func ScanRDPRecon(host string, port int, timeout time.Duration) []*Finding {
 	case client.NLAHybridEx:
 		out = append(out, nlaFinding("hybrid-ex"))
 	}
-	// Sticky-keys probe slots in here in Task A6.
+	// Sticky-keys probe: only meaningful when the server accepts standard RDP
+	// (no NLA), because that's the only mode where the GINA/logon screen is
+	// reachable without credentials.
+	if status == client.NLANotEnforced {
+		c := &client.RdpClient{}
+		before, after, stickyErr := c.CaptureLogonScreen(ctx, target, client.TriggerShift5x, timeout)
+		c.Close()
+		if stickyErr == nil {
+			if f := stickyKeysVerdict(
+				looksLikeCmdConsole(before),
+				looksLikeCmdConsole(after),
+				framebuffersDiffer(before, after),
+			); f != nil {
+				out = append(out, f)
+			}
+		}
+	}
 	return out
+}
+
+// stickyKeysVerdict produces a Finding (or nil) from the before/after analysis.
+func stickyKeysVerdict(beforeCmd, afterCmd, differ bool) *Finding {
+	if !differ {
+		return nil
+	}
+	if afterCmd && !beforeCmd {
+		return &Finding{
+			Severity: "CRITICAL",
+			Code:     "rdp-stickykeys",
+			Message:  "sticky-keys backdoor detected (cmd.exe shell at logon screen)",
+		}
+	}
+	return &Finding{
+		Severity: "INFO",
+		Code:     "rdp-stickykeys-inconclusive",
+		Message:  "logon screen reacted to sticky-keys trigger but no console signature detected; manual verification recommended",
+	}
+}
+
+// looksLikeCmdConsole applies a pixel-ratio heuristic to a PNG-encoded
+// framebuffer snapshot: a cmd.exe window in its default colour scheme
+// covers the top-left region of the screen with predominantly black
+// pixels (background) and a small proportion of white pixels (text).
+func looksLikeCmdConsole(pngBytes []byte) bool {
+	if len(pngBytes) == 0 {
+		return false
+	}
+	img, _, err := image.Decode(bytes.NewReader(pngBytes))
+	if err != nil {
+		return false
+	}
+	b := img.Bounds()
+	maxX := b.Min.X + 400
+	if maxX > b.Max.X {
+		maxX = b.Max.X
+	}
+	maxY := b.Min.Y + 200
+	if maxY > b.Max.Y {
+		maxY = b.Max.Y
+	}
+	var total, black, white int
+	for y := b.Min.Y; y < maxY; y++ {
+		for x := b.Min.X; x < maxX; x++ {
+			r, g, bl, _ := img.At(x, y).RGBA()
+			r >>= 8
+			g >>= 8
+			bl >>= 8
+			total++
+			switch {
+			case r < 32 && g < 32 && bl < 32:
+				black++
+			case r > 200 && g > 200 && bl > 200:
+				white++
+			}
+		}
+	}
+	if total == 0 {
+		return false
+	}
+	blackPct := float64(black) / float64(total)
+	whitePct := float64(white) / float64(total)
+	return blackPct > 0.65 && whitePct > 0.02 && whitePct < 0.15
+}
+
+// framebuffersDiffer reports whether two PNG-encoded framebuffer snapshots
+// differ at the byte level. A length difference also counts as a difference.
+func framebuffersDiffer(a, b []byte) bool {
+	if len(a) == 0 || len(b) == 0 {
+		return false
+	}
+	if len(a) != len(b) {
+		return true
+	}
+	return !bytes.Equal(a, b)
 }
