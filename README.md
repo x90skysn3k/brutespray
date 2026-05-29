@@ -57,7 +57,7 @@ See [all examples](docs/examples.md) for more usage patterns.
 - **Performance tuning** — Dynamic threading, circuit breaker, rate limiting ([details](docs/advanced.md#performance-tuning))
 - **YAML config files** — Per-engagement settings ([details](docs/usage.md#config-file))
 
-## How brutespray compares
+## How Brutespray Compares
 
 | Feature | brutespray | hydra | medusa | ncrack | brutus |
 |---|---|---|---|---|---|
