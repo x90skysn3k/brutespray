@@ -19,7 +19,7 @@ type Entry struct {
 	CVE         string
 	Description string
 	PEM         []byte
-	Fingerprint string // sha256 hex of PEM bytes
+	PEMHash     string // SHA-256 of the raw PEM file bytes (NOT an OpenSSH-format fingerprint); used for change-detection across vendor updates
 }
 
 type metaEntry struct {
@@ -45,6 +45,9 @@ func Load() ([]Entry, error) {
 		if err != nil {
 			return nil, fmt.Errorf("read keys/%s: %w", m.File, err)
 		}
+		if len(pem) == 0 {
+			return nil, fmt.Errorf("keys/%s: file is empty", m.File)
+		}
 		sum := sha256.Sum256(pem)
 		out = append(out, Entry{
 			File:        m.File,
@@ -53,7 +56,7 @@ func Load() ([]Entry, error) {
 			CVE:         m.CVE,
 			Description: m.Description,
 			PEM:         pem,
-			Fingerprint: hex.EncodeToString(sum[:]),
+			PEMHash:     hex.EncodeToString(sum[:]),
 		})
 	}
 	return out, nil
