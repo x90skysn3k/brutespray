@@ -1,4 +1,4 @@
-# Brutus Feature-Parity Spec
+# Pre-auth Recon, Stdin Pipeline, and New Modules — Design Spec
 
 **Date:** 2026-05-29
 **Branch:** dev

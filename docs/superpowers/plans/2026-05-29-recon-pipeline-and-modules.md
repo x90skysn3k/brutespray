@@ -1,4 +1,4 @@
-# Brutus Feature-Parity Implementation Plan
+# Pre-auth Recon, Stdin Pipeline, and New Modules — Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -8,7 +8,7 @@
 
 **Tech Stack:** Go 1.21+, existing deps (`x90skysn3k/grdp`, `go-redis`, `hirochachacha/go-smb2`, `bubbletea`, `golang.org/x/crypto/ssh`), new deps (`github.com/neo4j/neo4j-go-driver/v5`, `github.com/gocql/gocql`), `go:embed` for bundled keys + wordlists.
 
-**Spec:** `docs/superpowers/specs/2026-05-29-brutus-feature-parity-design.md`
+**Spec:** `docs/superpowers/specs/2026-05-29-recon-pipeline-and-modules-design.md`
 
 ---
 
@@ -3245,11 +3245,11 @@ Open the docs/release pages of hydra, medusa, ncrack, brutus. Verify each ✅/�
 
 ```bash
 gh pr create --base master --head dev \
-  --title "feat: Brutus feature-parity — bad-keys, RDP pre-auth recon, stdin pipeline, 5 DB modules" \
+  --title "feat: pre-auth recon (SSH bad-keys, RDP NLA + sticky-keys), stdin pipeline, 5 DB modules" \
   --body "$(cat <<'EOF'
 ## Summary
 
-Borrows the four high-value capabilities Brutus introduced into the multi-protocol cred-test space and lands them on brutespray, plus a brutespray-vs-others comparison table for the README so positioning is in sync with the new feature set.
+Borrows four high-value capabilities surveyed in the contemporary cred-test landscape and lands them on brutespray, plus a brutespray-vs-others comparison table for the README so positioning is in sync with the new feature set.
 
 ### Pre-auth recon
 - Embedded SSH bad-keys bundle (Rapid7 ssh-badkeys + Vagrant + per-vendor keys, CVE-tagged)
@@ -3275,7 +3275,7 @@ Borrows the four high-value capabilities Brutus introduced into the multi-protoc
 - `docs/usage.md`: new flags + stdin section
 - `docs/pipeline.md` (new): end-to-end recon walkthrough
 
-Spec: `docs/superpowers/specs/2026-05-29-brutus-feature-parity-design.md`
+Spec: `docs/superpowers/specs/2026-05-29-recon-pipeline-and-modules-design.md`
 
 ## Test plan
 
