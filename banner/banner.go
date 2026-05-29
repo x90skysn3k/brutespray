@@ -68,7 +68,7 @@ func Banner(version string, banner_flag bool, noColor bool) {
 ╚═════╝  ╚═╝  ╚═╝  ╚═════╝     ╚═╝    ╚══════╝ ╚══════╝ ╚═╝      ╚═╝  ╚═╝ ╚═╝  ╚═╝    ╚═╝    ` + "\n"
 	quiet_banner :=
 		`Brutespray ` + version + `
-Created by: Shane Young/@t1d3nio && Jacob Robles/@shellfail
+Created by: Shane Young/@x90sky && Jacob Robles/@shellfail
 Inspired by: Leon Johnson/@sho-luv`
 	//ascii art by: Cara Pearson
 	if !banner_flag {
