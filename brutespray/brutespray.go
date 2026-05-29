@@ -69,6 +69,7 @@ func executeTUI(cfg *Config, cm *modules.ConnectionManager, totalHosts int) {
 	workerPool.passwordGen = cfg.PasswordGen
 	workerPool.noBadKeys = cfg.NoBadKeys
 	workerPool.badKeysOnly = cfg.BadKeysOnly
+	workerPool.noRDPScan = cfg.NoRDPScan
 
 	// Initialize checkpoint
 	var replayEntries []modules.SessionEntry
@@ -171,6 +172,7 @@ func executeLegacy(cfg *Config, cm *modules.ConnectionManager, totalHosts int) {
 	workerPool.passwordGen = cfg.PasswordGen
 	workerPool.noBadKeys = cfg.NoBadKeys
 	workerPool.badKeysOnly = cfg.BadKeysOnly
+	workerPool.noRDPScan = cfg.NoRDPScan
 
 	// Initialize checkpoint for resume capability
 	if cfg.ResumeFile != "" {
