@@ -91,6 +91,9 @@ type WorkerPool struct {
 	// Extra credential options
 	useReversedPass bool
 	passwordGen     *modules.PasswordGenerator
+	// SSH bad-keys pre-pass control
+	noBadKeys   bool
+	badKeysOnly bool
 }
 
 // NewHostWorkerPool creates a new host-specific worker pool

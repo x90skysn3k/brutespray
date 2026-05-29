@@ -67,6 +67,8 @@ func executeTUI(cfg *Config, cm *modules.ConnectionManager, totalHosts int) {
 	workerPool.sprayDelay = cfg.SprayDelay
 	workerPool.useReversedPass = cfg.UseReversedPass
 	workerPool.passwordGen = cfg.PasswordGen
+	workerPool.noBadKeys = cfg.NoBadKeys
+	workerPool.badKeysOnly = cfg.BadKeysOnly
 
 	// Initialize checkpoint
 	var replayEntries []modules.SessionEntry
@@ -167,6 +169,8 @@ func executeLegacy(cfg *Config, cm *modules.ConnectionManager, totalHosts int) {
 	workerPool.sprayDelay = cfg.SprayDelay
 	workerPool.useReversedPass = cfg.UseReversedPass
 	workerPool.passwordGen = cfg.PasswordGen
+	workerPool.noBadKeys = cfg.NoBadKeys
+	workerPool.badKeysOnly = cfg.BadKeysOnly
 
 	// Initialize checkpoint for resume capability
 	if cfg.ResumeFile != "" {

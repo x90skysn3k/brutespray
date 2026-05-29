@@ -1,13 +1,42 @@
 package brutespray
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/pterm/pterm"
 	"github.com/x90skysn3k/brutespray/v2/brute"
+	"github.com/x90skysn3k/brutespray/v2/brute/badkeys"
 	"github.com/x90skysn3k/brutespray/v2/modules"
 	"github.com/x90skysn3k/brutespray/v2/tui"
 )
+
+// BadKeyCred is a synthetic user/password pair for the SSH bad-keys pre-pass.
+// Password carries the marker "::badkey::N" where N indexes into the bundle;
+// BruteSSH unpacks this marker (see brute/ssh.go:badKeyMarker).
+type BadKeyCred struct {
+	User     string
+	Password string
+}
+
+// BuildBadKeyCreds turns the embedded bad-keys bundle into a list of synthetic
+// credential pairs. When userOverride is set (operator passed -u explicitly),
+// every pair uses that username; otherwise each entry's metadata-suggested
+// user is used (root for F5, vagrant for Vagrant, etc.).
+func BuildBadKeyCreds(bundle []badkeys.Entry, userOverride string) []BadKeyCred {
+	out := make([]BadKeyCred, 0, len(bundle))
+	for i, e := range bundle {
+		u := e.Username
+		if userOverride != "" {
+			u = userOverride
+		}
+		out = append(out, BadKeyCred{
+			User:     u,
+			Password: fmt.Sprintf("::badkey::%d", i),
+		})
+	}
+	return out
+}
 
 // reverseString returns the reversed version of a string.
 func reverseString(s string) string {
@@ -183,6 +212,21 @@ func (wp *WorkerPool) ProcessHost(host modules.Host, service string, combo strin
 				case <-wp.globalStopChan:
 					return false
 				}
+			}
+
+			// SSH bad-keys pre-pass: try the embedded bundle before any password list.
+			// Opt-out via --no-badkeys; --badkeys-only short-circuits the regular loop.
+			if service == "ssh" && !wp.noBadKeys {
+				if bundle, err := badkeys.Load(); err == nil {
+					for _, pair := range BuildBadKeyCreds(bundle, user) {
+						if !queueCred(pair.User, pair.Password) {
+							break
+						}
+					}
+				}
+			}
+			if service == "ssh" && wp.badKeysOnly {
+				return
 			}
 
 				if wp.sprayMode {

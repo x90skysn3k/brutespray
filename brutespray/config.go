@@ -134,6 +134,8 @@ var helpGroups = []flagGroup{
 			{"-checkpoint", "file", "Checkpoint file (default: brutespray-checkpoint.json)"},
 			{"-resume", "file", "Resume from checkpoint"},
 			{"-allow-wrapper", "", "Allow wrapper module (executes commands)"},
+			{"-no-badkeys", "", "Skip SSH bad-keys pre-pass for SSH targets"},
+			{"-badkeys-only", "", "Run SSH bad-keys pre-pass only; skip password attempts"},
 		},
 	},
 }
@@ -235,6 +237,8 @@ type Config struct {
 	UseUsernameAsPass   bool
 	UseReversedPass     bool
 	AllowWrapper        bool
+	BadKeysOnly         bool
+	NoBadKeys           bool
 	PasswordGenSpec     string
 	PasswordGen         *modules.PasswordGenerator
 	OutputFormat        string
@@ -295,6 +299,8 @@ func ParseConfig() *Config {
 	domain := flag.String("d", "", "Domain to use for RDP authentication (optional)")
 	noColor := flag.Bool("nc", false, "Disable colored output")
 	stopOnSuccess := flag.Bool("stop-on-success", false, "Stop testing a host after finding valid credentials")
+	noBadKeys := flag.Bool("no-badkeys", false, "Skip SSH bad-keys pre-pass for SSH targets")
+	badKeysOnly := flag.Bool("badkeys-only", false, "Run SSH bad-keys pre-pass only; skip password attempts")
 	rateLimit := flag.Float64("rate", 0, "Per-host rate limit in attempts/second; fractional values supported (e.g. 0.1 = 1 attempt every 10s; 0 = unlimited)")
 	attemptDelay := flag.Duration("delay", 0, "Per-host delay between attempts (e.g. 10s); alias for -rate, mutually exclusive")
 	sprayMode := flag.Bool("spray", false, "Spray mode: try each password across all users before next password (avoids lockouts)")
@@ -428,6 +434,8 @@ func ParseConfig() *Config {
 	cfg.Domain = *domain
 	cfg.NoColor = *noColor
 	cfg.StopOnSuccess = *stopOnSuccess
+	cfg.NoBadKeys = *noBadKeys
+	cfg.BadKeysOnly = *badKeysOnly
 	cfg.RateLimit = *rateLimit
 	if *attemptDelay > 0 {
 		if cfg.RateLimit > 0 {
