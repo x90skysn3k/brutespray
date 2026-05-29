@@ -18,15 +18,20 @@ import (
 func Execute() {
 	cfg := ParseConfig()
 
-	// Read targets from stdin when -f is unset and stdin is piped (not a TTY).
+	// Read targets from stdin only when NO other target source is supplied
+	// (-f file, -H host args) AND stdin is actually piped (not a TTY).
 	// Auto-detects naabu/nerva URI/Nerva JSON/fingerprintx JSON/masscan JSON.
-	if cfg.File == "" && !term.IsTerminal(int(os.Stdin.Fd())) {
+	// The HostArgs / File guard prevents CI/test runs where stdin is redirected
+	// to /dev/null but the operator passed targets explicitly via -H from
+	// triggering an empty-stream error.
+	if cfg.File == "" && len(cfg.HostArgs) == 0 && len(cfg.Hosts) == 0 && !term.IsTerminal(int(os.Stdin.Fd())) {
 		hosts, err := modules.ParseStream(os.Stdin)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "stdin parse: %v\n", err)
-			os.Exit(2)
+		if err == nil && len(hosts) > 0 {
+			cfg.Hosts = append(cfg.Hosts, hosts...)
 		}
-		cfg.Hosts = append(cfg.Hosts, hosts...)
+		// Silently no-op on empty/unrecognized stdin: the operator may have
+		// run brutespray with no targets at all (which the existing flow
+		// already handles by printing the help banner).
 	}
 
 	totalHosts := len(cfg.Hosts)
