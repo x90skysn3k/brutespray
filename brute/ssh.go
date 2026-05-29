@@ -36,6 +36,12 @@ func PlanBadKeyAttempts(bundle []badkeys.Entry, userOverride string) []BadKeyAtt
 	return out
 }
 
+// badKeyMarker is the synthetic password prefix used by the dispatcher to
+// signal a bad-keys bundle attempt. The dispatcher emits passwords of the form
+// "::badkey::<index>" before the user's actual password list, and BruteSSH
+// dispatches them to attemptBadKey. INTERNAL — not part of any public contract.
+const badKeyMarker = "::badkey::"
+
 // sshKeyCache caches key file contents to avoid re-reading on every attempt.
 var sshKeyCache sync.Map
 
@@ -43,8 +49,8 @@ func BruteSSH(host string, port int, user, password string, timeout time.Duratio
 	// Bad-keys pre-pass: when the magic password marker "::badkey::" is in play,
 	// the caller is asking us to attempt a single embedded bad-key. The dispatcher
 	// (Task A4) emits these as synthetic credential pairs before regular passwords.
-	if strings.HasPrefix(password, "::badkey::") {
-		idx, err := strconv.Atoi(strings.TrimPrefix(password, "::badkey::"))
+	if idxStr, ok := strings.CutPrefix(password, badKeyMarker); ok {
+		idx, err := strconv.Atoi(idxStr)
 		if err != nil {
 			return &BruteResult{AuthSuccess: false, ConnectionSuccess: false,
 				Error: fmt.Errorf("invalid badkey index: %w", err)}
@@ -200,21 +206,27 @@ func BruteSSH(host string, port int, user, password string, timeout time.Duratio
 
 func attemptBadKey(host string, port int, user string, e badkeys.Entry,
 	timeout time.Duration, cm *modules.ConnectionManager) *BruteResult {
+	// Fix 2: PEM parsing happens before any network I/O; a parse failure must
+	// not set ConnectionSuccess=true (no network was touched, circuit-breaker
+	// must not be credited with a success counter).
 	signer, err := ssh.ParsePrivateKey(e.PEM)
 	if err != nil {
-		return &BruteResult{AuthSuccess: false, ConnectionSuccess: true,
+		return &BruteResult{AuthSuccess: false, ConnectionSuccess: false,
 			Error: fmt.Errorf("parsing badkey %s: %w", e.File, err)}
 	}
 	cfg := &ssh.ClientConfig{
 		User:            user,
 		Auth:            []ssh.AuthMethod{ssh.PublicKeys(signer)},
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-		Timeout:         timeout,
 	}
 	conn, err := cm.Dial("tcp", net.JoinHostPort(host, strconv.Itoa(port)))
 	if err != nil {
 		return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
 	}
+	// Fix 1: ssh.ClientConfig.Timeout is only honoured by ssh.Dial, not by
+	// ssh.NewClientConn. Set a deadline on the raw connection so a slow
+	// responder cannot stall this worker goroutine for the OS socket timeout.
+	_ = conn.SetDeadline(time.Now().Add(timeout))
 	c, chans, reqs, err := ssh.NewClientConn(conn, net.JoinHostPort(host, strconv.Itoa(port)), cfg)
 	if err != nil {
 		conn.Close()
@@ -225,9 +237,11 @@ func attemptBadKey(host string, port int, user string, e badkeys.Entry,
 	}
 	client := ssh.NewClient(c, chans, reqs)
 	defer client.Close()
+	// Fix 3: capture server banner (high-value for a bad-key hit).
 	return &BruteResult{
 		AuthSuccess:       true,
 		ConnectionSuccess: true,
+		Banner:            string(c.ServerVersion()),
 		KeyMatch: &KeyMatch{
 			Fingerprint: e.PEMHash,
 			Vendor:      e.Vendor,
