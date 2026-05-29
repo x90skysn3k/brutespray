@@ -4,18 +4,63 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/x90skysn3k/brutespray/v2/brute/badkeys"
 	"github.com/x90skysn3k/brutespray/v2/modules"
 	"golang.org/x/crypto/ssh"
 )
+
+// BadKeyAttempt is one user+key pair to try during the bad-keys pass.
+type BadKeyAttempt struct {
+	Username string
+	Entry    badkeys.Entry
+}
+
+// PlanBadKeyAttempts produces the ordered list of SSH bad-key attempts for a
+// host. When userOverride is non-empty (operator passed -u explicitly), every
+// attempt uses that username; otherwise the entry's metadata-suggested user
+// is used (root for F5, vagrant for Vagrant, etc.).
+func PlanBadKeyAttempts(bundle []badkeys.Entry, userOverride string) []BadKeyAttempt {
+	out := make([]BadKeyAttempt, 0, len(bundle))
+	for _, e := range bundle {
+		u := e.Username
+		if userOverride != "" {
+			u = userOverride
+		}
+		out = append(out, BadKeyAttempt{Username: u, Entry: e})
+	}
+	return out
+}
 
 // sshKeyCache caches key file contents to avoid re-reading on every attempt.
 var sshKeyCache sync.Map
 
 func BruteSSH(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager, params ModuleParams) *BruteResult {
+	// Bad-keys pre-pass: when the magic password marker "::badkey::" is in play,
+	// the caller is asking us to attempt a single embedded bad-key. The dispatcher
+	// (Task A4) emits these as synthetic credential pairs before regular passwords.
+	if strings.HasPrefix(password, "::badkey::") {
+		idx, err := strconv.Atoi(strings.TrimPrefix(password, "::badkey::"))
+		if err != nil {
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: false,
+				Error: fmt.Errorf("invalid badkey index: %w", err)}
+		}
+		bundle, err := badkeys.Load()
+		if err != nil {
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: false,
+				Error: fmt.Errorf("loading badkeys bundle: %w", err)}
+		}
+		if idx < 0 || idx >= len(bundle) {
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: false,
+				Error: fmt.Errorf("badkey index out of range: %d", idx)}
+		}
+		return attemptBadKey(host, port, user, bundle[idx], timeout, cm)
+	}
+
 	var authMethod ssh.AuthMethod
 
 	keyParam := params["key"]
@@ -150,6 +195,45 @@ func BruteSSH(host string, port int, user, password string, timeout time.Duratio
 		}
 		result.client.Close()
 		return &BruteResult{AuthSuccess: true, ConnectionSuccess: true, Banner: result.banner}
+	}
+}
+
+func attemptBadKey(host string, port int, user string, e badkeys.Entry,
+	timeout time.Duration, cm *modules.ConnectionManager) *BruteResult {
+	signer, err := ssh.ParsePrivateKey(e.PEM)
+	if err != nil {
+		return &BruteResult{AuthSuccess: false, ConnectionSuccess: true,
+			Error: fmt.Errorf("parsing badkey %s: %w", e.File, err)}
+	}
+	cfg := &ssh.ClientConfig{
+		User:            user,
+		Auth:            []ssh.AuthMethod{ssh.PublicKeys(signer)},
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		Timeout:         timeout,
+	}
+	conn, err := cm.Dial("tcp", net.JoinHostPort(host, strconv.Itoa(port)))
+	if err != nil {
+		return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
+	}
+	c, chans, reqs, err := ssh.NewClientConn(conn, net.JoinHostPort(host, strconv.Itoa(port)), cfg)
+	if err != nil {
+		conn.Close()
+		if strings.Contains(err.Error(), "unable to authenticate") {
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: err}
+		}
+		return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
+	}
+	client := ssh.NewClient(c, chans, reqs)
+	defer client.Close()
+	return &BruteResult{
+		AuthSuccess:       true,
+		ConnectionSuccess: true,
+		KeyMatch: &KeyMatch{
+			Fingerprint: e.PEMHash,
+			Vendor:      e.Vendor,
+			CVE:         e.CVE,
+			Description: e.Description,
+		},
 	}
 }
 
