@@ -60,6 +60,19 @@ func executeTUI(cfg *Config, cm *modules.ConnectionManager, totalHosts int) {
 
 	eventBus := tui.NewEventBus()
 	modules.ErrorSink = eventBus.SendError
+	modules.FindingSink = func(severity, code, service, target, message, cve string) {
+		eventBus.Send(tui.FindingMsg{
+			Entry: tui.FindingEntry{
+				Severity: severity,
+				Code:     code,
+				Service:  service,
+				Target:   target,
+				Message:  message,
+				CVE:      cve,
+				Time:     time.Now(),
+			},
+		})
+	}
 	workerPool := NewWorkerPool(cfg.Threads, eventBus, cfg.HostParallelism, totalHosts)
 	workerPool.stopOnSuccess = cfg.StopOnSuccess
 	workerPool.rateLimit = cfg.RateLimit
