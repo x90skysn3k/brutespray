@@ -111,3 +111,6 @@ services:
   elasticsearch:
     users: ["elasticsearch/user"]
     passwords: ["elasticsearch/password"]
+  influxdb:
+    users: ["influxdb/user"]
+    passwords: ["influxdb/password"]
