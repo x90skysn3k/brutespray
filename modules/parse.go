@@ -121,6 +121,68 @@ func MapService(service string) string {
 	return service
 }
 
+// defaultServiceForPort returns brutespray's canonical service name for a
+// well-known port, or "" when the port has no default mapping. Used by
+// stream parsers (masscan JSON, naabu line) that supply only host:port and
+// need to fill in the service.
+func defaultServiceForPort(port int) string {
+	switch port {
+	case 21:
+		return "ftp"
+	case 22:
+		return "ssh"
+	case 23:
+		return "telnet"
+	case 25, 587:
+		return "smtp"
+	case 80:
+		return "http"
+	case 110:
+		return "pop3"
+	case 143:
+		return "imap"
+	case 161:
+		return "snmp"
+	case 389:
+		return "ldap"
+	case 443:
+		return "https"
+	case 445:
+		return "smbnt"
+	case 636:
+		return "ldaps"
+	case 1433:
+		return "mssql"
+	case 1521:
+		return "oracle"
+	case 3306:
+		return "mysql"
+	case 3389:
+		return "rdp"
+	case 5432:
+		return "postgres"
+	case 5900, 5901, 5902:
+		return "vnc"
+	case 5984:
+		return "couchdb"
+	case 5985, 5986:
+		return "winrm"
+	case 6379:
+		return "redis"
+	case 7687:
+		return "neo4j"
+	case 8086:
+		return "influxdb"
+	case 9042:
+		return "cassandra"
+	case 9200:
+		return "elasticsearch"
+	case 27017:
+		return "mongodb"
+	}
+	return ""
+}
+
 // supportedScanServices is the canonical list of nmap/scanner service names
 // that brutespray recognises from scan input files. Names are pre-mapping
 // (i.e. the raw names scanners emit); MapService() converts them to
