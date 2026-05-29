@@ -2,6 +2,7 @@ package brutespray
 
 import (
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/pterm/pterm"
@@ -217,15 +218,31 @@ func (wp *WorkerPool) ProcessHost(host modules.Host, service string, combo strin
 			// SSH bad-keys pre-pass: try the embedded bundle before any password list.
 			// Opt-out via --no-badkeys; --badkeys-only short-circuits the regular loop.
 			if service == "ssh" && !wp.noBadKeys {
+				// effectiveBadKeyUser is the username to apply across the bad-keys pre-pass.
+				// When -u is a file path (wordlist), we cannot use a single value — fall back
+				// to each entry's metadata-suggested user. When -u is a bare username, use it
+				// as the override.
+				effectiveBadKeyUser := ""
+				if user != "" {
+					if _, statErr := os.Stat(user); statErr != nil {
+						// Not a file → treat as a bare username
+						effectiveBadKeyUser = user
+					}
+				}
 				if bundle, err := badkeys.Load(); err == nil {
-					for _, pair := range BuildBadKeyCreds(bundle, user) {
+					for _, pair := range BuildBadKeyCreds(bundle, effectiveBadKeyUser) {
 						if !queueCred(pair.User, pair.Password) {
 							break
 						}
 					}
+				} else {
+					fmt.Fprintf(os.Stderr, "warning: bad-keys bundle load failed (skipping pre-pass): %v\n", err)
 				}
 			}
 			if service == "ssh" && wp.badKeysOnly {
+				// NOTE: --badkeys-only returns before the regular cred loop, which means
+				// hostPool.jobQueue is not closed here. Global wp.Stop() handles eventual
+				// cleanup; tighten if profiling shows the premature exit matters.
 				return
 			}
 

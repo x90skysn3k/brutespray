@@ -7,6 +7,13 @@ import (
 	"github.com/x90skysn3k/brutespray/v2/brute/badkeys"
 )
 
+func TestValidateRejectsContradictoryBadKeyFlags(t *testing.T) {
+	cfg := &Config{NoBadKeys: true, BadKeysOnly: true, ServiceType: "all"}
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected error for --no-badkeys + --badkeys-only, got nil")
+	}
+}
+
 func TestBuildBadKeyCredsProducesMarkers(t *testing.T) {
 	bundle, err := badkeys.Load()
 	if err != nil {
