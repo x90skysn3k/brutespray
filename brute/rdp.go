@@ -100,11 +100,7 @@ func ScanRDPRecon(host string, port int, timeout time.Duration) []*Finding {
 		before, after, stickyErr := c.CaptureLogonScreen(ctx, target, client.TriggerShift5x, timeout)
 		c.Close()
 		if stickyErr == nil {
-			if f := stickyKeysVerdict(
-				looksLikeCmdConsole(before),
-				looksLikeCmdConsole(after),
-				framebuffersDiffer(before, after),
-			); f != nil {
+			if f := stickyKeysVerdict(detectTerminalWindow(before, after)); f != nil {
 				out = append(out, f)
 			}
 		} else {
@@ -117,78 +113,151 @@ func ScanRDPRecon(host string, port int, timeout time.Duration) []*Finding {
 	return out
 }
 
-// stickyKeysVerdict produces a Finding (or nil) from the before/after analysis.
-func stickyKeysVerdict(beforeCmd, afterCmd, differ bool) *Finding {
-	if !differ {
-		return nil
-	}
-	if afterCmd && !beforeCmd {
+// terminalWindowVerdict captures the outcome of the post-trigger
+// framebuffer analysis.
+type terminalWindowVerdict int
+
+const (
+	// terminalWindowClean: too few pixels changed (or too many — likely a
+	// full-screen repaint), so no isolated window appeared.
+	terminalWindowClean terminalWindowVerdict = iota
+	// terminalWindowChanged: pixels changed in the right range but did NOT
+	// form a rectangular region — the trigger produced some repaint but
+	// nothing terminal-shaped.
+	terminalWindowChanged
+	// terminalWindowDetected: pixels changed in a rectangular region
+	// consistent with a terminal-style window opening.
+	terminalWindowDetected
+)
+
+// Brightness-difference thresholds for terminal-window detection. These
+// thresholds and the rectangle-fill-ratio gate are adapted from Praetorian's
+// Brutus project (Apache 2.0), which exercises the same algorithm against
+// real-world Windows RDP targets:
+//   https://github.com/praetorian-inc/brutus/blob/main/internal/plugins/rdp/analyze.go
+const (
+	pixelChangeThreshold     = 30  // per-pixel brightness delta to count as "changed"
+	minChangedPercent        = 2.0 // <2% changed → noise, no window
+	maxChangedPercent        = 80.0
+	rectangleFillRatioThresh = 0.4 // changed pixels must fill ≥40% of their bounding box
+)
+
+// stickyKeysVerdict produces a Finding (or nil) from a terminalWindow verdict.
+func stickyKeysVerdict(v terminalWindowVerdict) *Finding {
+	switch v {
+	case terminalWindowDetected:
 		return &Finding{
 			Severity: "CRITICAL",
 			Code:     "rdp-stickykeys",
-			Message:  "sticky-keys backdoor detected (cmd.exe shell at logon screen)",
+			Message:  "sticky-keys backdoor detected (terminal window opened at logon screen)",
+		}
+	case terminalWindowChanged:
+		return &Finding{
+			Severity: "INFO",
+			Code:     "rdp-stickykeys-inconclusive",
+			Message:  "logon screen reacted to sticky-keys trigger but no terminal-shaped window detected; manual verification recommended",
 		}
 	}
-	return &Finding{
-		Severity: "INFO",
-		Code:     "rdp-stickykeys-inconclusive",
-		Message:  "logon screen reacted to sticky-keys trigger but no console signature detected; manual verification recommended",
-	}
+	return nil
 }
 
-// looksLikeCmdConsole applies a pixel-ratio heuristic to a PNG-encoded
-// framebuffer snapshot: a cmd.exe window in its default colour scheme
-// covers the top-left region of the screen with predominantly black
-// pixels (background) and a small proportion of white pixels (text).
-func looksLikeCmdConsole(pngBytes []byte) bool {
-	if len(pngBytes) == 0 {
-		return false
+// detectTerminalWindow analyses the pixel-level difference between two
+// PNG-encoded framebuffer snapshots and reports whether the post-trigger
+// frame contains a new rectangular window consistent with a terminal
+// (cmd.exe, PowerShell, or any other shell). Bg-color agnostic — a black
+// cmd window and a blue PowerShell window both register as "detected"
+// because the algorithm looks at WHERE pixels changed, not WHICH colors
+// they took.
+//
+// Algorithm (adapted from praetorian-inc/brutus, Apache 2.0):
+//  1. Decode both PNGs to RGBA buffers of the same dimensions
+//  2. For every pixel, compute the brightness delta and mark "changed"
+//     when the delta exceeds pixelChangeThreshold
+//  3. If <minChangedPercent of pixels changed → clean (noise)
+//  4. If >maxChangedPercent of pixels changed → clean (full-screen repaint)
+//  5. Otherwise compute the bounding box of changed pixels and the fill
+//     ratio. Fill ratio ≥ rectangleFillRatioThresh + boundingArea ≥ 1% of
+//     screen → detected (terminal-shaped window). Else → changed-but-no-rect.
+func detectTerminalWindow(beforePNG, afterPNG []byte) terminalWindowVerdict {
+	before, ok1 := decodeRGBA(beforePNG)
+	after, ok2 := decodeRGBA(afterPNG)
+	if !ok1 || !ok2 || before.Bounds() != after.Bounds() {
+		return terminalWindowClean
 	}
-	img, _, err := image.Decode(bytes.NewReader(pngBytes))
-	if err != nil {
-		return false
+	b := before.Bounds()
+	w, h := b.Dx(), b.Dy()
+	if w == 0 || h == 0 {
+		return terminalWindowClean
 	}
-	b := img.Bounds()
-	maxX := b.Min.X + 400
-	if maxX > b.Max.X {
-		maxX = b.Max.X
-	}
-	maxY := b.Min.Y + 200
-	if maxY > b.Max.Y {
-		maxY = b.Max.Y
-	}
-	var total, black, white int
-	for y := b.Min.Y; y < maxY; y++ {
-		for x := b.Min.X; x < maxX; x++ {
-			r, g, bl, _ := img.At(x, y).RGBA()
-			r >>= 8
-			g >>= 8
-			bl >>= 8
-			total++
-			switch {
-			case r < 32 && g < 32 && bl < 32:
-				black++
-			case r > 200 && g > 200 && bl > 200:
-				white++
+
+	changed := 0
+	minX, minY := w, h
+	maxX, maxY := 0, 0
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			if pixelBrightnessDelta(before, after, b.Min.X+x, b.Min.Y+y) > pixelChangeThreshold {
+				changed++
+				if x < minX {
+					minX = x
+				}
+				if x > maxX {
+					maxX = x
+				}
+				if y < minY {
+					minY = y
+				}
+				if y > maxY {
+					maxY = y
+				}
 			}
 		}
 	}
-	if total == 0 {
-		return false
+
+	total := w * h
+	pct := float64(changed) / float64(total) * 100.0
+	if pct < minChangedPercent || pct > maxChangedPercent {
+		return terminalWindowClean
 	}
-	blackPct := float64(black) / float64(total)
-	whitePct := float64(white) / float64(total)
-	return blackPct > 0.65 && whitePct > 0.02 && whitePct < 0.15
+
+	if maxX <= minX || maxY <= minY {
+		return terminalWindowChanged
+	}
+	boundingArea := (maxX - minX + 1) * (maxY - minY + 1)
+	fillRatio := float64(changed) / float64(boundingArea)
+	if fillRatio >= rectangleFillRatioThresh && boundingArea >= total/100 {
+		return terminalWindowDetected
+	}
+	return terminalWindowChanged
 }
 
-// framebuffersDiffer reports whether two PNG-encoded framebuffer snapshots
-// differ at the byte level. A length difference also counts as a difference.
-func framebuffersDiffer(a, b []byte) bool {
-	if len(a) == 0 || len(b) == 0 {
-		return false
+func decodeRGBA(pngBytes []byte) (*image.RGBA, bool) {
+	if len(pngBytes) == 0 {
+		return nil, false
 	}
-	if len(a) != len(b) {
-		return true
+	img, _, err := image.Decode(bytes.NewReader(pngBytes))
+	if err != nil {
+		return nil, false
 	}
-	return !bytes.Equal(a, b)
+	if rgba, ok := img.(*image.RGBA); ok {
+		return rgba, true
+	}
+	b := img.Bounds()
+	rgba := image.NewRGBA(b)
+	for y := b.Min.Y; y < b.Max.Y; y++ {
+		for x := b.Min.X; x < b.Max.X; x++ {
+			rgba.Set(x, y, img.At(x, y))
+		}
+	}
+	return rgba, true
+}
+
+func pixelBrightnessDelta(a, bImg *image.RGBA, x, y int) int {
+	ra, ga, ba, _ := a.At(x, y).RGBA()
+	rb, gb, bb, _ := bImg.At(x, y).RGBA()
+	la := (int(ra>>8) + int(ga>>8) + int(ba>>8)) / 3
+	lb := (int(rb>>8) + int(gb>>8) + int(bb>>8)) / 3
+	if la > lb {
+		return la - lb
+	}
+	return lb - la
 }
