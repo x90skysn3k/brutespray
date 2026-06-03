@@ -59,7 +59,7 @@ func printWordlistUsage() {
 	fmt.Println("  seasonal    Regenerate seasonal passwords")
 	fmt.Println("  validate    Validate wordlists and manifest")
 	fmt.Println("  build       Build flat wordlists from manifest")
-	fmt.Println("  research    Research default credentials via Ollama")
+	fmt.Println("  research    Research default credentials via Ollama or OpenAI-compatible APIs")
 	fmt.Println("  merge       Merge research candidates into wordlists")
 	fmt.Println("  download    Download rockyou.txt wordlist")
 }
@@ -324,6 +324,29 @@ type ollamaResponse struct {
 	Response string `json:"response"`
 }
 
+type researchLLMConfig struct {
+	Provider string
+	Model    string
+	BaseURL  string
+}
+
+type openAIChatCompletionRequest struct {
+	Model    string              `json:"model"`
+	Messages []openAIChatMessage `json:"messages"`
+	Stream   bool                `json:"stream"`
+}
+
+type openAIChatMessage struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
+}
+
+type openAIChatCompletionResponse struct {
+	Choices []struct {
+		Message openAIChatMessage `json:"message"`
+	} `json:"choices"`
+}
+
 type researchCandidate struct {
 	Service string `json:"service"`
 	Type    string `json:"type"`
@@ -469,15 +492,38 @@ func searchBrave(apiKey, query string) (string, error) {
 	return strings.Join(snippets, "\n"), nil
 }
 
-func cmdResearch() error {
-	model := os.Getenv("OLLAMA_MODEL")
+func researchLLMConfigFromEnv() researchLLMConfig {
+	provider := strings.TrimSpace(os.Getenv("WORDLIST_RESEARCH_PROVIDER"))
+	if provider == "" {
+		provider = "ollama"
+	}
+	provider = strings.ToLower(provider)
+
+	model := strings.TrimSpace(os.Getenv("WORDLIST_RESEARCH_MODEL"))
+	if model == "" {
+		model = strings.TrimSpace(os.Getenv("OLLAMA_MODEL"))
+	}
 	if model == "" {
 		model = "qwen3:14b"
 	}
-	ollamaURL := os.Getenv("OLLAMA_URL")
-	if ollamaURL == "" {
-		ollamaURL = "http://localhost:11434"
+
+	baseURL := strings.TrimSpace(os.Getenv("WORDLIST_RESEARCH_URL"))
+	if baseURL == "" {
+		baseURL = strings.TrimSpace(os.Getenv("OLLAMA_URL"))
 	}
+	if baseURL == "" {
+		baseURL = "http://localhost:11434"
+	}
+
+	return researchLLMConfig{
+		Provider: provider,
+		Model:    model,
+		BaseURL:  strings.TrimRight(baseURL, "/"),
+	}
+}
+
+func cmdResearch() error {
+	llm := researchLLMConfigFromEnv()
 	braveAPIKey := os.Getenv("BRAVE_API_KEY")
 
 	services := []string{
@@ -529,7 +575,7 @@ Focus on:
 
 Return valid JSON only, no other text.`, svc, searchContext)
 
-		resp, err := queryOllama(ollamaURL, model, prompt)
+		resp, err := queryResearchLLM(llm, prompt)
 		if err != nil {
 			spinner.Fail(fmt.Sprintf("%s: %v", svc, err))
 			continue
@@ -563,9 +609,9 @@ Return valid JSON only, no other text.`, svc, searchContext)
 			}
 		}
 
-		srcLabel := "ollama"
+		srcLabel := llm.Provider
 		if braveAPIKey != "" {
-			srcLabel = "brave+ollama"
+			srcLabel = "brave+" + llm.Provider
 		}
 		spinner.Success(fmt.Sprintf("%s: found %d credentials (%s)", svc, len(creds), srcLabel))
 	}
@@ -580,6 +626,17 @@ Return valid JSON only, no other text.`, svc, searchContext)
 	return nil
 }
 
+func queryResearchLLM(cfg researchLLMConfig, prompt string) (string, error) {
+	switch cfg.Provider {
+	case "ollama":
+		return queryOllama(cfg.BaseURL, cfg.Model, prompt)
+	case "openai":
+		return queryOpenAICompatible(cfg.BaseURL, cfg.Model, prompt)
+	default:
+		return "", fmt.Errorf("unknown wordlist research provider %q", cfg.Provider)
+	}
+}
+
 func queryOllama(baseURL, model, prompt string) (string, error) {
 	reqBody, _ := json.Marshal(ollamaRequest{
 		Model:  model,
@@ -588,7 +645,7 @@ func queryOllama(baseURL, model, prompt string) (string, error) {
 	})
 
 	client := &http.Client{Timeout: 5 * time.Minute}
-	resp, err := client.Post(baseURL+"/api/generate", "application/json", bytes.NewReader(reqBody))
+	resp, err := client.Post(strings.TrimRight(baseURL, "/")+"/api/generate", "application/json", bytes.NewReader(reqBody))
 	if err != nil {
 		return "", fmt.Errorf("ollama request: %w", err)
 	}
@@ -609,6 +666,42 @@ func queryOllama(baseURL, model, prompt string) (string, error) {
 	}
 
 	return result.Response, nil
+}
+
+func queryOpenAICompatible(baseURL, model, prompt string) (string, error) {
+	reqBody, _ := json.Marshal(openAIChatCompletionRequest{
+		Model: model,
+		Messages: []openAIChatMessage{
+			{Role: "user", Content: prompt},
+		},
+		Stream: false,
+	})
+
+	client := &http.Client{Timeout: 5 * time.Minute}
+	resp, err := client.Post(strings.TrimRight(baseURL, "/")+"/v1/chat/completions", "application/json", bytes.NewReader(reqBody))
+	if err != nil {
+		return "", fmt.Errorf("openai-compatible request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("reading response: %w", err)
+	}
+
+	if resp.StatusCode != 200 {
+		return "", fmt.Errorf("openai-compatible provider returned %d: %s", resp.StatusCode, string(body))
+	}
+
+	var result openAIChatCompletionResponse
+	if err := json.Unmarshal(body, &result); err != nil {
+		return "", fmt.Errorf("parsing response: %w", err)
+	}
+	if len(result.Choices) == 0 {
+		return "", fmt.Errorf("openai-compatible provider returned no choices")
+	}
+
+	return result.Choices[0].Message.Content, nil
 }
 
 func extractJSON(s string) string {

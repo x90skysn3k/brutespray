@@ -5,14 +5,18 @@ on:
     - cron: '0 6 1 * *'
   workflow_dispatch:
     inputs:
-      ollama-model:
-        description: 'Ollama model for default credential research'
+      research-provider:
+        description: 'LLM provider for default credential research (ollama or openai)'
         required: false
-        default: 'qwen3:14b'
-      ollama-url:
-        description: 'Ollama API URL on the self-hosted runner'
+        default: 'openai'
+      research-model:
+        description: 'LLM model for default credential research'
         required: false
-        default: 'http://localhost:11434'
+        default: 'qwen3-35b'
+      research-url:
+        description: 'LLM API base URL on the self-hosted runner'
+        required: false
+        default: 'http://ai.tiden.local:8080'
 
 permissions:
   contents: write
@@ -31,8 +35,9 @@ jobs:
     runs-on: self-hosted
     timeout-minutes: 120
     env:
-      OLLAMA_MODEL: ${{ github.event.inputs['ollama-model'] || 'qwen3:14b' }}
-      OLLAMA_URL: ${{ github.event.inputs['ollama-url'] || 'http://localhost:11434' }}
+      WORDLIST_RESEARCH_PROVIDER: ${{ github.event.inputs['research-provider'] || 'openai' }}
+      WORDLIST_RESEARCH_MODEL: ${{ github.event.inputs['research-model'] || 'qwen3-35b' }}
+      WORDLIST_RESEARCH_URL: ${{ github.event.inputs['research-url'] || 'http://ai.tiden.local:8080' }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
@@ -48,7 +53,18 @@ jobs:
           BRAVE_API_KEY: ${{ secrets.BRAVE_API_KEY }}
         run: |
           set -euo pipefail
-          curl --fail --silent --show-error "${OLLAMA_URL}/api/tags" >/dev/null
+          case "${WORDLIST_RESEARCH_PROVIDER}" in
+            ollama)
+              curl --fail --silent --show-error "${WORDLIST_RESEARCH_URL}/api/tags" >/dev/null
+              ;;
+            openai)
+              curl --fail --silent --show-error "${WORDLIST_RESEARCH_URL}/v1/models" >/dev/null
+              ;;
+            *)
+              echo "::error::Unsupported WORDLIST_RESEARCH_PROVIDER: ${WORDLIST_RESEARCH_PROVIDER}"
+              exit 1
+              ;;
+          esac
           if [[ -z "${BRAVE_API_KEY:-}" ]]; then
             echo "::warning::BRAVE_API_KEY is not configured; research will run without web search context."
           fi
@@ -93,7 +109,7 @@ jobs:
             echo "Automated monthly wordlist update:"
             echo
             echo "- Regenerated seasonal passwords"
-            echo "- Researched documented default credentials with ${OLLAMA_MODEL}"
+            echo "- Researched documented default credentials with ${WORDLIST_RESEARCH_PROVIDER}/${WORDLIST_RESEARCH_MODEL}"
             echo "- Merged candidates through provenance and quality gates"
             echo "- Validated manifest references and built flat wordlists"
             echo "- Ran focused wordlist regression tests"

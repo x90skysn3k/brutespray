@@ -136,9 +136,26 @@ The `//go:embed wordlist/` directive in `wordlist/embed.go` re-embeds all files 
 brutespray wordlist seasonal     # Generate seasonal passwords for the configured year range
 brutespray wordlist validate     # Validate wordlists and check manifest integrity
 brutespray wordlist build        # Build flat wordlists from the manifest
-brutespray wordlist research     # AI-powered wordlist research via Ollama
+brutespray wordlist research     # AI-powered wordlist research via Ollama or OpenAI-compatible APIs
 brutespray wordlist merge        # Merge research candidates into wordlists
 brutespray wordlist download -o path  # Download rockyou.txt
+```
+
+`wordlist research` uses Ollama by default for local research and also supports
+OpenAI-compatible providers such as vLLM. Generic `WORDLIST_RESEARCH_*`
+variables take precedence over legacy `OLLAMA_*` variables.
+
+```bash
+# Legacy Ollama defaults/fallbacks
+OLLAMA_MODEL=qwen3:14b \
+OLLAMA_URL=http://localhost:11434 \
+go run . wordlist research
+
+# vLLM or another OpenAI-compatible server
+WORDLIST_RESEARCH_PROVIDER=openai \
+WORDLIST_RESEARCH_MODEL=qwen3-35b \
+WORDLIST_RESEARCH_URL=http://ai.tiden.local:8080 \
+go run . wordlist research
 ```
 
 ## SNMP community-string tiers

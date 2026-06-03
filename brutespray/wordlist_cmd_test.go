@@ -1,6 +1,10 @@
 package brutespray
 
 import (
+	"encoding/json"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -200,5 +204,142 @@ func TestCmdValidateRejectsCircularAliases(t *testing.T) {
 
 	if err := cmdValidate(); err == nil {
 		t.Fatal("cmdValidate succeeded with circular aliases, want error")
+	}
+}
+
+func TestResearchLLMConfigDefaultsToOllamaLegacy(t *testing.T) {
+	clearResearchEnv(t)
+
+	cfg := researchLLMConfigFromEnv()
+
+	if cfg.Provider != "ollama" {
+		t.Fatalf("Provider = %q, want ollama", cfg.Provider)
+	}
+	if cfg.Model != "qwen3:14b" {
+		t.Fatalf("Model = %q, want qwen3:14b", cfg.Model)
+	}
+	if cfg.BaseURL != "http://localhost:11434" {
+		t.Fatalf("BaseURL = %q, want http://localhost:11434", cfg.BaseURL)
+	}
+}
+
+func TestResearchLLMConfigPreservesOllamaEnv(t *testing.T) {
+	clearResearchEnv(t)
+	t.Setenv("OLLAMA_MODEL", "legacy-model")
+	t.Setenv("OLLAMA_URL", "http://ollama.local:11434/")
+
+	cfg := researchLLMConfigFromEnv()
+
+	if cfg.Provider != "ollama" {
+		t.Fatalf("Provider = %q, want ollama", cfg.Provider)
+	}
+	if cfg.Model != "legacy-model" {
+		t.Fatalf("Model = %q, want legacy-model", cfg.Model)
+	}
+	if cfg.BaseURL != "http://ollama.local:11434" {
+		t.Fatalf("BaseURL = %q, want trimmed legacy URL", cfg.BaseURL)
+	}
+}
+
+func TestResearchLLMConfigPrefersGenericEnv(t *testing.T) {
+	clearResearchEnv(t)
+	t.Setenv("OLLAMA_MODEL", "legacy-model")
+	t.Setenv("OLLAMA_URL", "http://ollama.local:11434")
+	t.Setenv("WORDLIST_RESEARCH_PROVIDER", "openai")
+	t.Setenv("WORDLIST_RESEARCH_MODEL", "served-model")
+	t.Setenv("WORDLIST_RESEARCH_URL", "http://ai.tiden.local:8000/")
+
+	cfg := researchLLMConfigFromEnv()
+
+	if cfg.Provider != "openai" {
+		t.Fatalf("Provider = %q, want openai", cfg.Provider)
+	}
+	if cfg.Model != "served-model" {
+		t.Fatalf("Model = %q, want served-model", cfg.Model)
+	}
+	if cfg.BaseURL != "http://ai.tiden.local:8000" {
+		t.Fatalf("BaseURL = %q, want trimmed generic URL", cfg.BaseURL)
+	}
+}
+
+func TestQueryOllamaPostsGenerate(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Fatalf("method = %s, want POST", r.Method)
+		}
+		if r.URL.Path != "/api/generate" {
+			t.Fatalf("path = %s, want /api/generate", r.URL.Path)
+		}
+		var req ollamaRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		if req.Model != "qwen" || req.Prompt != "prompt text" || req.Stream {
+			t.Fatalf("request = %+v, want model qwen prompt and stream false", req)
+		}
+		_, _ = io.WriteString(w, `{"response":"[{\"product\":\"Router\"}]"}`)
+	}))
+	defer server.Close()
+
+	got, err := queryOllama(server.URL+"/", "qwen", "prompt text")
+	if err != nil {
+		t.Fatalf("queryOllama: %v", err)
+	}
+	if got != `[{"product":"Router"}]` {
+		t.Fatalf("response = %q, want JSON array", got)
+	}
+}
+
+func TestQueryOpenAICompatiblePostsChatCompletions(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Fatalf("method = %s, want POST", r.Method)
+		}
+		if r.URL.Path != "/v1/chat/completions" {
+			t.Fatalf("path = %s, want /v1/chat/completions", r.URL.Path)
+		}
+		var req openAIChatCompletionRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		if req.Model != "served-model" || req.Stream || len(req.Messages) != 1 {
+			t.Fatalf("request = %+v, want one non-streaming message", req)
+		}
+		if req.Messages[0].Role != "user" || req.Messages[0].Content != "prompt text" {
+			t.Fatalf("message = %+v, want user prompt", req.Messages[0])
+		}
+		_, _ = io.WriteString(w, `{"choices":[{"message":{"content":"[{\"product\":\"Camera\"}]"}}]}`)
+	}))
+	defer server.Close()
+
+	got, err := queryOpenAICompatible(server.URL+"/", "served-model", "prompt text")
+	if err != nil {
+		t.Fatalf("queryOpenAICompatible: %v", err)
+	}
+	if got != `[{"product":"Camera"}]` {
+		t.Fatalf("response = %q, want JSON array", got)
+	}
+}
+
+func TestQueryResearchLLMRejectsUnknownProvider(t *testing.T) {
+	_, err := queryResearchLLM(researchLLMConfig{Provider: "bad", Model: "m", BaseURL: "http://example.com"}, "prompt")
+	if err == nil {
+		t.Fatal("queryResearchLLM succeeded with unknown provider, want error")
+	}
+	if !strings.Contains(err.Error(), "unknown wordlist research provider") {
+		t.Fatalf("error = %q, want unknown provider message", err)
+	}
+}
+
+func clearResearchEnv(t *testing.T) {
+	t.Helper()
+	for _, key := range []string{
+		"WORDLIST_RESEARCH_PROVIDER",
+		"WORDLIST_RESEARCH_MODEL",
+		"WORDLIST_RESEARCH_URL",
+		"OLLAMA_MODEL",
+		"OLLAMA_URL",
+	} {
+		t.Setenv(key, "")
 	}
 }
