@@ -11,3 +11,4 @@ oda-admin
 recovery_admin
 scott
 default
+SYS/SYSTEM
