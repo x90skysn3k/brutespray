@@ -1,6 +1,9 @@
 package modules
 
 import (
+	"os"
+	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/x90skysn3k/brutespray/v2/wordlist"
@@ -82,4 +85,45 @@ func TestTryManifestFromFS(t *testing.T) {
 		t.Error("expected SSH users from embedded FS")
 	}
 	t.Logf("SSH users from embedded FS: %d", len(users))
+}
+
+func TestTryLocalManifestLoadsUnixUserConfig(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Unix-style ~/.config path is not used on Windows")
+	}
+	dir := t.TempDir()
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = os.Chdir(cwd) }()
+	if err := os.Chdir(dir); err != nil {
+		t.Fatal(err)
+	}
+	home := filepath.Join(dir, "home")
+	t.Setenv("HOME", home)
+
+	configWordlist := filepath.Join(home, ".config", "brutespray", "wordlist")
+	if err := os.MkdirAll(filepath.Join(configWordlist, "overrides", "ssh"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	manifest := `services:
+  ssh:
+    users:
+      - overrides/ssh/user.txt
+`
+	if err := os.WriteFile(filepath.Join(configWordlist, "manifest.yaml"), []byte(manifest), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(configWordlist, "overrides", "ssh", "user.txt"), []byte("config-user\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	users, err := tryLocalManifest("ssh", "users")
+	if err != nil {
+		t.Fatalf("tryLocalManifest: %v", err)
+	}
+	if len(users) != 1 || users[0] != "config-user" {
+		t.Fatalf("users = %q, want [config-user]", users)
+	}
 }
