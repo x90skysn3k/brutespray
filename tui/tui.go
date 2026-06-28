@@ -113,13 +113,19 @@ func (eb *EventBus) Close() {
 // If replayEntries is non-empty, historical session data is replayed into the TUI.
 func Run(pool WorkerPoolController, totalCombinations int, eventBus *EventBus, version string, replayEntries []modules.SessionEntry) error {
 	resumedProgress := 0
+	resumedRetries := 0
 	for _, e := range replayEntries {
 		if e.Type == "attempt" {
-			resumedProgress++
+			if e.Retrying {
+				resumedRetries++
+			} else {
+				resumedProgress++
+			}
 		}
 	}
 
 	model := NewModel(pool, totalCombinations, version, resumedProgress)
+	model.retryProgress = resumedRetries
 
 	p := tea.NewProgram(
 		model,
@@ -164,6 +170,7 @@ func ReplaySession(eventBus *EventBus, entries []modules.SessionEntry) {
 				Success:   e.Success,
 				Connected: e.Connected,
 				Retrying:  e.Retrying,
+				Status:    e.Status,
 				Duration:  e.Duration,
 				Timestamp: e.Timestamp,
 			})

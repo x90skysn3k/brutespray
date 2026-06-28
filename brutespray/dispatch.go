@@ -79,6 +79,7 @@ func (wp *WorkerPool) ProcessHost(host modules.Host, service string, combo strin
 	if wp.checkpoint != nil && wp.checkpoint.IsHostCompleted(host.Host, host.Port, service) {
 		return
 	}
+	resumeCursor := newResumeCursor(wp.checkpoint, host)
 
 	// Check if we should stop before acquiring semaphore
 	select {
@@ -131,6 +132,9 @@ func (wp *WorkerPool) ProcessHost(host modules.Host, service string, combo strin
 
 	// Debug output to show host processing
 	modules.PrintfColored(pterm.FgLightGreen, "[*] Processing host: %s:%d (%s) with %d threads\n", host.Host, host.Port, host.Service, hostPool.workers)
+	if wp.routeDiagnostics {
+		modules.PrintRouteDiagnostic(cm, host.Host, host.Port, host.Service)
+	}
 
 	// Generate and queue all credentials for this host
 	if combo != "" {
@@ -138,6 +142,9 @@ func (wp *WorkerPool) ProcessHost(host modules.Host, service string, combo strin
 		n := len(users)
 		n = min(n, len(passwords))
 		for i := 0; i < n; i++ {
+			if resumeCursor.skipNext() {
+				continue
+			}
 			// Check if we should stop before processing each credential
 			select {
 			case <-wp.globalStopChan:
@@ -185,6 +192,9 @@ func (wp *WorkerPool) ProcessHost(host modules.Host, service string, combo strin
 				default:
 				}
 
+				if resumeCursor.skipNext() {
+					continue
+				}
 				cred := Credential{
 					Host:     host,
 					User:     "",
@@ -228,6 +238,9 @@ func (wp *WorkerPool) ProcessHost(host modules.Host, service string, combo strin
 				case <-hostPool.stopChan:
 					return false
 				default:
+				}
+				if resumeCursor.skipNext() {
+					return true
 				}
 				cred := Credential{Host: host, User: u, Password: p, Service: service, Params: moduleParams}
 				select {
@@ -290,7 +303,16 @@ func (wp *WorkerPool) ProcessHost(host modules.Host, service string, combo strin
 				return
 			}
 
-			if wp.sprayMode {
+			scheduleMode := wp.scheduleMode
+			if scheduleMode == "" || scheduleMode == "auto" {
+				if wp.sprayMode {
+					scheduleMode = "spray"
+				} else {
+					scheduleMode = "host-major"
+				}
+			}
+
+			if scheduleMode == "spray" {
 				// Spray: try each password across all users before next password
 
 				// Prepend username-as-password round if -e s
@@ -315,7 +337,7 @@ func (wp *WorkerPool) ProcessHost(host modules.Host, service string, combo strin
 				}
 
 				for i, p := range passwords {
-					if i > 0 && wp.sprayDelay > 0 {
+					if wp.sprayMode && i > 0 && wp.sprayDelay > 0 {
 						modules.PrintfColored(pterm.FgLightYellow, "[spray] %s — waiting %v before next password round...\n", host.Host, wp.sprayDelay)
 						select {
 						case <-time.After(wp.sprayDelay):
@@ -332,27 +354,15 @@ func (wp *WorkerPool) ProcessHost(host modules.Host, service string, combo strin
 					}
 				}
 			} else {
-				// Standard: try all passwords per user
-				for _, u := range users {
-					// Prepend username-as-password if -e s
-					if useUsernameAsPass {
-						if !queueCred(u, u) {
-							return
-						}
-					}
-					// Prepend reversed-username if -e r
-					if wp.useReversedPass {
-						reversed := reverseString(u)
-						if reversed != u {
-							if !queueCred(u, reversed) {
-								return
-							}
-						}
-					}
-					for _, p := range passwords {
-						if !queueCred(u, p) {
-							return
-						}
+				pairs := buildCredentialPairs(users, passwords, credentialOrderOptions{
+					mode:              scheduleMode,
+					sprayMode:         wp.sprayMode,
+					useUsernameAsPass: useUsernameAsPass,
+					useReversedPass:   wp.useReversedPass,
+				})
+				for _, pair := range pairs {
+					if !queueCred(pair.User, pair.Password) {
+						return
 					}
 				}
 			}
@@ -404,6 +414,7 @@ func (wp *WorkerPool) ProcessHost(host modules.Host, service string, combo strin
 
 	credLoop:
 		for _, cred := range missed {
+			cred.Retry = true
 			select {
 			case retryPool.jobQueue <- cred:
 			case <-retryPool.stopChan:

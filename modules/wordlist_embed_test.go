@@ -61,6 +61,16 @@ func TestEmbeddedManifestLoading(t *testing.T) {
 	}
 }
 
+func TestEmbeddedManifestReferencesValidate(t *testing.T) {
+	m, err := LoadManifestFS(wordlist.FS, "manifest.yaml")
+	if err != nil {
+		t.Fatalf("LoadManifestFS: %v", err)
+	}
+	if err := m.ValidateFS(wordlist.FS); err != nil {
+		t.Fatalf("ValidateFS: %v", err)
+	}
+}
+
 func TestEmbeddedAliases(t *testing.T) {
 	m, err := LoadManifestFS(wordlist.FS, "manifest.yaml")
 	if err != nil {

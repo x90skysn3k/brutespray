@@ -238,6 +238,51 @@ func TestPrintResultJSON(t *testing.T) {
 	if attempt.Status != "SUCCESS" {
 		t.Errorf("expected status SUCCESS, got %s", attempt.Status)
 	}
+	if attempt.StatusCode != "" {
+		t.Errorf("expected empty status_code for compatibility wrapper, got %s", attempt.StatusCode)
+	}
+}
+
+func TestPrintResultWithStatusIncludesStatusCode(t *testing.T) {
+	resetGlobalStats()
+
+	origFormat := OutputFormatMode
+	origSilent := Silent
+	origTUI := TUIMode
+	origNoColor := NoColorMode
+	defer func() {
+		OutputFormatMode = origFormat
+		Silent = origSilent
+		TUIMode = origTUI
+		NoColorMode = origNoColor
+	}()
+
+	OutputFormatMode = "json"
+	Silent = false
+	TUIMode = false
+	NoColorMode = true
+
+	old := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	dir := t.TempDir()
+	PrintResultWithStatus("ssh", "10.0.0.1", 22, "root", "toor", false, false, false, dir, 0, "connection_failure")
+
+	w.Close()
+	os.Stdout = old
+
+	var buf bytes.Buffer
+	_, _ = io.Copy(&buf, r)
+	output := strings.TrimSpace(buf.String())
+
+	var attempt AttemptResult
+	if err := json.Unmarshal([]byte(output), &attempt); err != nil {
+		t.Fatalf("invalid JSON output: %v\nraw: %s", err, output)
+	}
+	if attempt.StatusCode != "connection_failure" {
+		t.Fatalf("status_code = %q, want connection_failure", attempt.StatusCode)
+	}
 	if attempt.Timestamp == "" {
 		t.Error("expected non-empty timestamp")
 	}

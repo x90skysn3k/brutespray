@@ -25,6 +25,95 @@ var Silent bool
 // File writes (success logs, reports) still happen.
 var TUIMode bool
 
+var debugAuditMu sync.Mutex
+var debugAuditFile *os.File
+var debugAuditEncoder *json.Encoder
+
+// ConfigureDebugAudit enables or disables the redacted per-attempt debug audit log.
+func ConfigureDebugAudit(enabled bool, path string) error {
+	debugAuditMu.Lock()
+	defer debugAuditMu.Unlock()
+	if debugAuditFile != nil {
+		_ = debugAuditFile.Close()
+		debugAuditFile = nil
+		debugAuditEncoder = nil
+	}
+	if !enabled {
+		return nil
+	}
+	if path == "" {
+		path = "brutespray-debug.jsonl"
+	}
+	file, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
+	if err != nil {
+		return fmt.Errorf("opening debug audit log: %w", err)
+	}
+	debugAuditFile = file
+	debugAuditEncoder = json.NewEncoder(file)
+	debugAuditEncoder.SetEscapeHTML(false)
+	return nil
+}
+
+// CloseDebugAudit flushes and closes the redacted debug audit log.
+func CloseDebugAudit() error {
+	debugAuditMu.Lock()
+	defer debugAuditMu.Unlock()
+	if debugAuditFile == nil {
+		return nil
+	}
+	err := debugAuditFile.Close()
+	debugAuditFile = nil
+	debugAuditEncoder = nil
+	return err
+}
+
+// WriteDebugAttempt writes one redacted attempt diagnostic record when audit logging is enabled.
+func redactDebugAuditText(s string, sensitive ...string) string {
+	for _, value := range sensitive {
+		if value == "" {
+			continue
+		}
+		s = strings.ReplaceAll(s, value, "<redacted>")
+	}
+	return s
+}
+
+func WriteDebugAttempt(service string, host string, port int, user string, password string, status string, connected bool, retrying bool, duration time.Duration, err error) {
+	debugAuditMu.Lock()
+	defer debugAuditMu.Unlock()
+	if debugAuditEncoder == nil {
+		return
+	}
+	entry := struct {
+		Timestamp  string `json:"timestamp"`
+		Service    string `json:"service"`
+		Host       string `json:"host"`
+		Port       int    `json:"port"`
+		User       string `json:"user,omitempty"`
+		Password   string `json:"password"`
+		Status     string `json:"status"`
+		Connected  bool   `json:"connected"`
+		Retrying   bool   `json:"retrying,omitempty"`
+		DurationMs int64  `json:"duration_ms"`
+		Error      string `json:"error,omitempty"`
+	}{
+		Timestamp:  time.Now().Format(time.RFC3339),
+		Service:    service,
+		Host:       host,
+		Port:       port,
+		User:       user,
+		Password:   "<redacted>",
+		Status:     status,
+		Connected:  connected,
+		Retrying:   retrying,
+		DurationMs: duration.Milliseconds(),
+	}
+	if err != nil {
+		entry.Error = redactDebugAuditText(err.Error(), user, password)
+	}
+	_ = debugAuditEncoder.Encode(entry)
+}
+
 // ErrorSink routes error messages to the TUI when in TUI mode.
 // Set by brutespray.executeTUI() to eventBus.SendError.
 var ErrorSink func(string)
@@ -343,10 +432,20 @@ type AttemptResult struct {
 	Connected  bool   `json:"connected"`
 	Banner     string `json:"banner,omitempty"`
 	Status     string `json:"status"`
+	StatusCode string `json:"status_code,omitempty"`
 }
 
-// PrintResult prints individual results (legacy format for compatibility)
+// PrintResult prints individual results (legacy format for compatibility).
 func PrintResult(service string, host string, port int, user string, pass string, result bool, con_result bool, retrying bool, output string, delayTime time.Duration, banner ...string) {
+	printResult(service, host, port, user, pass, result, con_result, retrying, output, delayTime, "", banner...)
+}
+
+// PrintResultWithStatus prints individual results with a stable machine-readable status code.
+func PrintResultWithStatus(service string, host string, port int, user string, pass string, result bool, con_result bool, retrying bool, output string, delayTime time.Duration, statusCode string, banner ...string) {
+	printResult(service, host, port, user, pass, result, con_result, retrying, output, delayTime, statusCode, banner...)
+}
+
+func printResult(service string, host string, port int, user string, pass string, result bool, con_result bool, retrying bool, output string, delayTime time.Duration, statusCode string, banner ...string) {
 	var msg string
 	var color pterm.Color
 	bannerStr := ""
@@ -390,16 +489,17 @@ func PrintResult(service string, host string, port int, user string, pass string
 		OutputMu.Lock()
 		if OutputFormatMode == "json" {
 			attempt := AttemptResult{
-				Timestamp: time.Now().Format(time.RFC3339),
-				Service:   service,
-				Host:      host,
-				Port:      port,
-				User:      user,
-				Password:  pass,
-				Success:   result,
-				Connected: con_result,
-				Banner:    bannerStr,
-				Status:    status,
+				Timestamp:  time.Now().Format(time.RFC3339),
+				Service:    service,
+				Host:       host,
+				Port:       port,
+				User:       user,
+				Password:   pass,
+				Success:    result,
+				Connected:  con_result,
+				Banner:     bannerStr,
+				Status:     status,
+				StatusCode: statusCode,
 			}
 			jsonBytes, err := json.Marshal(attempt)
 			if err == nil {

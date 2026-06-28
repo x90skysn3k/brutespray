@@ -43,6 +43,80 @@ type ConnectionManager struct {
 	proxyDialers []proxy.Dialer
 }
 
+// RouteDiagnostic describes how the local runtime would route a target.
+type RouteDiagnostic struct {
+	Target            string
+	Network           string
+	Proxy             string
+	Interface         string
+	BoundLocalIP      string
+	SelectedLocalAddr string
+	Error             string
+}
+
+// DiagnoseRoute reports the selected local address for a target without sending
+// application data. For proxied scans it still reports the direct kernel route
+// and includes the proxy setting so operators can tell which path is in use.
+func (cm *ConnectionManager) DiagnoseRoute(network string, address string) RouteDiagnostic {
+	diag := RouteDiagnostic{
+		Target:    address,
+		Network:   network,
+		Proxy:     cm.Socks5,
+		Interface: cm.Iface,
+	}
+	if cm.LocalIP != nil {
+		diag.BoundLocalIP = cm.LocalIP.String()
+	}
+
+	host, port, err := net.SplitHostPort(address)
+	if err != nil {
+		diag.Error = err.Error()
+		return diag
+	}
+	if port == "" {
+		port = "9"
+	}
+	localAddr := ""
+	if cm.LocalIP != nil {
+		localAddr = cm.LocalIP.String() + ":0"
+	}
+	dialer := net.Dialer{Timeout: cm.Timeout}
+	if localAddr != "" {
+		addr, err := net.ResolveUDPAddr("udp", localAddr)
+		if err != nil {
+			diag.Error = err.Error()
+			return diag
+		}
+		dialer.LocalAddr = addr
+	}
+	conn, err := dialer.Dial("udp", net.JoinHostPort(host, port))
+	if err != nil {
+		diag.Error = err.Error()
+		return diag
+	}
+	diag.SelectedLocalAddr = conn.LocalAddr().String()
+	_ = conn.Close()
+	return diag
+}
+
+func PrintRouteDiagnostic(cm *ConnectionManager, host string, port int, service string) {
+	diag := cm.DiagnoseRoute("tcp", net.JoinHostPort(host, fmt.Sprintf("%d", port)))
+	msg := fmt.Sprintf("[route] %s://%s:%d local=%s", service, host, port, diag.SelectedLocalAddr)
+	if diag.Interface != "" {
+		msg += fmt.Sprintf(" iface=%s", diag.Interface)
+	}
+	if diag.BoundLocalIP != "" {
+		msg += fmt.Sprintf(" bound=%s", diag.BoundLocalIP)
+	}
+	if diag.Proxy != "" {
+		msg += fmt.Sprintf(" proxy=%s", diag.Proxy)
+	}
+	if diag.Error != "" {
+		msg += fmt.Sprintf(" error=%s", diag.Error)
+	}
+	PrintfColored(0, "%s\n", msg)
+}
+
 func NewConnectionManager(socks5 string, timeout time.Duration, iface ...string) (*ConnectionManager, error) {
 	var ifaceName string
 	var localAddr *net.TCPAddr

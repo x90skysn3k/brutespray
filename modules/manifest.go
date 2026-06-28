@@ -143,3 +143,39 @@ func LoadManifestFS(fsys fs.FS, path string) (*WordlistManifest, error) {
 	}
 	return &m, nil
 }
+
+// ValidateFS checks that manifest metadata, aliases, and referenced wordlist
+// files are internally consistent against an embedded or local fs.FS.
+func (m *WordlistManifest) ValidateFS(fsys fs.FS) error {
+	if m.Generated == "" {
+		return fmt.Errorf("manifest generated timestamp is required")
+	}
+	if m.SeasonalRange[0] > m.SeasonalRange[1] {
+		return fmt.Errorf("invalid seasonal_range %v", m.SeasonalRange)
+	}
+	for name, path := range m.Bases {
+		if _, err := fs.Stat(fsys, path); err != nil {
+			return fmt.Errorf("base %q references missing wordlist %q: %w", name, path, err)
+		}
+	}
+	for name, path := range m.Layers {
+		if _, err := fs.Stat(fsys, path); err != nil {
+			return fmt.Errorf("layer %q references missing wordlist %q: %w", name, path, err)
+		}
+	}
+	for service, entry := range m.Services {
+		if entry.Alias != "" {
+			if _, err := m.ResolveService(service); err != nil {
+				return err
+			}
+			continue
+		}
+		for _, ref := range append(append([]string{}, entry.Users...), entry.Passwords...) {
+			path := m.resolveRelPath(ref)
+			if _, err := fs.Stat(fsys, path); err != nil {
+				return fmt.Errorf("service %q references missing wordlist %q: %w", service, path, err)
+			}
+		}
+	}
+	return nil
+}
