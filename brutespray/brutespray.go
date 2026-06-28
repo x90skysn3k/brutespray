@@ -61,7 +61,11 @@ func Execute() {
 		fmt.Printf("Error creating debug audit log: %v\n", err)
 		os.Exit(1)
 	}
-	defer modules.CloseDebugAudit()
+	defer func() {
+		if err := modules.CloseDebugAudit(); err != nil {
+			fmt.Printf("Error closing debug audit log: %v\n", err)
+		}
+	}()
 
 	// Initialize Connection Manager once
 	cm, err := modules.NewConnectionManager(cfg.SocksProxy, cfg.Timeout, cfg.NetInterface)
