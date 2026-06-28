@@ -20,6 +20,7 @@ type Credential struct {
 	Password string
 	Service  string
 	Params   brute.ModuleParams
+	Retry    bool
 }
 
 // HostWorkerPool manages workers for a specific host
@@ -51,6 +52,7 @@ type HostWorkerPool struct {
 	pauseMu sync.Mutex
 	// Session log for resume replay
 	sessionLog *modules.SessionLog
+	checkpoint *modules.Checkpoint
 	// Missed credential recovery: credentials that failed due to connection errors
 	missedQueue []Credential
 	missedMu    sync.Mutex
@@ -82,8 +84,10 @@ type WorkerPool struct {
 	// Per-host rate limiting (attempts per second; 0 = unlimited)
 	rateLimit float64
 	// Spray mode: iterate passwords first, users second
-	sprayMode  bool
-	sprayDelay time.Duration
+	sprayMode        bool
+	sprayDelay       time.Duration
+	scheduleMode     string
+	routeDiagnostics bool
 	// Checkpoint for resume capability
 	checkpoint *modules.Checkpoint
 	// Session log for resume replay
@@ -532,6 +536,10 @@ func (hwp *HostWorkerPool) processCredential(cred Credential, timeout time.Durat
 
 	// Update performance metrics
 	hwp.updatePerformanceMetrics(result.AuthSuccess, duration)
+	if hwp.checkpoint != nil && !cred.Retry {
+		hwp.checkpoint.RecordAttemptForHost(cred.Host.Host, cred.Host.Port, cred.Service)
+	}
+	modules.WriteDebugAttempt(cred.Service, cred.Host.Host, cred.Host.Port, cred.User, cred.Password, string(result.Status), result.ConnectionSuccess, cred.Retry, duration, result.Error)
 
 	// Send structured event to the UI layer
 	hwp.eventSink.Send(tui.AttemptResultMsg{
@@ -544,6 +552,8 @@ func (hwp *HostWorkerPool) processCredential(cred Credential, timeout time.Durat
 		Connected: result.ConnectionSuccess,
 		Error:     result.Error,
 		Duration:  duration,
+		Retrying:  cred.Retry,
+		Status:    string(result.Status),
 		Timestamp: startTime,
 		Banner:    result.Banner,
 		KeyMatch:  result.KeyMatch,
@@ -560,6 +570,8 @@ func (hwp *HostWorkerPool) processCredential(cred Credential, timeout time.Durat
 			Password:  cred.Password,
 			Success:   result.AuthSuccess,
 			Connected: result.ConnectionSuccess,
+			Retrying:  cred.Retry,
+			Status:    string(result.Status),
 			Duration:  duration,
 			Timestamp: startTime,
 		})
@@ -654,6 +666,7 @@ func (wp *WorkerPool) getOrCreateHostPool(host modules.Host) *HostWorkerPool {
 
 			hostPool = NewHostWorkerPool(host, threadsForHost, wp.eventSink, wp.stopOnSuccess, wp.rateLimit)
 			hostPool.sessionLog = wp.sessionLog
+			hostPool.checkpoint = wp.checkpoint
 			wp.hostPools[hostKey] = hostPool
 		}
 		wp.hostPoolsMutex.Unlock()

@@ -76,8 +76,8 @@ type Model struct {
 
 	totalCombinations int
 	currentProgress   int
-
-	keys KeyMap
+	retryProgress     int
+	keys              KeyMap
 
 	statusMsg     string
 	statusTimeout time.Time
@@ -168,7 +168,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case BatchAttemptMsg:
 		for _, a := range msg {
-			m.currentProgress++
+			if a.Retrying {
+				m.retryProgress++
+			} else {
+				m.currentProgress++
+			}
 			m.allView.AddAttempt(a, &m.scheme)
 			m.hostView.AddAttempt(a, &m.scheme)
 			m.serviceView.AddAttempt(a, &m.scheme)
@@ -496,8 +500,11 @@ func (m Model) renderStatusBar() string {
 	}
 
 	progressStyle := lipgloss.NewStyle().Foreground(m.scheme.Primary).Bold(true)
-	progress := progressStyle.Render(fmt.Sprintf(" %d/%d (%.1f%%)", m.currentProgress, m.totalCombinations, pct))
-
+	retrySuffix := ""
+	if m.retryProgress > 0 {
+		retrySuffix = fmt.Sprintf(" + %d retries", m.retryProgress)
+	}
+	progress := progressStyle.Render(fmt.Sprintf(" %d/%d (%.1f%%)%s", m.currentProgress, m.totalCombinations, pct, retrySuffix))
 	pauseStr := ""
 	if m.globalPaused {
 		pauseStr = lipgloss.NewStyle().Foreground(m.scheme.Warning).Bold(true).Render(" ⏸ PAUSED ")

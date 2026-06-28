@@ -52,3 +52,10 @@ func TestAttemptResultMsgKeyMatchNilByDefault(t *testing.T) {
 		t.Fatal("KeyMatch should be nil for a zero-value AttemptResultMsg")
 	}
 }
+
+func TestAttemptResultMsgCarriesStatus(t *testing.T) {
+	msg := AttemptResultMsg{Status: "connection_failure"}
+	if msg.Status != "connection_failure" {
+		t.Fatalf("Status = %q, want connection_failure", msg.Status)
+	}
+}

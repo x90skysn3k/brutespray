@@ -15,6 +15,26 @@ import (
 	"golang.org/x/term"
 )
 
+func configureCircuitBreaker(cfg *Config) {
+	policy := cfg.SkipPolicy
+	if policy == "" {
+		policy = "auto"
+	}
+	threshold := cfg.MaxConnFails
+	if threshold < 1 {
+		switch policy {
+		case "aggressive":
+			threshold = 3
+		default:
+			threshold = brute.DefaultCircuitBreakerThreshold
+		}
+	}
+
+	cb := brute.GetCircuitBreaker()
+	cb.SetThreshold(int64(threshold))
+	cb.SetDisabled(policy == "off" || (policy == "auto" && !cfg.SprayMode))
+}
+
 func Execute() {
 	cfg := ParseConfig()
 
@@ -36,9 +56,16 @@ func Execute() {
 
 	totalHosts := len(cfg.Hosts)
 
-	// Only enable the circuit breaker in spray mode where skipping unreachable
-	// hosts is useful. In normal mode, keep trying — connection hiccups are common.
-	brute.GetCircuitBreaker().SetDisabled(!cfg.SprayMode)
+	configureCircuitBreaker(cfg)
+	if err := modules.ConfigureDebugAudit(cfg.DebugAudit, cfg.DebugFile); err != nil {
+		fmt.Printf("Error creating debug audit log: %v\n", err)
+		os.Exit(1)
+	}
+	defer func() {
+		if err := modules.CloseDebugAudit(); err != nil {
+			fmt.Printf("Error closing debug audit log: %v\n", err)
+		}
+	}()
 
 	// Initialize Connection Manager once
 	cm, err := modules.NewConnectionManager(cfg.SocksProxy, cfg.Timeout, cfg.NetInterface)
@@ -94,6 +121,8 @@ func executeTUI(cfg *Config, cm *modules.ConnectionManager, totalHosts int) {
 	workerPool.stopOnSuccess = cfg.StopOnSuccess
 	workerPool.rateLimit = cfg.RateLimit
 	workerPool.sprayMode = cfg.SprayMode
+	workerPool.scheduleMode = cfg.ScheduleMode
+	workerPool.routeDiagnostics = cfg.RouteDiagnostics
 	workerPool.sprayDelay = cfg.SprayDelay
 	workerPool.useReversedPass = cfg.UseReversedPass
 	workerPool.passwordGen = cfg.PasswordGen
@@ -192,12 +221,14 @@ func executeLegacy(cfg *Config, cm *modules.ConnectionManager, totalHosts int) {
 	if totalThreadEstimate > 100000 {
 		totalThreadEstimate = 100000
 	}
-	progressCh := make(chan int, totalThreadEstimate)
+	progressCh := make(chan tui.ProgressEvent, totalThreadEstimate)
 	eventSink := tui.NewLegacyEventSink(progressCh)
 	workerPool := NewWorkerPool(cfg.Threads, eventSink, cfg.HostParallelism, totalHosts)
 	workerPool.stopOnSuccess = cfg.StopOnSuccess
 	workerPool.rateLimit = cfg.RateLimit
 	workerPool.sprayMode = cfg.SprayMode
+	workerPool.scheduleMode = cfg.ScheduleMode
+	workerPool.routeDiagnostics = cfg.RouteDiagnostics
 	workerPool.sprayDelay = cfg.SprayDelay
 	workerPool.useReversedPass = cfg.UseReversedPass
 	workerPool.passwordGen = cfg.PasswordGen
@@ -271,7 +302,7 @@ func executeLegacy(cfg *Config, cm *modules.ConnectionManager, totalHosts int) {
 		bar, _ = pterm.DefaultProgressbar.WithTotal(cfg.TotalCombinations).WithTitle("Progress").Start()
 	}
 
-	counterMutex, currentCounter := StartProgressTracker(eventSink.ProgressCh(), cfg.TotalCombinations, cfg.Threads, bar)
+	counterMutex, currentCounter, retryCounter := StartProgressTracker(eventSink.ProgressCh(), cfg.TotalCombinations, cfg.Threads, bar)
 
 	// Start periodic checkpoint saves
 	checkpointStop := make(chan struct{})
@@ -296,7 +327,11 @@ func executeLegacy(cfg *Config, cm *modules.ConnectionManager, totalHosts int) {
 			}
 
 			counterMutex.Lock()
-			modules.PrintlnColored(pterm.FgLightYellow, fmt.Sprintf("[*] Final Status: %d/%d combinations tested", *currentCounter, cfg.TotalCombinations))
+			retrySuffix := ""
+			if *retryCounter > 0 {
+				retrySuffix = fmt.Sprintf(" (%d retry attempts)", *retryCounter)
+			}
+			modules.PrintlnColored(pterm.FgLightYellow, fmt.Sprintf("[*] Final Status: %d/%d combinations tested%s", *currentCounter, cfg.TotalCombinations, retrySuffix))
 			counterMutex.Unlock()
 
 			modules.SetTotalHostsAndServices(totalHosts, len(cfg.SupportedServices))

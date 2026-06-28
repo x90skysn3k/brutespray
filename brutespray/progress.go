@@ -9,6 +9,7 @@ import (
 
 	"github.com/pterm/pterm"
 	"github.com/x90skysn3k/brutespray/v2/modules"
+	"github.com/x90skysn3k/brutespray/v2/tui"
 )
 
 // PrintHostTable prints the discovered hosts and services table
@@ -69,14 +70,18 @@ func PrintHostTable(hostsList []modules.Host) {
 // StartProgressTracker starts a goroutine that reads from progressCh and updates
 // the progress bar (or prints text progress in NoColor mode).
 // Returns a mutex and counter for use during cleanup.
-func StartProgressTracker(progressCh <-chan int, totalCombinations int, threads int, bar *pterm.ProgressbarPrinter) (*sync.Mutex, *int) {
+func StartProgressTracker(progressCh <-chan tui.ProgressEvent, totalCombinations int, threads int, bar *pterm.ProgressbarPrinter) (*sync.Mutex, *int, *int) {
 	counterMutex := &sync.Mutex{}
 	currentCounter := new(int)
-
+	retryCounter := new(int)
 	go func() {
-		for range progressCh {
+		for event := range progressCh {
 			counterMutex.Lock()
-			*currentCounter++
+			if event.Retry {
+				*retryCounter++
+			} else {
+				*currentCounter++
+			}
 			modules.OutputMu.Lock()
 			if NoColorMode {
 				// Update progress periodically. Avoid modulo by zero when threads is small.
@@ -84,10 +89,14 @@ func StartProgressTracker(progressCh <-chan int, totalCombinations int, threads 
 				if step < 1 {
 					step = 1
 				}
-				if *currentCounter%step == 0 || *currentCounter == totalCombinations {
-					fmt.Printf("\n[*] Progress: %d/%d combinations tested\n", *currentCounter, totalCombinations)
+				if *currentCounter%step == 0 || *currentCounter == totalCombinations || event.Retry {
+					retrySuffix := ""
+					if *retryCounter > 0 {
+						retrySuffix = fmt.Sprintf(" (%d retry attempts)", *retryCounter)
+					}
+					fmt.Printf("\n[*] Progress: %d/%d combinations tested%s\n", *currentCounter, totalCombinations, retrySuffix)
 				}
-			} else {
+			} else if !event.Retry {
 				bar.Increment()
 			}
 			modules.OutputMu.Unlock()
@@ -95,5 +104,5 @@ func StartProgressTracker(progressCh <-chan int, totalCombinations int, threads 
 		}
 	}()
 
-	return counterMutex, currentCounter
+	return counterMutex, currentCounter, retryCounter
 }

@@ -4,44 +4,142 @@ on:
   schedule:
     - cron: '0 6 1 * *'
   workflow_dispatch:
+    inputs:
+      research-provider:
+        description: 'LLM provider for default credential research (ollama or openai)'
+        required: false
+        default: 'openai'
+      research-model:
+        description: 'LLM model for default credential research'
+        required: false
+        default: 'qwen3-35b'
+      research-url:
+        description: 'LLM API base URL on the self-hosted runner'
+        required: false
+        default: 'http://ai.tiden.local:8080'
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: wordlist-update
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
 
 jobs:
   update:
     runs-on: self-hosted
+    timeout-minutes: 120
+    env:
+      WORDLIST_RESEARCH_PROVIDER: ${{ github.event.inputs['research-provider'] || 'openai' }}
+      WORDLIST_RESEARCH_MODEL: ${{ github.event.inputs['research-model'] || 'qwen3-35b' }}
+      WORDLIST_RESEARCH_URL: ${{ github.event.inputs['research-url'] || 'http://ai.tiden.local:8080' }}
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
           ref: dev
+          fetch-depth: 0
 
-      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
           go-version-file: go.mod
 
+      - name: Preflight wordlist research dependencies
+        env:
+          BRAVE_API_KEY: ${{ secrets.BRAVE_API_KEY }}
+        run: |
+          set -euo pipefail
+          case "${WORDLIST_RESEARCH_PROVIDER}" in
+            ollama)
+              curl --fail --silent --show-error "${WORDLIST_RESEARCH_URL}/api/tags" >/dev/null
+              ;;
+            openai)
+              curl --fail --silent --show-error "${WORDLIST_RESEARCH_URL}/v1/models" >/dev/null
+              ;;
+            *)
+              echo "::error::Unsupported WORDLIST_RESEARCH_PROVIDER: ${WORDLIST_RESEARCH_PROVIDER}"
+              exit 1
+              ;;
+          esac
+          if [[ -z "${BRAVE_API_KEY:-}" ]]; then
+            echo "::warning::BRAVE_API_KEY is not configured; research will run without web search context."
+          fi
+
       - name: Regenerate seasonal passwords
-        run: go run . wordlist seasonal
+        run: |
+          set -euo pipefail
+          go run . wordlist seasonal
 
       - name: Research default credentials
-        run: go run . wordlist research
+        run: |
+          set -euo pipefail
+          go run . wordlist research
         env:
-          OLLAMA_MODEL: qwen3:14b
-          OLLAMA_URL: http://localhost:11434
           BRAVE_API_KEY: ${{ secrets.BRAVE_API_KEY }}
 
       - name: Merge candidates into wordlists
-        run: go run . wordlist merge
+        run: |
+          set -euo pipefail
+          go run . wordlist merge
 
       - name: Validate wordlists
-        run: go run . wordlist validate
+        run: |
+          set -euo pipefail
+          go run . wordlist validate
+
+      - name: Build flat wordlists
+        run: |
+          set -euo pipefail
+          go run . wordlist build
+
+      - name: Run wordlist regression tests
+        run: |
+          set -euo pipefail
+          go test ./brutespray ./modules -run 'Test(IsJunkValue|LooksComplex|ScoreCandidate|ScoreThresholdGate|CmdSeasonal|CmdMerge|CmdValidateRejectsCircularAliases|TryLocalManifestLoadsUnixUserConfig)' -count=1
+
+      - name: Prepare PR summary
+        run: |
+          set -euo pipefail
+          pr_body="${RUNNER_TEMP}/wordlist-update-pr.md"
+          {
+            echo "Automated monthly wordlist update:"
+            echo
+            echo "- Regenerated seasonal passwords"
+            echo "- Researched documented default credentials with ${WORDLIST_RESEARCH_PROVIDER}/${WORDLIST_RESEARCH_MODEL}"
+            echo "- Merged candidates through provenance and quality gates"
+            echo "- Validated manifest references and built flat wordlists"
+            echo "- Ran focused wordlist regression tests"
+            echo
+            echo "## Changed files"
+            git diff --name-only -- wordlist/manifest.yaml wordlist/_base wordlist/_layers wordlist/overrides wordlist/snmp wordlist/couchdb wordlist/elasticsearch wordlist/influxdb | sed 's/^/- /'
+            if [[ -f wordlist/_candidates_report.md ]]; then
+              echo
+              echo "## Candidate merge report"
+              sed -n '1,80p' wordlist/_candidates_report.md
+            fi
+          } > "${pr_body}"
+          cat "${pr_body}" >> "${GITHUB_STEP_SUMMARY}"
+          rm -f wordlist/_candidates.json wordlist/_candidates_report.md
 
       - name: Create PR
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8
         with:
           branch: wordlist-update
           title: "chore: monthly wordlist update"
-          body: |
-            Automated monthly wordlist update:
-            - Regenerated seasonal passwords
-            - AI-researched default credentials (Qwen 14B)
-            - Priority-ordered by likelihood
+          body-path: ${{ runner.temp }}/wordlist-update-pr.md
           commit-message: "chore: monthly wordlist update"
           base: dev
+          delete-branch: true
+          add-paths: |
+            wordlist/manifest.yaml
+            wordlist/_base/**
+            wordlist/_layers/**
+            wordlist/overrides/**
+            wordlist/snmp/**
+            wordlist/couchdb/**
+            wordlist/elasticsearch/**
+            wordlist/influxdb/**

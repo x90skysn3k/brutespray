@@ -465,8 +465,9 @@ func ParseList(filename string) (map[Host]int, error) {
 	return hosts, nil
 }
 
-func (h *Host) Parse(host string) ([]Host, error) {
-	supportedServices := map[string]int{
+// SupportedServicePorts returns BruteSpray's default service-to-port mapping.
+func SupportedServicePorts() map[string]int {
+	return map[string]int{
 		"ssh":       22,
 		"ftp":       21,
 		"ftps":      990,
@@ -503,6 +504,10 @@ func (h *Host) Parse(host string) ([]Host, error) {
 		"https-form": 443,
 		"svn":        3690,
 	}
+}
+
+func (h *Host) Parse(host string) ([]Host, error) {
+	supportedServices := SupportedServicePorts()
 
 	parts := strings.Split(host, "://")
 	if len(parts) != 2 {

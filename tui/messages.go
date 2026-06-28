@@ -18,9 +18,17 @@ type AttemptResultMsg struct {
 	Error     error
 	Duration  time.Duration
 	Retrying  bool
+	Status    string
 	Timestamp time.Time
 	Banner    string
 	KeyMatch  *brute.KeyMatch // non-nil when the attempt matched a known-bad SSH key
+}
+
+// ProgressEvent tells legacy progress rendering whether an attempt consumed a
+// base credential combination or was an extra retry of a previously missed
+// credential.
+type ProgressEvent struct {
+	Retry bool
 }
 
 // HostStartedMsg is sent when a host begins processing.

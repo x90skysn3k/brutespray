@@ -3,6 +3,8 @@ package brutespray
 import (
 	"strings"
 	"testing"
+
+	"github.com/x90skysn3k/brutespray/v2/brute"
 )
 
 // TestModuleParamsFlagParsing tests that the moduleParamsFlag type correctly
@@ -237,5 +239,63 @@ func TestValidateEmptyConfig(t *testing.T) {
 	err := cfg.Validate()
 	if err != nil {
 		t.Fatalf("expected no error for empty config, got: %v", err)
+	}
+}
+
+func TestValidateRejectsUnknownSkipPolicy(t *testing.T) {
+	cfg := &Config{SkipPolicy: "reckless"}
+	err := cfg.Validate()
+	if err == nil {
+		t.Fatal("expected error for unknown skip policy")
+	}
+	if !strings.Contains(err.Error(), "skip-policy") {
+		t.Fatalf("expected skip-policy error, got: %v", err)
+	}
+}
+
+func TestConfigureCircuitBreakerAggressivePolicy(t *testing.T) {
+	cfg := &Config{SkipPolicy: "aggressive"}
+	t.Cleanup(func() { configureCircuitBreaker(&Config{SkipPolicy: "auto"}) })
+
+	configureCircuitBreaker(cfg)
+
+	cb := brute.GetCircuitBreaker()
+	host := "skip-policy-aggressive:22"
+	cb.Reset(host)
+	if cb.RecordFailure(host) {
+		t.Fatal("aggressive policy tripped after first failure")
+	}
+	if cb.RecordFailure(host) {
+		t.Fatal("aggressive policy tripped after second failure")
+	}
+	if !cb.RecordFailure(host) {
+		t.Fatal("aggressive policy should trip on third failure")
+	}
+}
+
+func TestConfigureCircuitBreakerOffPolicy(t *testing.T) {
+	t.Cleanup(func() { configureCircuitBreaker(&Config{SkipPolicy: "auto"}) })
+
+	cfg := &Config{SkipPolicy: "off"}
+	configureCircuitBreaker(cfg)
+
+	cb := brute.GetCircuitBreaker()
+	host := "skip-policy-off:22"
+	cb.Reset(host)
+	for i := 0; i < 10; i++ {
+		if cb.RecordFailure(host) {
+			t.Fatalf("off policy tripped after failure %d", i+1)
+		}
+	}
+}
+
+func TestValidateRejectsUnknownSchedule(t *testing.T) {
+	cfg := &Config{ScheduleMode: "shuffle"}
+	err := cfg.Validate()
+	if err == nil {
+		t.Fatal("expected error for unknown schedule")
+	}
+	if !strings.Contains(err.Error(), "schedule") {
+		t.Fatalf("expected schedule error, got: %v", err)
 	}
 }

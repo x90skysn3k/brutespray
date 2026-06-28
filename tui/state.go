@@ -10,24 +10,24 @@ type EventSink interface {
 // LegacyEventSink adapts the EventSink interface to the old progressCh-based
 // progress tracking. It increments a progress counter for each attempt result.
 type LegacyEventSink struct {
-	progressCh chan int
+	progressCh chan ProgressEvent
 }
 
 // NewLegacyEventSink creates an EventSink that forwards progress increments
 // to the given channel for use with StartProgressTracker.
-func NewLegacyEventSink(progressCh chan int) *LegacyEventSink {
+func NewLegacyEventSink(progressCh chan ProgressEvent) *LegacyEventSink {
 	return &LegacyEventSink{progressCh: progressCh}
 }
 
 // Send receives a message from a worker. For legacy mode, it increments
 // the progress counter regardless of message type.
 func (l *LegacyEventSink) Send(msg interface{}) {
-	switch msg.(type) {
+	switch m := msg.(type) {
 	case AttemptResultMsg:
 		// Panic-safe send: progressCh may be closed during shutdown.
 		func() {
 			defer func() { _ = recover() }()
-			l.progressCh <- 1
+			l.progressCh <- ProgressEvent{Retry: m.Retrying}
 		}()
 	}
 }
@@ -38,6 +38,6 @@ func (l *LegacyEventSink) Close() {
 }
 
 // ProgressCh returns the underlying channel for use with StartProgressTracker.
-func (l *LegacyEventSink) ProgressCh() <-chan int {
+func (l *LegacyEventSink) ProgressCh() <-chan ProgressEvent {
 	return l.progressCh
 }

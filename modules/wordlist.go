@@ -150,6 +150,12 @@ func tryLocalManifest(serviceType, kind string) ([]string, error) {
 		filepath.Join("wordlist", "manifest.yaml"),
 		filepath.Join("/usr/share/brutespray/wordlist", "manifest.yaml"),
 	}
+	if runtime.GOOS != "windows" {
+		if home := os.Getenv("HOME"); home != "" {
+			candidates = append(candidates,
+				filepath.Join(home, ".config", "brutespray", "wordlist", "manifest.yaml"))
+		}
+	}
 	if runtime.GOOS == "windows" {
 		if u, _ := user.Current(); u != nil {
 			candidates = append(candidates,

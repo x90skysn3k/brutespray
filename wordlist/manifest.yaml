@@ -16,16 +16,16 @@ layers:
 services:
   ssh:
     users: [sysadmin_users]
-    passwords: [common_passwords, seasonal_passwords, os_infra]
+    passwords: [common_passwords, seasonal_passwords, os_infra, "overrides/ssh/password.txt"]
   ftp:
     users: ["overrides/ftp/user.txt"]
-    passwords: [common_passwords, seasonal_passwords, network]
+    passwords: [common_passwords, seasonal_passwords, network, "overrides/ftp/password.txt"]
   telnet:
     users: ["overrides/telnet/user.txt"]
     passwords: [common_passwords, seasonal_passwords, network]
   http:
     users: ["overrides/http/user.txt"]
-    passwords: [common_passwords, web]
+    passwords: [common_passwords, web, "overrides/http/password.txt"]
   https:
     alias: http
   imap:
@@ -49,7 +49,7 @@ services:
     passwords: [common_passwords, seasonal_passwords]
   oracle:
     users: ["overrides/oracle/user.txt"]
-    passwords: [common_passwords, seasonal_passwords, sql]
+    passwords: [common_passwords, seasonal_passwords, sql, "overrides/oracle/password.txt"]
   mongodb:
     users: ["overrides/mongodb/user.txt"]
     passwords: ["overrides/mongodb/password.txt"]
@@ -86,7 +86,7 @@ services:
     users: ["overrides/xmpp/user.txt"]
     passwords: [common_passwords, seasonal_passwords, os_infra]
   rdp:
-    users: [sysadmin_users]
+    users: [sysadmin_users, "overrides/rdp/user.txt"]
     passwords: [common_passwords, seasonal_passwords, os_infra]
   ftps:
     alias: ftp

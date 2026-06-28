@@ -17,12 +17,52 @@ func sanitizeCred(s string) string {
 	return strings.NewReplacer("\r", "", "\n", "", "\x00", "").Replace(s)
 }
 
+// AttemptStatus classifies a credential attempt beyond the legacy success
+// booleans. Existing callers still use AuthSuccess and ConnectionSuccess; the
+// status gives retry, debug, JSONL, and checkpoint paths a stable reason code.
+type AttemptStatus string
+
+const (
+	StatusAuthSuccess        AttemptStatus = "auth_success"
+	StatusAuthFailure        AttemptStatus = "auth_failure"
+	StatusConnectionFailure  AttemptStatus = "connection_failure"
+	StatusUnsupportedService AttemptStatus = "unsupported_service"
+	StatusSkippedService     AttemptStatus = "skipped_service"
+	StatusModulePanic        AttemptStatus = "module_panic_recovered"
+	StatusModuleTimeout      AttemptStatus = "module_timeout"
+)
+
+func classifyAttemptStatus(result *BruteResult) AttemptStatus {
+	if result == nil {
+		return StatusConnectionFailure
+	}
+	if result.Status != "" {
+		return result.Status
+	}
+	if result.AuthSuccess {
+		return StatusAuthSuccess
+	}
+	if result.ConnectionSuccess {
+		return StatusAuthFailure
+	}
+	return StatusConnectionFailure
+}
+
+func resultWithStatus(result *BruteResult) BruteResult {
+	if result == nil {
+		return BruteResult{Status: StatusConnectionFailure}
+	}
+	result.Status = classifyAttemptStatus(result)
+	return *result
+}
+
 // BruteResult captures the outcome of a single credential attempt including
 // whether the connection itself succeeded (to distinguish auth failures from
 // network failures).
 type BruteResult struct {
 	AuthSuccess       bool
 	ConnectionSuccess bool
+	Status            AttemptStatus // stable classified result code
 	Error             error         // underlying error for diagnostics
 	Banner            string        // service banner if captured
 	RetryDelay        time.Duration // if > 0, module requests this delay before next retry (e.g. VNC anti-brute)
@@ -61,6 +101,17 @@ func GetCircuitBreaker() *CircuitBreaker {
 func (cb *CircuitBreaker) SetDisabled(disabled bool) {
 	cb.mu.Lock()
 	cb.disabled = disabled
+	cb.mu.Unlock()
+}
+
+// SetThreshold updates how many consecutive connection failures trip the
+// breaker. Values below 1 are coerced to 1 to keep RecordFailure deterministic.
+func (cb *CircuitBreaker) SetThreshold(threshold int64) {
+	if threshold < 1 {
+		threshold = 1
+	}
+	cb.mu.Lock()
+	cb.threshold = threshold
 	cb.mu.Unlock()
 }
 
@@ -113,6 +164,48 @@ func (cb *CircuitBreaker) RecordSuccess(hostKey string) {
 	cb.mu.Unlock()
 }
 
+func runModuleWithBoundary(fn BruteFunc, service string, host string, port int, user string, password string, timeout time.Duration, cm *modules.ConnectionManager, params ModuleParams) *BruteResult {
+	if timeout <= 0 {
+		timeout = time.Second
+	}
+	resultCh := make(chan *BruteResult, 1)
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				resultCh <- &BruteResult{
+					AuthSuccess:       false,
+					ConnectionSuccess: false,
+					Status:            StatusModulePanic,
+					Error:             fmt.Errorf("module %s panic: %v", service, r),
+				}
+			}
+		}()
+		resultCh <- fn(host, port, user, password, timeout, cm, params)
+	}()
+
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+	select {
+	case result := <-resultCh:
+		if result == nil {
+			return &BruteResult{
+				AuthSuccess:       false,
+				ConnectionSuccess: false,
+				Status:            StatusConnectionFailure,
+				Error:             fmt.Errorf("module %s returned nil result", service),
+			}
+		}
+		return result
+	case <-timer.C:
+		return &BruteResult{
+			AuthSuccess:       false,
+			ConnectionSuccess: false,
+			Status:            StatusModuleTimeout,
+			Error:             fmt.Errorf("module %s timed out after %v", service, timeout),
+		}
+	}
+}
+
 // Reset clears the circuit breaker state for a host.
 func (cb *CircuitBreaker) Reset(hostKey string) {
 	cb.mu.Lock()
@@ -161,7 +254,7 @@ func RunBrute(h modules.Host, u string, p string, timeout time.Duration, maxRetr
 	if cb.IsTripped(hostKey) {
 		metrics.RecordAttempt(false, time.Since(startTime))
 		modules.RecordAttempt(false)
-		return BruteResult{AuthSuccess: false, ConnectionSuccess: false}
+		return BruteResult{AuthSuccess: false, ConnectionSuccess: false, Status: StatusSkippedService}
 	}
 
 	// Build effective params: merge domain and https into params if not already set
@@ -194,7 +287,7 @@ func RunBrute(h modules.Host, u string, p string, timeout time.Duration, maxRetr
 			// Record failed attempt (connection never succeeded)
 			metrics.RecordAttempt(false, time.Since(startTime))
 			modules.RecordAttempt(false)
-			return BruteResult{AuthSuccess: false, ConnectionSuccess: false}
+			return BruteResult{AuthSuccess: false, ConnectionSuccess: false, Status: StatusConnectionFailure}
 		}
 
 		// Calculate backoff delay (decoupled from timeout)
@@ -204,10 +297,11 @@ func RunBrute(h modules.Host, u string, p string, timeout time.Duration, maxRetr
 		if !ok {
 			metrics.RecordAttempt(false, time.Since(startTime))
 			modules.RecordAttempt(false)
-			return BruteResult{AuthSuccess: false, ConnectionSuccess: false}
+			return BruteResult{AuthSuccess: false, ConnectionSuccess: false, Status: StatusUnsupportedService}
 		}
 
-		modResult = fn(h.Host, h.Port, effectiveUser, p, timeout, cm, effectiveParams)
+		modResult = runModuleWithBoundary(fn, service, h.Host, h.Port, effectiveUser, p, timeout, cm, effectiveParams)
+		modResult.Status = classifyAttemptStatus(modResult)
 
 		result := modResult.AuthSuccess
 		con_result := modResult.ConnectionSuccess
@@ -245,7 +339,7 @@ func RunBrute(h modules.Host, u string, p string, timeout time.Duration, maxRetr
 			// Record connection error
 			metrics.RecordError(true)
 
-			modules.PrintResult(service, h.Host, h.Port, u, p, result, con_result, willRetry, output, delayTime)
+			modules.PrintResultWithStatus(service, h.Host, h.Port, u, p, result, con_result, willRetry, output, delayTime, string(modResult.Status))
 
 			if willRetry {
 				// Use module-requested delay if set (e.g. VNC anti-brute)
@@ -259,15 +353,17 @@ func RunBrute(h modules.Host, u string, p string, timeout time.Duration, maxRetr
 				// Either exhausted retries or circuit breaker tripped
 				metrics.RecordAttempt(false, time.Since(startTime))
 				modules.RecordAttempt(false)
-				return BruteResult{AuthSuccess: false, ConnectionSuccess: false}
+				return resultWithStatus(modResult)
 			}
 		}
 	}
 
-	modules.PrintResult(service, h.Host, h.Port, u, p, modResult.AuthSuccess, modResult.ConnectionSuccess, false, output, 0, modResult.Banner)
+	modules.PrintResultWithStatus(service, h.Host, h.Port, u, p, modResult.AuthSuccess, modResult.ConnectionSuccess, false, output, 0, string(modResult.Status), modResult.Banner)
 	return BruteResult{
 		AuthSuccess:       modResult.AuthSuccess,
 		ConnectionSuccess: modResult.ConnectionSuccess,
+		Status:            modResult.Status,
+		Error:             modResult.Error,
 		Banner:            modResult.Banner,
 		SkipUser:          modResult.SkipUser,
 		Finding:           modResult.Finding,

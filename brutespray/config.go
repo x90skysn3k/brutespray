@@ -19,7 +19,7 @@ var masterServiceList = brute.Services()
 
 var BetaServiceList = []string{"asterisk", "nntp", "oracle", "xmpp", "ldap", "ldaps", "winrm", "ftps", "smtp-vrfy", "rexec", "rlogin", "rsh", "wrapper", "http-form", "https-form", "svn", "socks5-auth", "neo4j", "cassandra"}
 
-var version = "2.6.2"
+var version = "2.6.3"
 var NoColorMode bool
 
 func init() {
@@ -138,6 +138,13 @@ var helpGroups = []flagGroup{
 			{"-no-badkeys", "", "Skip SSH bad-keys pre-pass for SSH targets"},
 			{"-badkeys-only", "", "Run SSH bad-keys pre-pass only; skip password attempts"},
 			{"-no-rdp-scan", "", "Skip pre-auth RDP recon (NLA fingerprint, sticky-keys probe)"},
+			{"-skip-policy", "auto|off|conservative|aggressive", "Connection-failure skip policy"},
+			{"-max-conn-fails", "n", "Consecutive connection failures before skipping (0 = policy default)"},
+			{"-schedule", "auto|host-major|spray|pairwise", "Credential queue order; exact output order also needs -t 1 -T 1"},
+			{"-debug-audit", "", "Write redacted per-attempt diagnostics to JSONL"},
+			{"-debug-file", "file", "Debug audit JSONL path (default: brutespray-debug.jsonl)"},
+			{"-route-diagnostics", "", "Print selected local route/source address per target"},
+			{"-module-help", "service|all", "Print module defaults and accepted module params"},
 		},
 	},
 }
@@ -246,6 +253,13 @@ type Config struct {
 	PasswordGenSpec   string
 	PasswordGen       *modules.PasswordGenerator
 	OutputFormat      string
+	SkipPolicy        string
+	MaxConnFails      int
+	ScheduleMode      string
+	DebugAudit        bool
+	DebugFile         string
+	RouteDiagnostics  bool
+	ModuleHelp        string
 }
 
 // Validate checks for mutually exclusive flags, contradictory options,
@@ -264,7 +278,19 @@ func (cfg *Config) Validate() error {
 	if cfg.SprayMode && cfg.StopOnSuccess {
 		fmt.Fprintf(os.Stderr, "Warning: --spray with --stop-on-success may produce incomplete spray rounds\n")
 	}
-
+	switch cfg.SkipPolicy {
+	case "", "auto", "off", "conservative", "aggressive":
+	default:
+		return fmt.Errorf("invalid --skip-policy %q (valid: auto, off, conservative, aggressive)", cfg.SkipPolicy)
+	}
+	if cfg.MaxConnFails < 0 {
+		return fmt.Errorf("--max-conn-fails must be >= 0")
+	}
+	switch cfg.ScheduleMode {
+	case "", "auto", "host-major", "spray", "pairwise":
+	default:
+		return fmt.Errorf("invalid --schedule %q (valid: auto, host-major, spray, pairwise)", cfg.ScheduleMode)
+	}
 	// Validate service types exist when user specified specific services
 	if cfg.ServiceType != "all" {
 		for _, s := range cfg.SupportedServices {
@@ -326,6 +352,13 @@ func ParseConfig() *Config {
 	passwordGen := flag.String("x", "", "Generate passwords: MIN:MAX:CHARSET (a=lower, A=upper, 1=digits, !=symbols). Example: -x 4:4:1")
 	outputFormat := flag.String("output-format", "text", "Output format: text (default) or json (JSONL per-attempt)")
 	proxyList := flag.String("proxy-list", "", "File containing proxy list (one socks5://host:port per line) for rotation")
+	skipPolicy := flag.String("skip-policy", "auto", "Connection-failure skip policy: auto, off, conservative, aggressive")
+	maxConnFails := flag.Int("max-conn-fails", 0, "Consecutive connection failures before skip policy trips (0 = policy default)")
+	scheduleMode := flag.String("schedule", "auto", "Credential queue schedule: auto, host-major, spray, pairwise (deterministic execution also needs -t 1 -T 1)")
+	debugAudit := flag.Bool("debug-audit", false, "Write redacted per-attempt diagnostics to JSONL")
+	debugFile := flag.String("debug-file", "", "Debug audit JSONL path (default: brutespray-debug.jsonl)")
+	routeDiagnostics := flag.Bool("route-diagnostics", false, "Print selected local route/source address per target")
+	moduleHelp := flag.String("module-help", "", "Print module defaults and accepted module params for a service or all")
 
 	flag.Usage = customUsage
 
@@ -403,6 +436,27 @@ func ParseConfig() *Config {
 		if !setFlags["spray-delay"] && fileCfg.SprayDelay > 0 {
 			*sprayDelay = fileCfg.SprayDelay
 		}
+		if !setFlags["skip-policy"] && fileCfg.SkipPolicy != "" {
+			*skipPolicy = fileCfg.SkipPolicy
+		}
+		if !setFlags["max-conn-fails"] && fileCfg.MaxConnFails > 0 {
+			*maxConnFails = fileCfg.MaxConnFails
+		}
+		if !setFlags["schedule"] && fileCfg.Schedule != "" {
+			*scheduleMode = fileCfg.Schedule
+		}
+		if !setFlags["debug-audit"] && fileCfg.DebugAudit {
+			*debugAudit = true
+		}
+		if !setFlags["debug-file"] && fileCfg.DebugFile != "" {
+			*debugFile = fileCfg.DebugFile
+		}
+		if !setFlags["module-help"] && fileCfg.ModuleHelp != "" {
+			*moduleHelp = fileCfg.ModuleHelp
+		}
+		if !setFlags["route-diagnostics"] && fileCfg.RouteDiagnostics {
+			*routeDiagnostics = true
+		}
 		if !setFlags["f"] && fileCfg.File != "" {
 			*file = fileCfg.File
 		}
@@ -458,6 +512,11 @@ func ParseConfig() *Config {
 	}
 	cfg.SprayMode = *sprayMode
 	cfg.SprayDelay = *sprayDelay
+	cfg.ScheduleMode = *scheduleMode
+	cfg.DebugAudit = *debugAudit
+	cfg.DebugFile = *debugFile
+	cfg.RouteDiagnostics = *routeDiagnostics
+	cfg.ModuleHelp = *moduleHelp
 	// If user passed the .jsonl session log, resolve to the .json checkpoint
 	resume := *resumeFile
 	if r, ok := strings.CutSuffix(resume, ".jsonl"); ok {
@@ -470,8 +529,10 @@ func ParseConfig() *Config {
 	cfg.PasswordGenSpec = *passwordGen
 	cfg.OutputFormat = *outputFormat
 	cfg.ProxyList = *proxyList
-	// TUI is default for interactive terminals; --no-tui, --nc, or --output-format json disables it
-	cfg.TUI = !*noTUI && !cfg.NoColor && cfg.OutputFormat != "json" && term.IsTerminal(int(os.Stdout.Fd()))
+	cfg.SkipPolicy = *skipPolicy
+	cfg.MaxConnFails = *maxConnFails
+	// TUI is default for interactive terminals; --no-tui, --nc, JSON output, or route diagnostics disables it.
+	cfg.TUI = !*noTUI && !cfg.NoColor && cfg.OutputFormat != "json" && !cfg.RouteDiagnostics && term.IsTerminal(int(os.Stdout.Fd()))
 
 	// Parse module parameters from -m flags
 	cfg.ModuleParams = make(map[string]string)
@@ -538,6 +599,16 @@ func ParseConfig() *Config {
 			return supportedServices
 		}
 		return masterServiceList
+	}
+
+	if cfg.ModuleHelp != "" {
+		out, err := formatModuleHelp(cfg.ModuleHelp)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(2)
+		}
+		fmt.Print(out)
+		os.Exit(0)
 	}
 
 	if *listServices {

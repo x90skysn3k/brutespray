@@ -21,6 +21,7 @@ type SessionEntry struct {
 	Success   bool          `json:"success,omitempty"`
 	Connected bool          `json:"connected,omitempty"`
 	Retrying  bool          `json:"retrying,omitempty"`
+	Status    string        `json:"status,omitempty"`
 	Duration  time.Duration `json:"duration,omitempty"`
 	Timestamp time.Time     `json:"timestamp"`
 	// Host started fields
