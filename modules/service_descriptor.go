@@ -81,6 +81,7 @@ func ServiceDescriptors() map[string]ServiceDescriptor {
 		"https":         descriptor("https", 443, ServiceStable, CredentialUserPassword, RoutingSharedHTTPClient, httpParams(), "http"),
 		"http-form":     descriptor("http-form", 80, ServiceBeta, CredentialUserPassword, RoutingSharedHTTPClient, httpFormParams(), "http"),
 		"https-form":    descriptor("https-form", 443, ServiceBeta, CredentialUserPassword, RoutingSharedHTTPClient, httpFormParams(), "http"),
+		"http-template": descriptor("http-template", 80, ServiceBeta, CredentialUserPassword, RoutingSharedHTTPClient, []ParamDescriptor{{Name: "template", Description: "Auth template YAML path"}, {Name: "template-inline", Description: "Inline auth template YAML"}}, "http"),
 		"vmauthd":       descriptor("vmauthd", 902, ServiceStable, CredentialUserPassword, RoutingConnectionManager, nil, ""),
 		"teamspeak":     descriptor("teamspeak", 10011, ServiceStable, CredentialUserPassword, RoutingConnectionManager, nil, ""),
 		"asterisk":      descriptor("asterisk", 5038, ServiceBeta, CredentialUserPassword, RoutingConnectionManager, nil, ""),
