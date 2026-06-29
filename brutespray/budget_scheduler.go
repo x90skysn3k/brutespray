@@ -1,6 +1,7 @@
 package brutespray
 
 import (
+	"math/rand"
 	"sync"
 	"time"
 )
@@ -10,6 +11,7 @@ type BudgetScheduler struct {
 	policy   LockoutPolicy
 	mu       sync.Mutex
 	attempts map[string][]time.Time
+	jitter   func(time.Duration) time.Duration
 }
 
 // NewBudgetScheduler creates a scheduler for policy. The now parameter is kept for call-site clarity.
@@ -18,6 +20,12 @@ func NewBudgetScheduler(policy LockoutPolicy, now time.Time) *BudgetScheduler {
 	return &BudgetScheduler{
 		policy:   policy,
 		attempts: make(map[string][]time.Time),
+		jitter: func(max time.Duration) time.Duration {
+			if max <= 0 {
+				return 0
+			}
+			return time.Duration(rand.Int63n(int64(max) + 1))
+		},
 	}
 }
 
@@ -31,15 +39,7 @@ func (s *BudgetScheduler) DelayBefore(id AttemptIdentity, now time.Time) time.Du
 	key := id.Key()
 	recent := pruneBefore(s.attempts[key], now.Add(-s.policy.LockoutWindow))
 	s.attempts[key] = recent
-	if len(recent) < s.policy.EffectiveBudget() {
-		return 0
-	}
-	oldest := recent[0]
-	readyAt := oldest.Add(s.policy.LockoutWindow)
-	if !readyAt.After(now) {
-		return 0
-	}
-	return readyAt.Sub(now)
+	return s.delayForRecent(recent, now)
 }
 
 // Reserve atomically checks and consumes one attempt budget slot.
@@ -80,7 +80,15 @@ func (s *BudgetScheduler) delayForRecent(recent []time.Time, now time.Time) time
 	if !readyAt.After(now) {
 		return 0
 	}
-	return readyAt.Sub(now)
+	return s.withJitter(readyAt.Sub(now))
+}
+
+func (s *BudgetScheduler) withJitter(delay time.Duration) time.Duration {
+	if delay <= 0 || s.policy.JitterPercent <= 0 || s.jitter == nil {
+		return delay
+	}
+	max := time.Duration(int64(delay) * int64(s.policy.JitterPercent) / 100)
+	return delay + s.jitter(max)
 }
 
 func pruneBefore(attempts []time.Time, cutoff time.Time) []time.Time {

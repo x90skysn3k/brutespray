@@ -35,6 +35,18 @@ func TestBudgetSchedulerReserveIsAtomic(t *testing.T) {
 	}
 }
 
+func TestBudgetSchedulerAppliesJitterToPositiveDelay(t *testing.T) {
+	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	scheduler := NewBudgetScheduler(LockoutPolicy{LockoutThreshold: 2, SafeMargin: 1, LockoutWindow: 10 * time.Second, JitterPercent: 10}, start)
+	scheduler.jitter = func(max time.Duration) time.Duration { return max }
+	id := NewAttemptIdentity("ssh", "", "root")
+	scheduler.Record(id, start)
+	delay := scheduler.DelayBefore(id, start)
+	if delay != 11*time.Second {
+		t.Fatalf("delay = %v, want 11s", delay)
+	}
+}
+
 func TestBudgetSchedulerWindowExpires(t *testing.T) {
 	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	scheduler := NewBudgetScheduler(LockoutPolicy{LockoutThreshold: 3, SafeMargin: 1, LockoutWindow: 10 * time.Minute}, start)
