@@ -403,6 +403,47 @@ func ParseList(filename string) (map[Host]int, error) {
 	return hosts, nil
 }
 
+// ParseDirectTarget parses a single service://host target and rejects CIDR expansion.
+func ParseDirectTarget(target string) (Host, error) {
+	hosts, err := (&Host{}).Parse(target)
+	if err != nil {
+		return Host{}, err
+	}
+	if len(hosts) != 1 {
+		return Host{}, fmt.Errorf("target expands to %d hosts", len(hosts))
+	}
+	return hosts[0], nil
+}
+
+func splitHostPortDefault(target string) (host string, port string, err error) {
+	if strings.HasPrefix(target, "[") {
+		end := strings.LastIndex(target, "]")
+		if end < 0 {
+			return "", "", fmt.Errorf("invalid bracketed IPv6 target: %s", target)
+		}
+		host = target[1:end]
+		rest := target[end+1:]
+		if rest == "" {
+			return host, "", nil
+		}
+		if !strings.HasPrefix(rest, ":") {
+			return "", "", fmt.Errorf("invalid bracketed IPv6 target: %s", target)
+		}
+		return host, rest[1:], nil
+	}
+	if strings.Contains(target, "/") {
+		return target, "", nil
+	}
+	if strings.Count(target, ":") > 1 {
+		return "", "", fmt.Errorf("IPv6 targets with ports must use brackets: %s", target)
+	}
+	portIndex := strings.LastIndex(target, ":")
+	if portIndex == -1 {
+		return target, "", nil
+	}
+	return target[:portIndex], target[portIndex+1:], nil
+}
+
 func (h *Host) Parse(host string) ([]Host, error) {
 	supportedServices := SupportedServicePorts()
 
@@ -414,14 +455,9 @@ func (h *Host) Parse(host string) ([]Host, error) {
 	service := MapService(parts[0])
 	remaining := parts[1]
 
-	portIndex := strings.LastIndex(remaining, ":")
-
-	var portStr string
-	if portIndex == -1 {
-		portStr = ""
-	} else {
-		portStr = remaining[portIndex+1:]
-		remaining = remaining[:portIndex]
+	remaining, portStr, err := splitHostPortDefault(remaining)
+	if err != nil {
+		return nil, err
 	}
 
 	port, err := strconv.Atoi(portStr)
@@ -475,7 +511,7 @@ func generateHostList(ipnet *net.IPNet) []net.IP {
 }
 
 func isBroadcast(ip net.IP, ipnet *net.IPNet) bool {
-	if ip == nil || ipnet == nil {
+	if ip == nil || ipnet == nil || ip.To4() == nil {
 		return false
 	}
 	network := ipnet.IP.Mask(ipnet.Mask)
