@@ -288,6 +288,60 @@ func TestPrintResultWithStatusIncludesStatusCode(t *testing.T) {
 	}
 }
 
+func TestPrintResultJSONRedactsPasswordInEvidenceMode(t *testing.T) {
+	resetGlobalStats()
+
+	origFormat := OutputFormatMode
+	origSilent := Silent
+	origTUI := TUIMode
+	origNoColor := NoColorMode
+	origEvidence := GetEvidenceConfig()
+	defer func() {
+		OutputFormatMode = origFormat
+		Silent = origSilent
+		TUIMode = origTUI
+		NoColorMode = origNoColor
+		SetEvidenceConfig(origEvidence)
+	}()
+
+	OutputFormatMode = "json"
+	Silent = false
+	TUIMode = false
+	NoColorMode = true
+	SetEvidenceConfig(EvidenceConfig{Mode: EvidenceHash, HMACKey: []byte("engagement-key")})
+
+	old := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	dir := t.TempDir()
+	PrintResult("ssh", "10.0.0.1", 22, "root", "toor", true, true, false, dir, 0, "OpenSSH_8.9")
+
+	w.Close()
+	os.Stdout = old
+
+	var buf bytes.Buffer
+	_, _ = io.Copy(&buf, r)
+	output := strings.TrimSpace(buf.String())
+	if strings.Contains(output, "toor") {
+		t.Fatalf("raw password leaked in JSON output: %s", output)
+	}
+
+	var attempt AttemptResult
+	if err := json.Unmarshal([]byte(output), &attempt); err != nil {
+		t.Fatalf("invalid JSON output: %v\nraw: %s", err, output)
+	}
+	if attempt.Password != "[REDACTED]" {
+		t.Fatalf("password = %q, want redacted", attempt.Password)
+	}
+	if !attempt.SecretRedacted {
+		t.Fatal("expected secret_redacted=true")
+	}
+	if attempt.SecretHMACSHA256 == "" {
+		t.Fatal("expected secret_hmac_sha256")
+	}
+}
+
 func TestPrintComprehensiveSummary(t *testing.T) {
 	resetGlobalStats()
 

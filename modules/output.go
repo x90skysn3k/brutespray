@@ -422,17 +422,19 @@ func formatCredentialMsg(service, host string, port int, user, pass, status, ban
 
 // AttemptResult represents a single brute-force attempt for JSON output.
 type AttemptResult struct {
-	Timestamp  string `json:"timestamp"`
-	Service    string `json:"service"`
-	Host       string `json:"host"`
-	Port       int    `json:"port"`
-	User       string `json:"user,omitempty"`
-	Password   string `json:"password"`
-	Success    bool   `json:"success"`
-	Connected  bool   `json:"connected"`
-	Banner     string `json:"banner,omitempty"`
-	Status     string `json:"status"`
-	StatusCode string `json:"status_code,omitempty"`
+	Timestamp        string `json:"timestamp"`
+	Service          string `json:"service"`
+	Host             string `json:"host"`
+	Port             int    `json:"port"`
+	User             string `json:"user,omitempty"`
+	Password         string `json:"password,omitempty"`
+	SecretRedacted   bool   `json:"secret_redacted,omitempty"`
+	SecretHMACSHA256 string `json:"secret_hmac_sha256,omitempty"`
+	Success          bool   `json:"success"`
+	Connected        bool   `json:"connected"`
+	Banner           string `json:"banner,omitempty"`
+	Status           string `json:"status"`
+	StatusCode       string `json:"status_code,omitempty"`
 }
 
 // PrintResult prints individual results (legacy format for compatibility).
@@ -488,18 +490,21 @@ func printResult(service string, host string, port int, user string, pass string
 	if shouldPrint {
 		OutputMu.Lock()
 		if OutputFormatMode == "json" {
+			displayPass, secretDigest, secretRedacted := GetEvidenceConfig().RenderSecret(pass)
 			attempt := AttemptResult{
-				Timestamp:  time.Now().Format(time.RFC3339),
-				Service:    service,
-				Host:       host,
-				Port:       port,
-				User:       user,
-				Password:   pass,
-				Success:    result,
-				Connected:  con_result,
-				Banner:     bannerStr,
-				Status:     status,
-				StatusCode: statusCode,
+				Timestamp:        time.Now().Format(time.RFC3339),
+				Service:          service,
+				Host:             host,
+				Port:             port,
+				User:             user,
+				Password:         displayPass,
+				SecretRedacted:   secretRedacted,
+				SecretHMACSHA256: secretDigest,
+				Success:          result,
+				Connected:        con_result,
+				Banner:           bannerStr,
+				Status:           status,
+				StatusCode:       statusCode,
 			}
 			jsonBytes, err := json.Marshal(attempt)
 			if err == nil {

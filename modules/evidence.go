@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"sync"
 )
 
 // EvidenceMode controls how credential material appears in outputs.
@@ -31,6 +32,34 @@ func (m EvidenceMode) Validate() error {
 type EvidenceConfig struct {
 	Mode    EvidenceMode
 	HMACKey []byte
+}
+
+var evidenceState = struct {
+	mu     sync.RWMutex
+	config EvidenceConfig
+}{
+	config: EvidenceConfig{Mode: EvidenceFull},
+}
+
+// SetEvidenceConfig updates the package-wide output evidence settings.
+func SetEvidenceConfig(cfg EvidenceConfig) {
+	if cfg.Mode == "" {
+		cfg.Mode = EvidenceFull
+	}
+	keyCopy := append([]byte(nil), cfg.HMACKey...)
+	cfg.HMACKey = keyCopy
+	evidenceState.mu.Lock()
+	evidenceState.config = cfg
+	evidenceState.mu.Unlock()
+}
+
+// GetEvidenceConfig returns a copy of the package-wide evidence settings.
+func GetEvidenceConfig() EvidenceConfig {
+	evidenceState.mu.RLock()
+	cfg := evidenceState.config
+	evidenceState.mu.RUnlock()
+	cfg.HMACKey = append([]byte(nil), cfg.HMACKey...)
+	return cfg
 }
 
 // RedactSecret replaces non-empty secrets with a stable redaction marker.
