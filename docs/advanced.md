@@ -50,7 +50,9 @@ policy:
   safe_margin: 1
   jitter_percent: 10
 evidence:
+  # redacted is safest for shareable reports; hash requires hmac_key.
   mode: redacted
+  # hmac_key: "replace-with-secret-engagement-key"
 ```
 
 Use `--require-plan-ack <hash>` to require the exact dry-run hash before execution. This protects against accidental scope or credential-list drift between planning and running.

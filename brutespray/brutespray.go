@@ -72,6 +72,10 @@ func Execute() {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(2)
 		}
+		if err := configureEvidenceFromManifest(manifest); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(2)
+		}
 		engagementManifest = manifest
 		plan, err := BuildExecutionPlan(cfg, manifest)
 		if err != nil {

@@ -80,7 +80,7 @@ Machine-readable attempt output now carries proof metadata and can render creden
 |---|---|---|---|
 | `full` | Raw password | omitted | Legacy local-only output |
 | `redacted` | `[REDACTED]` | omitted | Shareable summaries and SIEM logs |
-| `hash` | `[REDACTED]` | `secret_hmac_sha256` | Correlating repeated secrets without disclosure |
+| `hash` | `[REDACTED]` | `secret_hmac_sha256` | Correlating repeated secrets without disclosure; requires secret `evidence.hmac_key` |
 | `encrypted` | `[REDACTED]` | omitted | Reserved encrypted evidence mode; currently redacts in JSON output |
 
 JSON attempt records may include:

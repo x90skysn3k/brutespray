@@ -3,7 +3,9 @@ package brutespray
 import (
 	"fmt"
 	"os"
+	"strings"
 
+	"github.com/x90skysn3k/brutespray/v2/modules"
 	"gopkg.in/yaml.v3"
 )
 
@@ -46,7 +48,8 @@ type ManifestPolicy struct {
 
 // ManifestEvidence configures default evidence handling from YAML.
 type ManifestEvidence struct {
-	Mode string `yaml:"mode" json:"mode"`
+	Mode    string `yaml:"mode" json:"mode"`
+	HMACKey string `yaml:"hmac_key" json:"hmac_key,omitempty"`
 }
 
 // LoadEngagementManifest loads an optional engagement manifest from disk.
@@ -70,5 +73,24 @@ func (m EngagementManifest) Validate() error {
 	if m.Engagement.ID == "" && (m.Engagement.Customer != "" || m.Engagement.Operator != "" || m.Engagement.AuthorizationRef != "") {
 		return fmt.Errorf("engagement id is required when engagement metadata is provided")
 	}
+	return nil
+}
+
+func configureEvidenceFromManifest(manifest EngagementManifest) error {
+	if strings.TrimSpace(manifest.Evidence.Mode) == "" {
+		return nil
+	}
+	mode := modules.EvidenceMode(strings.ToLower(strings.TrimSpace(manifest.Evidence.Mode)))
+	if err := mode.Validate(); err != nil {
+		return err
+	}
+	cfg := modules.EvidenceConfig{Mode: mode}
+	if mode == modules.EvidenceHash {
+		if manifest.Evidence.HMACKey == "" {
+			return fmt.Errorf("evidence hash mode requires evidence.hmac_key")
+		}
+		cfg.HMACKey = []byte(manifest.Evidence.HMACKey)
+	}
+	modules.SetEvidenceConfig(cfg)
 	return nil
 }
