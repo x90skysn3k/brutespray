@@ -5,7 +5,7 @@
 | Flag | Description | Example |
 |------|-------------|---------|
 | `-f` | Input file (Nmap, Nessus, Nexpose, JSON, lists) | `-f nmap.gnmap` |
-| `-H` | Target as service://host:port (CIDR supported, repeatable) | `-H ssh://10.1.1.0/24:22` |
+| `-H` | Target as service://host:port (CIDR and bracketed IPv6 supported, repeatable) | `-H ssh://10.1.1.0/24:22` |
 | `-u` | Username or user list | `-u admin` or `-u users.txt` |
 | `-p` | Password or password list | `-p password` or `-p pass.txt` |
 | `-C` | Combo wordlist (user:pass per line) | `-C combos.txt` |
@@ -44,6 +44,10 @@
 | `--badkeys-only` | Run the embedded SSH bad-keys pre-pass only; skip passwords | `--badkeys-only` |
 | `--no-rdp-scan` | Skip pre-auth RDP recon (NLA + sticky-keys) | `--no-rdp-scan` |
 | `-c`, `--creds` | Inline credential pairs, comma-separated: `admin:admin,root:toor` | `-c admin:admin,root:toor` |
+| `--dry-run` | Print deterministic execution plan JSON without attempts | `--dry-run -H ssh://127.0.0.1:22 -u root -p toor` |
+| `--plan-out` | Write the dry-run plan JSON to a file | `--plan-out plan.json` |
+| `--require-plan-ack` | Require exact plan hash before execution | `--require-plan-ack <hash>` |
+| `--engagement` | Engagement manifest with scope, lockout policy, and evidence defaults | `--engagement engagement.yaml` |
 
 ## YAML Config File
 
@@ -66,6 +70,13 @@ spray_delay: "30m"
 hosts:
   - "ssh://10.0.0.0/24:22"
   - "rdp://10.0.0.0/24:3389"
+```
+
+Direct IPv6 targets with ports use bracket syntax:
+
+```bash
+brutespray -H 'ssh://[2001:db8::10]:22' -u admin -p passlist.txt
+brutespray -H 'ssh://2001:db8::/126' -u admin -p passlist.txt
 ```
 
 All fields are optional. Any CLI flag takes precedence over the config file value.
@@ -94,6 +105,10 @@ brutespray -H ssh://10.0.0.1:22 -u admin -p /path/to/key -m key:true
 # Wrapper module (requires --allow-wrapper)
 brutespray -H wrapper://10.0.0.1 -u admin -p passlist.txt \
   -m "cmd:sshpass -p %W ssh %U@%H -p %P" --allow-wrapper
+
+# Declarative HTTP auth template
+brutespray -H http-template://10.0.0.1:8080 -u admin -p passlist.txt \
+  -m template:json-login.yaml
 ```
 
 Module params can also be set in YAML config:

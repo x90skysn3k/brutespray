@@ -72,6 +72,35 @@ chmod +x brutespray-nxc.sh
 | `-q` | Suppress the banner |
 | `--no-tui` | Use legacy text output instead of interactive TUI |
 
+## Evidence Modes
+
+Machine-readable attempt output now carries proof metadata and can render credential material according to the configured evidence mode.
+
+| Mode | Password field | Correlation field | Intended use |
+|---|---|---|---|
+| `full` | Raw password | omitted | Legacy local-only output |
+| `redacted` | `[REDACTED]` | omitted | Shareable summaries and SIEM logs |
+| `hash` | `[REDACTED]` | `secret_hmac_sha256` | Correlating repeated secrets without disclosure |
+| `encrypted` | `[REDACTED]` | omitted | Reserved encrypted evidence mode; currently redacts in JSON output |
+
+JSON attempt records may include:
+
+| Field | Description |
+|---|---|
+| `secret_redacted` | `true` when the password was not printed directly |
+| `secret_hmac_sha256` | HMAC-SHA256 digest when evidence mode is `hash` |
+| `confidence` | `confirmed`, `probable`, or `inconclusive` |
+| `proof_type` | Evidence source such as `auth_protocol_success`, `preauth_probe`, `badkey_match`, `http_matcher`, or `wrapper_exit` |
+| `proof_detail` | Short module/detail string for reports |
+
+## Audit log verification
+
+`brutespray audit verify <audit.jsonl>` validates a hash-chained JSONL audit log. Each event includes `sequence`, `prev_hash`, and `hash`; verification fails if an event is edited, removed, or reordered.
+
+```bash
+brutespray audit verify brutespray-audit.jsonl
+```
+
 ## Finding records (JSONL)
 
 Pre-auth recon results emit one JSON object per line in JSONL mode:

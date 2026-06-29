@@ -21,6 +21,52 @@ brutespray -f nmap.gnmap -u userlist.txt -p passlist.txt -spray -spray-delay 15m
 
 The circuit breaker is automatically enabled in spray mode to skip hosts that become unreachable after 5 consecutive connection failures.
 
+## Engagement Manifests and Dry Runs
+
+`--dry-run` resolves targets and credential cardinality without making credential attempts. The JSON plan includes a deterministic `hash`, total targets, total attempts, scope rejections, and warnings such as wrapper command execution.
+
+```bash
+brutespray --dry-run -H ssh://127.0.0.1:22 -u root -p toor --no-tui
+brutespray --dry-run -f nmap.xml -u users.txt -p passwords.txt \
+  --engagement engagement.yaml --plan-out plan.json
+```
+
+An engagement manifest can describe the authorized context, scope, lockout policy, and evidence defaults:
+
+```yaml
+engagement:
+  id: acme-q3
+  customer: Acme
+  operator: syoung
+  authorization_ref: ROE-123
+scope:
+  allow:
+    cidrs: ["10.0.0.0/24"]
+  deny:
+    hosts: ["10.0.0.13"]
+policy:
+  lockout_threshold: 5
+  lockout_window: 15m
+  safe_margin: 1
+  jitter_percent: 10
+evidence:
+  mode: redacted
+```
+
+Use `--require-plan-ack <hash>` to require the exact dry-run hash before execution. This protects against accidental scope or credential-list drift between planning and running.
+
+## Lockout-Aware Scheduling
+
+When an engagement policy sets `lockout_threshold`, `lockout_window`, and `safe_margin`, Brutespray budgets attempts per normalized account identity (`service|domain|user`) across worker pools. Attempts that would exceed the safe budget sleep until the window clears, with optional positive jitter from `jitter_percent`.
+
+The effective budget is:
+
+```text
+lockout_threshold - safe_margin
+```
+
+Set `safe_margin` below `lockout_threshold`. A missing or zero threshold leaves the scheduler disabled and preserves legacy behavior.
+
 ## SOCKS5 Proxy
 
 All services support SOCKS5 proxies. Supported formats:
