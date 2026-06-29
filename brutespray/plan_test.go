@@ -1,6 +1,8 @@
 package brutespray
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/x90skysn3k/brutespray/v2/modules"
@@ -12,8 +14,9 @@ func TestBuildExecutionPlanCountsAttempts(t *testing.T) {
 			{Service: "ssh", Host: "10.0.0.1", Port: 22},
 			{Service: "ssh", Host: "10.0.0.2", Port: 22},
 		},
-		User:     "root",
-		Password: "toor",
+		User:      "root",
+		Password:  "toor",
+		NoBadKeys: true,
 	}
 	plan, err := BuildExecutionPlan(cfg, EngagementManifest{})
 	if err != nil {
@@ -52,8 +55,9 @@ func TestBuildExecutionPlanAppliesScope(t *testing.T) {
 			{Service: "ssh", Host: "10.0.0.1", Port: 22},
 			{Service: "ssh", Host: "10.0.0.13", Port: 22},
 		},
-		User:     "root",
-		Password: "toor",
+		User:      "root",
+		Password:  "toor",
+		NoBadKeys: true,
 	}
 	manifest := EngagementManifest{Scope: ScopeConfig{
 		Allow: ScopeSet{CIDRs: []string{"10.0.0.0/24"}},
@@ -77,16 +81,18 @@ func TestBuildExecutionPlanHashIgnoresHostInputOrder(t *testing.T) {
 			{Service: "ssh", Host: "10.0.0.2", Port: 22},
 			{Service: "ssh", Host: "10.0.0.1", Port: 22},
 		},
-		User:     "root",
-		Password: "toor",
+		User:      "root",
+		Password:  "toor",
+		NoBadKeys: true,
 	}
 	second := &Config{
 		Hosts: []modules.Host{
 			{Service: "ssh", Host: "10.0.0.1", Port: 22},
 			{Service: "ssh", Host: "10.0.0.2", Port: 22},
 		},
-		User:     "root",
-		Password: "toor",
+		User:      "root",
+		Password:  "toor",
+		NoBadKeys: true,
 	}
 	firstPlan, err := BuildExecutionPlan(first, EngagementManifest{})
 	if err != nil {
@@ -98,6 +104,52 @@ func TestBuildExecutionPlanHashIgnoresHostInputOrder(t *testing.T) {
 	}
 	if firstPlan.Hash != secondPlan.Hash {
 		t.Fatalf("hashes differ for same targets: %s != %s", firstPlan.Hash, secondPlan.Hash)
+	}
+}
+
+func TestBuildExecutionPlanCountsFilesInlineAndExtras(t *testing.T) {
+	dir := t.TempDir()
+	users := filepath.Join(dir, "users.txt")
+	passwords := filepath.Join(dir, "passwords.txt")
+	if err := os.WriteFile(users, []byte("root\nadmin\n"), 0o600); err != nil {
+		t.Fatalf("write users: %v", err)
+	}
+	if err := os.WriteFile(passwords, []byte("toor\nsecret\n"), 0o600); err != nil {
+		t.Fatalf("write passwords: %v", err)
+	}
+	cfg := &Config{
+		Hosts:             []modules.Host{{Service: "ftp", Host: "10.0.0.1", Port: 21}},
+		User:              users,
+		Password:          passwords,
+		Creds:             "inline:cred,second:pair",
+		UseUsernameAsPass: true,
+		UseReversedPass:   true,
+	}
+	plan, err := BuildExecutionPlan(cfg, EngagementManifest{})
+	if err != nil {
+		t.Fatalf("BuildExecutionPlan: %v", err)
+	}
+	// 2 inline creds + 2 username-as-password + 2 reversed users + 2x2 file credentials.
+	if plan.TotalAttempts != 10 {
+		t.Fatalf("attempts = %d, want 10", plan.TotalAttempts)
+	}
+}
+
+func TestBuildExecutionPlanCountsComboFile(t *testing.T) {
+	combo := filepath.Join(t.TempDir(), "combo.txt")
+	if err := os.WriteFile(combo, []byte("root:toor\nadmin:secret\n"), 0o600); err != nil {
+		t.Fatalf("write combo: %v", err)
+	}
+	cfg := &Config{
+		Hosts: []modules.Host{{Service: "ssh", Host: "10.0.0.1", Port: 22}},
+		Combo: combo,
+	}
+	plan, err := BuildExecutionPlan(cfg, EngagementManifest{})
+	if err != nil {
+		t.Fatalf("BuildExecutionPlan: %v", err)
+	}
+	if plan.TotalAttempts != 2 {
+		t.Fatalf("attempts = %d, want 2", plan.TotalAttempts)
 	}
 }
 

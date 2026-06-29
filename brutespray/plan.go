@@ -8,6 +8,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/x90skysn3k/brutespray/v2/brute/badkeys"
 	"github.com/x90skysn3k/brutespray/v2/modules"
 )
 
@@ -63,16 +64,15 @@ func BuildExecutionPlan(cfg *Config, manifest EngagementManifest) (ExecutionPlan
 		GeneratedAt:  time.Now().UTC(),
 		EngagementID: manifest.Engagement.ID,
 	}
-	attemptsPerTarget := estimateAttemptsPerTarget(cfg)
 	for _, host := range cfg.Hosts {
 		allowed, reason := matcher.Allowed(host.Host)
 		if !allowed {
 			plan.ScopeRejects = append(plan.ScopeRejects, ScopeRejection{Service: host.Service, Host: host.Host, Port: host.Port, Reason: reason})
 			continue
 		}
-		attempts := attemptsPerTarget
-		if modules.IsPasswordOnlyService(host.Service) && attempts == 0 {
-			attempts = estimatePasswordCount(cfg)
+		attempts, err := estimateAttemptsForTarget(cfg, host)
+		if err != nil {
+			return ExecutionPlan{}, err
 		}
 		plan.Targets = append(plan.Targets, PlannedTarget{Service: host.Service, Host: host.Host, Port: host.Port, Attempts: attempts})
 		plan.TotalTargets++
@@ -86,30 +86,74 @@ func BuildExecutionPlan(cfg *Config, manifest EngagementManifest) (ExecutionPlan
 	return plan, nil
 }
 
-func estimateAttemptsPerTarget(cfg *Config) int {
-	if cfg.Combo != "" || cfg.Creds != "" {
-		return 1
+func estimateAttemptsForTarget(cfg *Config, host modules.Host) (int, error) {
+	if cfg.Combo != "" {
+		users, passwords := modules.GetUsersAndPasswordsCombo(&host, cfg.Combo, version)
+		return min(len(users), len(passwords)), nil
 	}
-	users := estimateUserCount(cfg)
-	passwords := estimatePasswordCount(cfg)
-	if users == 0 || passwords == 0 {
-		return 0
+	if modules.IsPasswordOnlyService(host.Service) {
+		if cfg.PasswordGen != nil {
+			return cfg.PasswordGen.Count(), nil
+		}
+		_, passwords, err := modules.GetUsersAndPasswords(&host, cfg.User, cfg.Password, version)
+		if err != nil {
+			return 0, err
+		}
+		return len(passwords), nil
 	}
-	return users * passwords
+
+	users, passwords, err := modules.GetUsersAndPasswords(&host, cfg.User, cfg.Password, version)
+	if err != nil {
+		return 0, err
+	}
+	passCount := len(passwords)
+	if cfg.PasswordGen != nil {
+		passCount = cfg.PasswordGen.Count()
+	}
+	attempts := len(ParseInlineCreds(cfg.Creds))
+	if host.Service == "ssh" && !cfg.NoBadKeys {
+		bundle, err := badkeys.Load()
+		if err != nil {
+			return 0, fmt.Errorf("loading bad-keys bundle: %w", err)
+		}
+		attempts += len(bundle)
+	}
+	if host.Service == "ssh" && cfg.BadKeysOnly {
+		return attempts, nil
+	}
+	return attempts + countCredentialPairs(users, passCount, normalizedScheduleMode(cfg), cfg.UseUsernameAsPass, cfg.UseReversedPass), nil
 }
 
-func estimateUserCount(cfg *Config) int {
-	if cfg.User != "" {
-		return 1
+func countCredentialPairs(users []string, passwordCount int, mode string, useUsernameAsPass bool, useReversedPass bool) int {
+	extra := 0
+	if useUsernameAsPass {
+		extra += len(users)
 	}
-	return 0
+	if useReversedPass {
+		for _, user := range users {
+			if reverseString(user) != user {
+				extra++
+			}
+		}
+	}
+	if mode == "pairwise" {
+		pairs := len(users)
+		if passwordCount < pairs {
+			pairs = passwordCount
+		}
+		return extra + pairs
+	}
+	return extra + len(users)*passwordCount
 }
 
-func estimatePasswordCount(cfg *Config) int {
-	if cfg.Password != "" || cfg.PasswordGenSpec != "" {
-		return 1
+func normalizedScheduleMode(cfg *Config) string {
+	if cfg.ScheduleMode != "" && cfg.ScheduleMode != "auto" {
+		return cfg.ScheduleMode
 	}
-	return 0
+	if cfg.SprayMode {
+		return "spray"
+	}
+	return "host-major"
 }
 
 func hostsFromPlanTargets(targets []PlannedTarget) []modules.Host {

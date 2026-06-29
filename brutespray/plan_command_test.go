@@ -12,10 +12,11 @@ import (
 func TestRunPlanCommandWritesPlanFile(t *testing.T) {
 	outPath := filepath.Join(t.TempDir(), "plan.json")
 	cfg := &Config{
-		Hosts:    []modules.Host{{Service: "ssh", Host: "127.0.0.1", Port: 22}},
-		User:     "root",
-		Password: "toor",
-		PlanOut:  outPath,
+		Hosts:     []modules.Host{{Service: "ssh", Host: "127.0.0.1", Port: 22}},
+		User:      "root",
+		Password:  "toor",
+		PlanOut:   outPath,
+		NoBadKeys: true,
 	}
 	plan, err := RunPlanCommand(cfg)
 	if err != nil {
@@ -41,6 +42,8 @@ func TestRunPlanCommandLoadsEngagementManifest(t *testing.T) {
 		User:           "root",
 		Password:       "toor",
 		EngagementFile: manifestPath,
+		NoBadKeys:      true,
+		PlanOut:        filepath.Join(dir, "plan.json"),
 	}
 	plan, err := RunPlanCommand(cfg)
 	if err != nil {
