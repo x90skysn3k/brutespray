@@ -26,3 +26,25 @@ func TestFormatModuleHelpMarksPasswordOnlyServices(t *testing.T) {
 		t.Fatalf("module help should mark vnc password-only:\n%s", out)
 	}
 }
+
+func TestFormatModuleHelpIncludesDescriptorParams(t *testing.T) {
+	out, err := formatModuleHelp("http-form")
+	if err != nil {
+		t.Fatalf("formatModuleHelp: %v", err)
+	}
+	for _, want := range []string{"routing=shared-http-client", "stability=beta", "url", "body", "csrf", "form-url", "content-type"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("module help missing %q in:\n%s", want, out)
+		}
+	}
+}
+
+func TestFormatModuleHelpIncludesRoutingCaveats(t *testing.T) {
+	out, err := formatModuleHelp("neo4j")
+	if err != nil {
+		t.Fatalf("formatModuleHelp: %v", err)
+	}
+	if !strings.Contains(out, "routing=direct-library") {
+		t.Fatalf("module help should disclose direct-library routing:\n%s", out)
+	}
+}

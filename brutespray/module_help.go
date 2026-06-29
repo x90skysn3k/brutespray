@@ -14,7 +14,6 @@ func formatModuleHelp(selection string) (string, error) {
 	if selection == "" {
 		selection = "all"
 	}
-	ports := modules.SupportedServicePorts()
 	services := brute.Services()
 	if selection != "all" {
 		if !brute.IsRegistered(selection) {
@@ -26,16 +25,17 @@ func formatModuleHelp(selection string) (string, error) {
 
 	var b strings.Builder
 	for _, service := range services {
-		port, ok := ports[service]
+		descriptor, ok := modules.DescriptorForService(service)
 		if !ok {
-			port = 0
+			return "", fmt.Errorf("missing descriptor for service: %s", service)
 		}
 		credentials := "user,password"
-		if service == "vnc" || service == "snmp" {
+		if descriptor.CredentialMode == modules.CredentialPasswordOnly {
 			credentials = "password"
 		}
-		params := moduleHelpParams(service)
-		fmt.Fprintf(&b, "service=%s default_port=%d credentials=%s", service, port, credentials)
+		fmt.Fprintf(&b, "service=%s default_port=%d credentials=%s routing=%s stability=%s",
+			descriptor.Name, descriptor.DefaultPort, credentials, descriptor.Routing, descriptor.Stability)
+		params := moduleHelpParams(descriptor)
 		if len(params) > 0 {
 			fmt.Fprintf(&b, " params=%s", strings.Join(params, ","))
 		}
@@ -47,17 +47,11 @@ func formatModuleHelp(selection string) (string, error) {
 	return b.String(), nil
 }
 
-func moduleHelpParams(service string) []string {
-	switch service {
-	case "http", "https", "http-form", "https-form":
-		return []string{"path", "method", "success", "failure", "auth"}
-	case "imap":
-		return []string{"auth"}
-	case "smbnt", "rdp", "mssql", "winrm":
-		return []string{"domain"}
-	case "wrapper":
-		return []string{"cmd"}
-	default:
-		return nil
+func moduleHelpParams(descriptor modules.ServiceDescriptor) []string {
+	params := make([]string, 0, len(descriptor.Params))
+	for _, param := range descriptor.Params {
+		params = append(params, param.Name)
 	}
+	sort.Strings(params)
+	return params
 }
