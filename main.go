@@ -25,5 +25,12 @@ func main() {
 		}
 		return
 	}
+	if len(os.Args) > 1 && os.Args[1] == "workspace" {
+		if err := brutespray.WorkspaceCommand(nil, os.Args[2:]); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(2)
+		}
+		return
+	}
 	brutespray.Execute()
 }
