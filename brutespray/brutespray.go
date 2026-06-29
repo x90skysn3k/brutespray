@@ -54,6 +54,33 @@ func Execute() {
 		// already handles by printing the help banner).
 	}
 
+	if cfg.DryRun || cfg.RequirePlanAck != "" || cfg.EngagementFile != "" {
+		manifest, err := LoadEngagementManifest(cfg.EngagementFile)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(2)
+		}
+		plan, err := BuildExecutionPlan(cfg, manifest)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(2)
+		}
+		if cfg.DryRun {
+			if err := EmitExecutionPlan(cfg, plan); err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				os.Exit(2)
+			}
+			return
+		}
+		if err := ValidatePlanAcknowledgement(cfg, plan); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(2)
+		}
+		if cfg.EngagementFile != "" {
+			cfg.Hosts = hostsFromPlanTargets(plan.Targets)
+		}
+	}
+
 	totalHosts := len(cfg.Hosts)
 
 	configureCircuitBreaker(cfg)

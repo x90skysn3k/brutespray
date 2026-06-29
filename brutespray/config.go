@@ -111,6 +111,8 @@ var helpGroups = []flagGroup{
 			{"-output-format", "fmt", "Output format: text or json (default: text)"},
 			{"-summary", "", "Generate summary report with statistics"},
 			{"-silent", "", "Suppress per-attempt logs"},
+			{"-dry-run", "", "Print execution plan JSON without credential attempts"},
+			{"-plan-out", "file", "Write dry-run plan JSON to file"},
 			{"-log-every", "n", "Log every Nth attempt (default: 1)"},
 			{"-q", "", "Suppress banner"},
 			{"-nc", "", "Disable colored output"},
@@ -132,6 +134,8 @@ var helpGroups = []flagGroup{
 			{"-m", "KEY:VALUE", "Module parameter (repeatable)"},
 			{"-d", "domain", "Domain for RDP/SMB auth"},
 			{"-config", "file", "YAML config file"},
+			{"-engagement", "file", "Engagement manifest YAML with scope/policy/evidence"},
+			{"-require-plan-ack", "hash", "Require exact dry-run plan hash acknowledgment before execution"},
 			{"-checkpoint", "file", "Checkpoint file (default: brutespray-checkpoint.json)"},
 			{"-resume", "file", "Resume from checkpoint"},
 			{"-allow-wrapper", "", "Allow wrapper module (executes commands)"},
@@ -260,6 +264,10 @@ type Config struct {
 	DebugFile         string
 	RouteDiagnostics  bool
 	ModuleHelp        string
+	DryRun            bool
+	PlanOut           string
+	RequirePlanAck    string
+	EngagementFile    string
 }
 
 // Validate checks for mutually exclusive flags, contradictory options,
@@ -359,6 +367,10 @@ func ParseConfig() *Config {
 	debugFile := flag.String("debug-file", "", "Debug audit JSONL path (default: brutespray-debug.jsonl)")
 	routeDiagnostics := flag.Bool("route-diagnostics", false, "Print selected local route/source address per target")
 	moduleHelp := flag.String("module-help", "", "Print module defaults and accepted module params for a service or all")
+	dryRun := flag.Bool("dry-run", false, "Resolve targets and credentials into an execution plan without attempting logins")
+	planOut := flag.String("plan-out", "", "Write dry-run execution plan JSON to this file")
+	requirePlanAck := flag.String("require-plan-ack", "", "Require acknowledgment of the exact plan hash before execution")
+	engagementFile := flag.String("engagement", "", "Engagement manifest YAML with scope, policy, and evidence defaults")
 
 	flag.Usage = customUsage
 
@@ -517,6 +529,10 @@ func ParseConfig() *Config {
 	cfg.DebugFile = *debugFile
 	cfg.RouteDiagnostics = *routeDiagnostics
 	cfg.ModuleHelp = *moduleHelp
+	cfg.DryRun = *dryRun
+	cfg.PlanOut = *planOut
+	cfg.RequirePlanAck = *requirePlanAck
+	cfg.EngagementFile = *engagementFile
 	// If user passed the .jsonl session log, resolve to the .json checkpoint
 	resume := *resumeFile
 	if r, ok := strings.CutSuffix(resume, ".jsonl"); ok {

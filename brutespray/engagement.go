@@ -1,6 +1,11 @@
 package brutespray
 
-import "fmt"
+import (
+	"fmt"
+	"os"
+
+	"gopkg.in/yaml.v3"
+)
 
 // EngagementManifest captures optional run metadata, scope, policy, and evidence defaults.
 type EngagementManifest struct {
@@ -42,6 +47,22 @@ type ManifestPolicy struct {
 // ManifestEvidence configures default evidence handling from YAML.
 type ManifestEvidence struct {
 	Mode string `yaml:"mode" json:"mode"`
+}
+
+// LoadEngagementManifest loads an optional engagement manifest from disk.
+func LoadEngagementManifest(path string) (EngagementManifest, error) {
+	if path == "" {
+		return EngagementManifest{}, nil
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return EngagementManifest{}, fmt.Errorf("reading engagement manifest: %w", err)
+	}
+	var manifest EngagementManifest
+	if err := yaml.Unmarshal(data, &manifest); err != nil {
+		return EngagementManifest{}, fmt.Errorf("parsing engagement manifest: %w", err)
+	}
+	return manifest, manifest.Validate()
 }
 
 // Validate catches ambiguous engagement metadata before execution.

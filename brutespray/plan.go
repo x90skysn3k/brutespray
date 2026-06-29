@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/x90skysn3k/brutespray/v2/modules"
@@ -80,6 +81,7 @@ func BuildExecutionPlan(cfg *Config, manifest EngagementManifest) (ExecutionPlan
 			plan.Warnings = append(plan.Warnings, PlanWarning{Code: "wrapper-exec", Message: "wrapper executes external commands and requires explicit authorization"})
 		}
 	}
+	sortPlan(&plan)
 	plan.Hash = planHash(plan)
 	return plan, nil
 }
@@ -108,6 +110,39 @@ func estimatePasswordCount(cfg *Config) int {
 		return 1
 	}
 	return 0
+}
+
+func hostsFromPlanTargets(targets []PlannedTarget) []modules.Host {
+	hosts := make([]modules.Host, 0, len(targets))
+	for _, target := range targets {
+		hosts = append(hosts, modules.Host{Service: target.Service, Host: target.Host, Port: target.Port})
+	}
+	return hosts
+}
+
+func sortPlan(plan *ExecutionPlan) {
+	sort.Slice(plan.Targets, func(i, j int) bool {
+		return comparePlanTarget(plan.Targets[i].Service, plan.Targets[i].Host, plan.Targets[i].Port, plan.Targets[j].Service, plan.Targets[j].Host, plan.Targets[j].Port)
+	})
+	sort.Slice(plan.ScopeRejects, func(i, j int) bool {
+		return comparePlanTarget(plan.ScopeRejects[i].Service, plan.ScopeRejects[i].Host, plan.ScopeRejects[i].Port, plan.ScopeRejects[j].Service, plan.ScopeRejects[j].Host, plan.ScopeRejects[j].Port)
+	})
+	sort.Slice(plan.Warnings, func(i, j int) bool {
+		if plan.Warnings[i].Code != plan.Warnings[j].Code {
+			return plan.Warnings[i].Code < plan.Warnings[j].Code
+		}
+		return plan.Warnings[i].Message < plan.Warnings[j].Message
+	})
+}
+
+func comparePlanTarget(aService, aHost string, aPort int, bService, bHost string, bPort int) bool {
+	if aService != bService {
+		return aService < bService
+	}
+	if aHost != bHost {
+		return aHost < bHost
+	}
+	return aPort < bPort
 }
 
 func planHash(plan ExecutionPlan) string {

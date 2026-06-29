@@ -71,6 +71,36 @@ func TestBuildExecutionPlanAppliesScope(t *testing.T) {
 	}
 }
 
+func TestBuildExecutionPlanHashIgnoresHostInputOrder(t *testing.T) {
+	first := &Config{
+		Hosts: []modules.Host{
+			{Service: "ssh", Host: "10.0.0.2", Port: 22},
+			{Service: "ssh", Host: "10.0.0.1", Port: 22},
+		},
+		User:     "root",
+		Password: "toor",
+	}
+	second := &Config{
+		Hosts: []modules.Host{
+			{Service: "ssh", Host: "10.0.0.1", Port: 22},
+			{Service: "ssh", Host: "10.0.0.2", Port: 22},
+		},
+		User:     "root",
+		Password: "toor",
+	}
+	firstPlan, err := BuildExecutionPlan(first, EngagementManifest{})
+	if err != nil {
+		t.Fatalf("BuildExecutionPlan(first): %v", err)
+	}
+	secondPlan, err := BuildExecutionPlan(second, EngagementManifest{})
+	if err != nil {
+		t.Fatalf("BuildExecutionPlan(second): %v", err)
+	}
+	if firstPlan.Hash != secondPlan.Hash {
+		t.Fatalf("hashes differ for same targets: %s != %s", firstPlan.Hash, secondPlan.Hash)
+	}
+}
+
 func planHasWarning(plan ExecutionPlan, code string) bool {
 	for _, warning := range plan.Warnings {
 		if warning.Code == code {
