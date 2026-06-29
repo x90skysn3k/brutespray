@@ -69,6 +69,31 @@ type BruteResult struct {
 	SkipUser          bool          // if true, skip remaining passwords for this user (e.g. FTP 530 user-not-found)
 	Finding           *Finding      // pre-auth recon result, nil if none
 	KeyMatch          *KeyMatch     // SSH bad-key match, nil if none
+	Proof
+}
+
+// EnsureProof fills default proof metadata for credential-auth results.
+func (r *BruteResult) EnsureProof(service string) {
+	if r == nil {
+		return
+	}
+	if r.Confidence == "" {
+		if r.AuthSuccess && r.ConnectionSuccess {
+			r.Confidence = ConfidenceConfirmed
+		} else {
+			r.Confidence = ConfidenceInconclusive
+		}
+	}
+	if r.ProofType == "" {
+		if r.KeyMatch != nil {
+			r.ProofType = ProofBadKey
+		} else {
+			r.ProofType = ProofAuthProtocolSuccess
+		}
+	}
+	if r.Detail == "" && service != "" {
+		r.Detail = service + " module result"
+	}
 }
 
 // CircuitBreaker tracks consecutive connection failures per host and trips
@@ -302,6 +327,7 @@ func RunBrute(h modules.Host, u string, p string, timeout time.Duration, maxRetr
 
 		modResult = runModuleWithBoundary(fn, service, h.Host, h.Port, effectiveUser, p, timeout, cm, effectiveParams)
 		modResult.Status = classifyAttemptStatus(modResult)
+		modResult.EnsureProof(service)
 
 		result := modResult.AuthSuccess
 		con_result := modResult.ConnectionSuccess
@@ -368,5 +394,6 @@ func RunBrute(h modules.Host, u string, p string, timeout time.Duration, maxRetr
 		SkipUser:          modResult.SkipUser,
 		Finding:           modResult.Finding,
 		KeyMatch:          modResult.KeyMatch,
+		Proof:             modResult.Proof,
 	}
 }
