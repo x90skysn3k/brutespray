@@ -119,7 +119,7 @@ func (cp *Checkpoint) Save() error {
 	}
 
 	tmpFile := cp.FilePath + ".tmp"
-	if err := os.WriteFile(tmpFile, data, 0644); err != nil {
+	if err := os.WriteFile(tmpFile, data, 0o600); err != nil {
 		return fmt.Errorf("writing checkpoint: %w", err)
 	}
 	if err := os.Rename(tmpFile, cp.FilePath); err != nil {

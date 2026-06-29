@@ -58,6 +58,8 @@ type HostWorkerPool struct {
 	missedMu    sync.Mutex
 	// User enumeration skip: users confirmed non-existent by the service (e.g. FTP 530)
 	skipUsers sync.Map // user string → struct{}
+	// Shared lockout scheduler owned by WorkerPool.
+	budgetScheduler *BudgetScheduler
 }
 
 // WorkerPool manages the worker goroutines for brute force attempts with per-host allocation
@@ -101,7 +103,8 @@ type WorkerPool struct {
 	// RDP pre-auth recon control
 	noRDPScan bool
 	// Inline credential pairs from --creds / -c
-	inlineCreds string
+	inlineCreds     string
+	budgetScheduler *BudgetScheduler
 }
 
 // NewHostWorkerPool creates a new host-specific worker pool
@@ -139,6 +142,37 @@ func NewWorkerPool(threadsPerHost int, eventSink tui.EventSink, hostParallelism 
 		minThreadsPerHost: 1,
 		maxThreadsPerHost: threadsPerHost * 2,
 		scalerStop:        make(chan struct{}),
+	}
+}
+
+// SetBudgetScheduler applies one shared lockout scheduler across all host pools.
+func (wp *WorkerPool) SetBudgetScheduler(scheduler *BudgetScheduler) {
+	wp.hostPoolsMutex.Lock()
+	defer wp.hostPoolsMutex.Unlock()
+	wp.budgetScheduler = scheduler
+	for _, hostPool := range wp.hostPools {
+		hostPool.budgetScheduler = scheduler
+	}
+}
+
+func (hwp *HostWorkerPool) reserveBudgetAt(cred Credential, domain string, now time.Time) time.Duration {
+	if hwp.budgetScheduler == nil {
+		return 0
+	}
+	return hwp.budgetScheduler.Reserve(NewAttemptIdentity(cred.Service, domain, cred.User), now)
+}
+
+func (hwp *HostWorkerPool) waitForBudget(cred Credential, domain string) bool {
+	for {
+		delay := hwp.reserveBudgetAt(cred, domain, time.Now())
+		if delay <= 0 {
+			return false
+		}
+		select {
+		case <-time.After(delay):
+		case <-hwp.stopChan:
+			return true
+		}
 	}
 }
 
@@ -497,6 +531,10 @@ func (hwp *HostWorkerPool) processCredential(cred Credential, timeout time.Durat
 		}
 	}
 
+	if hwp.waitForBudget(cred, domain) {
+		return
+	}
+
 	// Track performance for dynamic adjustment
 	startTime := time.Now()
 
@@ -667,6 +705,7 @@ func (wp *WorkerPool) getOrCreateHostPool(host modules.Host) *HostWorkerPool {
 			hostPool = NewHostWorkerPool(host, threadsForHost, wp.eventSink, wp.stopOnSuccess, wp.rateLimit)
 			hostPool.sessionLog = wp.sessionLog
 			hostPool.checkpoint = wp.checkpoint
+			hostPool.budgetScheduler = wp.budgetScheduler
 			wp.hostPools[hostKey] = hostPool
 		}
 		wp.hostPoolsMutex.Unlock()

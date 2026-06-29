@@ -30,6 +30,7 @@ Brutespray supports 40+ protocols. Services marked as **beta** may have edge cas
 | https | 443 | Stable | Same as HTTP over TLS |
 | http-form | 80 | Beta | HTML form brute-forcing with `%U`/`%W` placeholders, cookie jar, CSRF token extraction |
 | https-form | 443 | Beta | HTTPS form brute-forcing |
+| http-template | 80 | Beta | Declarative HTTP auth templates (`-m template:path.yaml` or `-m template-inline:...`) |
 | svn | 3690 | Beta | SVN repository HTTP Basic auth |
 | vmauthd | 902 | Stable | VMware authentication daemon |
 | teamspeak | 10011 | Stable | ServerQuery interface |
@@ -167,6 +168,34 @@ brutespray -H imap://10.0.0.1:143 -u admin -p passlist.txt
 # Force CRAM-MD5
 brutespray -H imap://10.0.0.1:143 -u admin -p passlist.txt -m auth:CRAM-MD5
 ```
+
+### HTTP Auth Templates
+Use `http-template` when login requires a JSON/API style request instead of a classic HTML form. Templates are YAML, HTTP/HTTPS only, and cannot execute shell commands.
+
+```yaml
+id: json-login
+service: http-template
+transport: http
+steps:
+  - request:
+      method: POST
+      path: /login
+      headers:
+        content-type: application/json
+      body: '{"username":"{{username}}","password":"{{password}}"}'
+    matchers:
+      - type: status
+        status: [200]
+      - type: body_contains
+        body: token
+```
+
+```bash
+brutespray -H http-template://10.0.0.1:8080 -u admin -p passlist.txt \
+  -m template:json-login.yaml
+```
+
+Supported placeholders: `{{host}}`, `{{port}}`, `{{username}}`, `{{password}}`.
 
 ### SOCKS5 Proxy Authentication
 Brute-force SOCKS5 proxy credentials:

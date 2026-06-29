@@ -114,3 +114,19 @@ services:
   influxdb:
     users: ["influxdb/user"]
     passwords: ["influxdb/password"]
+  neo4j:
+    users: ["overrides/neo4j/user.txt"]
+    passwords: ["overrides/neo4j/password.txt"]
+  cassandra:
+    users: ["overrides/cassandra/user.txt"]
+    passwords: ["overrides/cassandra/password.txt"]
+  socks5-auth:
+    users: [sysadmin_users]
+    passwords: [common_passwords, network]
+  http-form:
+    alias: http
+  https-form:
+    alias: http
+  svn:
+    users: [sysadmin_users]
+    passwords: [common_passwords, seasonal_passwords]

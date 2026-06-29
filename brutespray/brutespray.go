@@ -35,8 +35,20 @@ func configureCircuitBreaker(cfg *Config) {
 	cb.SetDisabled(policy == "off" || (policy == "auto" && !cfg.SprayMode))
 }
 
+func configureBudgetScheduler(wp *WorkerPool, manifest EngagementManifest) error {
+	policy, err := LockoutPolicyFromManifest(manifest.Policy)
+	if err != nil {
+		return err
+	}
+	if policy.EffectiveBudget() > 0 && policy.LockoutWindow > 0 {
+		wp.SetBudgetScheduler(NewBudgetScheduler(policy, time.Now()))
+	}
+	return nil
+}
+
 func Execute() {
 	cfg := ParseConfig()
+	engagementManifest := EngagementManifest{}
 
 	// Read targets from stdin only when NO other target source is supplied
 	// (-f file, -H host args) AND stdin is actually piped (not a TTY).
@@ -52,6 +64,38 @@ func Execute() {
 		// Silently no-op on empty/unrecognized stdin: the operator may have
 		// run brutespray with no targets at all (which the existing flow
 		// already handles by printing the help banner).
+	}
+
+	if cfg.DryRun || cfg.RequirePlanAck != "" || cfg.EngagementFile != "" {
+		manifest, err := LoadEngagementManifest(cfg.EngagementFile)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(2)
+		}
+		if err := configureEvidenceFromManifest(manifest); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(2)
+		}
+		engagementManifest = manifest
+		plan, err := BuildExecutionPlan(cfg, manifest)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(2)
+		}
+		if cfg.DryRun {
+			if err := EmitExecutionPlan(cfg, plan); err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				os.Exit(2)
+			}
+			return
+		}
+		if err := ValidatePlanAcknowledgement(cfg, plan); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(2)
+		}
+		if cfg.EngagementFile != "" {
+			cfg.Hosts = hostsFromPlanTargets(plan.Targets)
+		}
 	}
 
 	totalHosts := len(cfg.Hosts)
@@ -91,14 +135,14 @@ func Execute() {
 	modules.OutputFormatMode = cfg.OutputFormat
 
 	if cfg.TUI {
-		executeTUI(cfg, cm, totalHosts)
+		executeTUI(cfg, cm, totalHosts, engagementManifest)
 	} else {
-		executeLegacy(cfg, cm, totalHosts)
+		executeLegacy(cfg, cm, totalHosts, engagementManifest)
 	}
 }
 
 // executeTUI runs the interactive Bubble Tea TUI.
-func executeTUI(cfg *Config, cm *modules.ConnectionManager, totalHosts int) {
+func executeTUI(cfg *Config, cm *modules.ConnectionManager, totalHosts int, engagementManifest EngagementManifest) {
 	// Suppress all direct stdout writes — the TUI handles display
 	modules.TUIMode = true
 
@@ -130,6 +174,10 @@ func executeTUI(cfg *Config, cm *modules.ConnectionManager, totalHosts int) {
 	workerPool.badKeysOnly = cfg.BadKeysOnly
 	workerPool.noRDPScan = cfg.NoRDPScan
 	workerPool.inlineCreds = cfg.Creds
+	if err := configureBudgetScheduler(workerPool, engagementManifest); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(2)
+	}
 
 	// Initialize checkpoint
 	var replayEntries []modules.SessionEntry
@@ -213,7 +261,7 @@ func executeTUI(cfg *Config, cm *modules.ConnectionManager, totalHosts int) {
 }
 
 // executeLegacy runs the original pterm-based output mode.
-func executeLegacy(cfg *Config, cm *modules.ConnectionManager, totalHosts int) {
+func executeLegacy(cfg *Config, cm *modules.ConnectionManager, totalHosts int, engagementManifest EngagementManifest) {
 	totalThreadEstimate := cfg.Threads * totalHosts * 10
 	if totalThreadEstimate < 1 {
 		totalThreadEstimate = 1
@@ -236,6 +284,10 @@ func executeLegacy(cfg *Config, cm *modules.ConnectionManager, totalHosts int) {
 	workerPool.badKeysOnly = cfg.BadKeysOnly
 	workerPool.noRDPScan = cfg.NoRDPScan
 	workerPool.inlineCreds = cfg.Creds
+	if err := configureBudgetScheduler(workerPool, engagementManifest); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(2)
+	}
 
 	// Initialize checkpoint for resume capability
 	if cfg.ResumeFile != "" {
