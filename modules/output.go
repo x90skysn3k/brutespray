@@ -435,6 +435,9 @@ type AttemptResult struct {
 	Banner           string `json:"banner,omitempty"`
 	Status           string `json:"status"`
 	StatusCode       string `json:"status_code,omitempty"`
+	Confidence       string `json:"confidence,omitempty"`
+	ProofType        string `json:"proof_type,omitempty"`
+	ProofDetail      string `json:"proof_detail,omitempty"`
 }
 
 // PrintResult prints individual results (legacy format for compatibility).
@@ -447,7 +450,16 @@ func PrintResultWithStatus(service string, host string, port int, user string, p
 	printResult(service, host, port, user, pass, result, con_result, retrying, output, delayTime, statusCode, banner...)
 }
 
+// PrintResultWithStatusAndProof prints results with status and proof metadata.
+func PrintResultWithStatusAndProof(service string, host string, port int, user string, pass string, result bool, conResult bool, retrying bool, output string, delayTime time.Duration, statusCode string, confidence string, proofType string, proofDetail string, banner ...string) {
+	printResultWithProof(service, host, port, user, pass, result, conResult, retrying, output, delayTime, statusCode, confidence, proofType, proofDetail, banner...)
+}
+
 func printResult(service string, host string, port int, user string, pass string, result bool, con_result bool, retrying bool, output string, delayTime time.Duration, statusCode string, banner ...string) {
+	printResultWithProof(service, host, port, user, pass, result, con_result, retrying, output, delayTime, statusCode, "", "", "", banner...)
+}
+
+func printResultWithProof(service string, host string, port int, user string, pass string, result bool, con_result bool, retrying bool, output string, delayTime time.Duration, statusCode string, confidence string, proofType string, proofDetail string, banner ...string) {
 	var msg string
 	var color pterm.Color
 	bannerStr := ""
@@ -505,6 +517,9 @@ func printResult(service string, host string, port int, user string, pass string
 				Banner:           bannerStr,
 				Status:           status,
 				StatusCode:       statusCode,
+				Confidence:       confidence,
+				ProofType:        proofType,
+				ProofDetail:      proofDetail,
 			}
 			jsonBytes, err := json.Marshal(attempt)
 			if err == nil {
@@ -531,6 +546,11 @@ var FindingSink func(severity, code, service, target, message, cve string)
 // event when TUIMode is on with FindingSink wired, otherwise a colored
 // stdout line. Primitive args to avoid a modules→brute import cycle.
 func WriteFinding(severity, code, service, host string, port int, message, cve string) {
+	WriteFindingWithProof(severity, code, service, host, port, message, cve, "", "", "")
+}
+
+// WriteFindingWithProof renders a pre-auth recon finding with proof metadata.
+func WriteFindingWithProof(severity, code, service, host string, port int, message, cve string, confidence string, proofType string, proofDetail string) {
 	target := fmt.Sprintf("%s:%d", host, port)
 	if OutputFormatMode == "json" {
 		rec := map[string]any{
@@ -541,8 +561,17 @@ func WriteFinding(severity, code, service, host string, port int, message, cve s
 			"target":   target,
 			"message":  message,
 		}
+		if confidence != "" {
+			rec["confidence"] = confidence
+		}
+		if proofType != "" {
+			rec["proof_type"] = proofType
+		}
 		if cve != "" {
 			rec["cve"] = cve
+		}
+		if proofDetail != "" {
+			rec["proof_detail"] = proofDetail
 		}
 		_ = json.NewEncoder(os.Stdout).Encode(rec)
 		return

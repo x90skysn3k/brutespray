@@ -288,6 +288,77 @@ func TestPrintResultWithStatusIncludesStatusCode(t *testing.T) {
 	}
 }
 
+func TestPrintResultWithStatusAndProofIncludesProof(t *testing.T) {
+	resetGlobalStats()
+
+	origFormat := OutputFormatMode
+	origSilent := Silent
+	origTUI := TUIMode
+	origNoColor := NoColorMode
+	defer func() {
+		OutputFormatMode = origFormat
+		Silent = origSilent
+		TUIMode = origTUI
+		NoColorMode = origNoColor
+	}()
+
+	OutputFormatMode = "json"
+	Silent = false
+	TUIMode = false
+	NoColorMode = true
+
+	old := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	PrintResultWithStatusAndProof("ssh", "10.0.0.1", 22, "root", "toor", true, true, false, t.TempDir(), 0, "success", "confirmed", "auth_protocol_success", "ssh module result")
+
+	w.Close()
+	os.Stdout = old
+
+	var buf bytes.Buffer
+	_, _ = io.Copy(&buf, r)
+	output := strings.TrimSpace(buf.String())
+
+	var attempt AttemptResult
+	if err := json.Unmarshal([]byte(output), &attempt); err != nil {
+		t.Fatalf("invalid JSON output: %v\nraw: %s", err, output)
+	}
+	if attempt.Confidence != "confirmed" || attempt.ProofType != "auth_protocol_success" || attempt.ProofDetail != "ssh module result" {
+		t.Fatalf("proof fields = %+v", attempt)
+	}
+}
+
+func TestWriteFindingWithProofIncludesProof(t *testing.T) {
+	origFormat := OutputFormatMode
+	origTUI := TUIMode
+	defer func() {
+		OutputFormatMode = origFormat
+		TUIMode = origTUI
+	}()
+	OutputFormatMode = "json"
+	TUIMode = false
+
+	old := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	WriteFindingWithProof("HIGH", "redis-no-auth", "redis", "127.0.0.1", 6379, "open redis", "", "probable", "preauth_probe", "PING")
+
+	w.Close()
+	os.Stdout = old
+
+	var buf bytes.Buffer
+	_, _ = io.Copy(&buf, r)
+	var rec map[string]any
+	if err := json.Unmarshal(bytes.TrimSpace(buf.Bytes()), &rec); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+	if rec["confidence"] != "probable" || rec["proof_type"] != "preauth_probe" || rec["proof_detail"] != "PING" {
+		t.Fatalf("proof fields missing: %+v", rec)
+	}
+}
+
 func TestPrintResultJSONRedactsPasswordInEvidenceMode(t *testing.T) {
 	resetGlobalStats()
 

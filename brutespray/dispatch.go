@@ -69,9 +69,13 @@ func reverseString(s string) string {
 }
 
 // emitFinding routes a pre-auth recon finding through the output layer
-// (text/JSONL/TUI) via modules.WriteFinding.
+// (text/JSONL/TUI) via modules.WriteFindingWithProof.
 func emitFinding(host modules.Host, f *brute.Finding) {
-	modules.WriteFinding(f.Severity, f.Code, host.Service, host.Host, host.Port, f.Message, f.CVE)
+	if f == nil {
+		return
+	}
+	f.EnsureProof()
+	modules.WriteFindingWithProof(f.Severity, f.Code, host.Service, host.Host, host.Port, f.Message, f.CVE, string(f.Confidence), string(f.ProofType), f.Detail)
 }
 
 func collectPreAuthFindings(ctx context.Context, host modules.Host, timeout time.Duration, cm *modules.ConnectionManager, params brute.ModuleParams) []*brute.Finding {

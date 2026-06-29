@@ -365,7 +365,7 @@ func RunBrute(h modules.Host, u string, p string, timeout time.Duration, maxRetr
 			// Record connection error
 			metrics.RecordError(true)
 
-			modules.PrintResultWithStatus(service, h.Host, h.Port, u, p, result, con_result, willRetry, output, delayTime, string(modResult.Status))
+			modules.PrintResultWithStatusAndProof(service, h.Host, h.Port, u, p, result, con_result, willRetry, output, delayTime, string(modResult.Status), string(modResult.Confidence), string(modResult.ProofType), modResult.Detail)
 
 			if willRetry {
 				// Use module-requested delay if set (e.g. VNC anti-brute)
@@ -384,7 +384,7 @@ func RunBrute(h modules.Host, u string, p string, timeout time.Duration, maxRetr
 		}
 	}
 
-	modules.PrintResultWithStatus(service, h.Host, h.Port, u, p, modResult.AuthSuccess, modResult.ConnectionSuccess, false, output, 0, string(modResult.Status), modResult.Banner)
+	modules.PrintResultWithStatusAndProof(service, h.Host, h.Port, u, p, modResult.AuthSuccess, modResult.ConnectionSuccess, false, output, 0, string(modResult.Status), string(modResult.Confidence), string(modResult.ProofType), modResult.Detail, modResult.Banner)
 	return BruteResult{
 		AuthSuccess:       modResult.AuthSuccess,
 		ConnectionSuccess: modResult.ConnectionSuccess,
