@@ -38,6 +38,16 @@ func TestParseTargetIPv6CIDR(t *testing.T) {
 	}
 }
 
+func TestParseTargetIPv4CIDRWithPort(t *testing.T) {
+	targets, err := (&Host{}).Parse("ssh://10.1.1.0/30:2222")
+	if err != nil {
+		t.Fatalf("Parse IPv4 CIDR with port: %v", err)
+	}
+	if len(targets) == 0 || targets[0].Port != 2222 {
+		t.Fatalf("targets = %+v", targets)
+	}
+}
+
 func TestParseTargetRejectsUnbracketedIPv6WithPort(t *testing.T) {
 	if _, err := ParseDirectTarget("ssh://2001:db8::1:22"); err == nil {
 		t.Fatal("expected unbracketed IPv6 with port to fail")

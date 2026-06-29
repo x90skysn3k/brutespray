@@ -431,7 +431,11 @@ func splitHostPortDefault(target string) (host string, port string, err error) {
 		}
 		return host, rest[1:], nil
 	}
-	if strings.Contains(target, "/") {
+	if slashIndex := strings.LastIndex(target, "/"); slashIndex != -1 {
+		portIndex := strings.LastIndex(target, ":")
+		if portIndex > slashIndex {
+			return target[:portIndex], target[portIndex+1:], nil
+		}
 		return target, "", nil
 	}
 	if strings.Count(target, ":") > 1 {
