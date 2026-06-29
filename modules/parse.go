@@ -121,68 +121,6 @@ func MapService(service string) string {
 	return service
 }
 
-// defaultServiceForPort returns brutespray's canonical service name for a
-// well-known port, or "" when the port has no default mapping. Used by
-// stream parsers (masscan JSON, naabu line) that supply only host:port and
-// need to fill in the service.
-func defaultServiceForPort(port int) string {
-	switch port {
-	case 21:
-		return "ftp"
-	case 22:
-		return "ssh"
-	case 23:
-		return "telnet"
-	case 25, 587:
-		return "smtp"
-	case 80:
-		return "http"
-	case 110:
-		return "pop3"
-	case 143:
-		return "imap"
-	case 161:
-		return "snmp"
-	case 389:
-		return "ldap"
-	case 443:
-		return "https"
-	case 445:
-		return "smbnt"
-	case 636:
-		return "ldaps"
-	case 1433:
-		return "mssql"
-	case 1521:
-		return "oracle"
-	case 3306:
-		return "mysql"
-	case 3389:
-		return "rdp"
-	case 5432:
-		return "postgres"
-	case 5900, 5901, 5902:
-		return "vnc"
-	case 5984:
-		return "couchdb"
-	case 5985, 5986:
-		return "winrm"
-	case 6379:
-		return "redis"
-	case 7687:
-		return "neo4j"
-	case 8086:
-		return "influxdb"
-	case 9042:
-		return "cassandra"
-	case 9200:
-		return "elasticsearch"
-	case 27017:
-		return "mongodb"
-	}
-	return ""
-}
-
 // supportedScanServices is the canonical list of nmap/scanner service names
 // that brutespray recognises from scan input files. Names are pre-mapping
 // (i.e. the raw names scanners emit); MapService() converts them to
@@ -463,47 +401,6 @@ func ParseList(filename string) (map[Host]int, error) {
 	}
 
 	return hosts, nil
-}
-
-// SupportedServicePorts returns BruteSpray's default service-to-port mapping.
-func SupportedServicePorts() map[string]int {
-	return map[string]int{
-		"ssh":       22,
-		"ftp":       21,
-		"ftps":      990,
-		"smtp":      25,
-		"smtp-vrfy": 25,
-		"mssql":     1433,
-		"telnet":    23,
-		"smbnt":     445,
-		"postgres":  5432,
-		"imap":      143,
-		"pop3":      110,
-		"snmp":      161,
-		"mysql":     3306,
-		"vmauthd":   902,
-		"asterisk":  10000,
-		"vnc":       5900,
-		"mongodb":   27017,
-		"nntp":      119,
-		"oracle":    1521,
-		"teamspeak": 10011,
-		"xmpp":      5222,
-		"rdp":       3389,
-		"http":      80,
-		"https":     443,
-		"redis":     6379,
-		"ldap":      389,
-		"ldaps":     636,
-		"winrm":     5985,
-		"rexec":     512,
-		"rlogin":    513,
-		"rsh":        514,
-		"wrapper":    0,
-		"http-form":  80,
-		"https-form": 443,
-		"svn":        3690,
-	}
 }
 
 func (h *Host) Parse(host string) ([]Host, error) {
