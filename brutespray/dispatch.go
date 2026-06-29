@@ -1,6 +1,7 @@
 package brutespray
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -73,6 +74,37 @@ func emitFinding(host modules.Host, f *brute.Finding) {
 	modules.WriteFinding(f.Severity, f.Code, host.Service, host.Host, host.Port, f.Message, f.CVE)
 }
 
+func collectPreAuthFindings(ctx context.Context, host modules.Host, timeout time.Duration, cm *modules.ConnectionManager, params brute.ModuleParams) []*brute.Finding {
+	probes := brute.PreAuthProbes(host.Service)
+	if len(probes) == 0 {
+		return nil
+	}
+	target := brute.PreAuthTarget{
+		Service: host.Service,
+		Host:    host.Host,
+		Port:    host.Port,
+		Timeout: timeout,
+		CM:      cm,
+		Params:  params,
+	}
+	var findings []*brute.Finding
+	for _, probe := range probes {
+		if !probe.Default {
+			continue
+		}
+		probeFindings, err := probe.Run(ctx, target)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "pre-auth probe %s %s: %v\n", probe.Code, target.Address(), err)
+			continue
+		}
+		for i := range probeFindings {
+			finding := probeFindings[i]
+			findings = append(findings, &finding)
+		}
+	}
+	return findings
+}
+
 // ProcessHost processes a single host with all its credentials using dedicated host worker pool
 func (wp *WorkerPool) ProcessHost(host modules.Host, service string, combo string, user string, password string, version string, timeout time.Duration, retry int, output string, cm *modules.ConnectionManager, domain string, moduleParams brute.ModuleParams, useUsernameAsPass bool) {
 	// Skip hosts already completed in a previous run
@@ -134,6 +166,14 @@ func (wp *WorkerPool) ProcessHost(host modules.Host, service string, combo strin
 	modules.PrintfColored(pterm.FgLightGreen, "[*] Processing host: %s:%d (%s) with %d threads\n", host.Host, host.Port, host.Service, hostPool.workers)
 	if wp.routeDiagnostics {
 		modules.PrintRouteDiagnostic(cm, host.Host, host.Port, host.Service)
+	}
+
+	if service != "rdp" || !wp.noRDPScan {
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		for _, finding := range collectPreAuthFindings(ctx, host, timeout, cm, moduleParams) {
+			emitFinding(host, finding)
+		}
+		cancel()
 	}
 
 	// Generate and queue all credentials for this host
@@ -284,15 +324,6 @@ func (wp *WorkerPool) ProcessHost(host modules.Host, service string, combo strin
 					}
 				} else {
 					fmt.Fprintf(os.Stderr, "warning: bad-keys bundle load failed (skipping pre-pass): %v\n", err)
-				}
-			}
-			// RDP pre-auth recon: NLA fingerprint + sticky-keys probe.
-			// Opt-out via --no-rdp-scan. Unlike --badkeys-only there is no
-			// RDP-scan-only mode — regular cred attempts always continue after.
-			if service == "rdp" && !wp.noRDPScan {
-				findings := brute.ScanRDPRecon(host.Host, host.Port, timeout)
-				for _, f := range findings {
-					emitFinding(host, f)
 				}
 			}
 
