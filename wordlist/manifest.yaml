@@ -29,8 +29,8 @@ services:
   https:
     alias: http
   imap:
-    users: [email_users]
-    passwords: [common_passwords, seasonal_passwords]
+    users: [email_users, "overrides/imap/user.txt"]
+    passwords: [common_passwords, seasonal_passwords, "overrides/imap/password.txt"]
   pop3:
     alias: imap
   smtp:
@@ -40,13 +40,13 @@ services:
     alias: smtp
   mssql:
     users: ["overrides/mssql/user.txt"]
-    passwords: [common_passwords, sql]
+    passwords: [common_passwords, sql, "overrides/mssql/password.txt"]
   mysql:
     users: ["overrides/mysql/user.txt"]
     passwords: ["overrides/mysql/password.txt"]
   postgres:
     users: ["overrides/postgres/user.txt"]
-    passwords: [common_passwords, seasonal_passwords]
+    passwords: [common_passwords, seasonal_passwords, "overrides/postgres/password.txt"]
   oracle:
     users: ["overrides/oracle/user.txt"]
     passwords: [common_passwords, seasonal_passwords, sql, "overrides/oracle/password.txt"]
@@ -55,13 +55,13 @@ services:
     passwords: ["overrides/mongodb/password.txt"]
   redis:
     users: []
-    passwords: [common_passwords]
+    passwords: [common_passwords, "overrides/redis/password.txt"]
   smbnt:
     users: ["overrides/smbnt/user.txt"]
     passwords: [common_passwords, seasonal_passwords]
   vnc:
     users: ["overrides/vnc/user.txt"]
-    passwords: [common_passwords, network]
+    passwords: [common_passwords, network, "overrides/vnc/password.txt"]
   vmauthd:
     users: [email_users]
     passwords: [common_passwords, network]

@@ -12,3 +12,4 @@ recovery_admin
 scott
 default
 SYS/SYSTEM
+SI_INFORMTN_SCHEMA
