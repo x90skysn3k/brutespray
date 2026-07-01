@@ -21,3 +21,4 @@ guest
 vnc
 test
 Admin
+local_system_or_domain_user
