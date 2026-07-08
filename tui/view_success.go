@@ -41,7 +41,7 @@ func (v *SuccessView) View(scheme *ColorScheme) string {
 	lines = append(lines, headerStyle.Render(
 		fmt.Sprintf("  %-12s %-22s %-18s %-20s %s", "Service", "Host", "User", "Password", "Duration")))
 	lines = append(lines, lipgloss.NewStyle().Foreground(scheme.Success).Render(
-		"  "+strings.Repeat("─", v.width-4)))
+		"  "+safeRepeat("─", v.width-4)))
 
 	for _, e := range v.entries {
 		line := fmt.Sprintf("  %-12s %-22s %-18s %-20s %s",

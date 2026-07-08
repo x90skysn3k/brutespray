@@ -47,7 +47,9 @@ func BruteInfluxDB(host string, port int, user, password string, timeout time.Du
 		if err != nil {
 			return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
 		}
-		defer resp.Body.Close()
+		defer func() {
+			_ = resp.Body.Close()
+		}()
 		switch resp.StatusCode {
 		case 200, 204:
 			return &BruteResult{AuthSuccess: true, ConnectionSuccess: true}

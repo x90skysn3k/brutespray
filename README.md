@@ -1,6 +1,6 @@
 # Brutespray
 
-![Version](https://img.shields.io/badge/Version-2.7.0-red)[![goreleaser](https://github.com/x90skysn3k/brutespray/actions/workflows/release.yml/badge.svg)](https://github.com/x90skysn3k/brutespray/actions/workflows/release.yml)[![Go Report Card](https://goreportcard.com/badge/github.com/x90skysn3k/brutespray/v2)](https://goreportcard.com/report/github.com/x90skysn3k/brutespray/v2)
+![Version](https://img.shields.io/badge/Version-2.7.1-red)[![goreleaser](https://github.com/x90skysn3k/brutespray/actions/workflows/release.yml/badge.svg)](https://github.com/x90skysn3k/brutespray/actions/workflows/release.yml)[![Go Report Card](https://goreportcard.com/badge/github.com/x90skysn3k/brutespray/v2)](https://goreportcard.com/report/github.com/x90skysn3k/brutespray/v2)
 
 Created by: Shane Young/@x90sky && Jacob Robles/@shellfail
 
@@ -46,8 +46,8 @@ See [all examples](docs/examples.md) for more usage patterns.
 
 - **40+ protocols** — SSH, FTP, RDP, SMB, MySQL, PostgreSQL, Redis, LDAP, WinRM, and [more](docs/services.md)
 - **Module parameters** — Per-module settings via `-m KEY:VALUE` (auth type, target path, NTLM domain, etc.)
-- **Multi-auth support** — HTTP Digest/NTLM auto-detection, SMTP PLAIN/LOGIN, IMAP/POP3 SASL, SMB pass-the-hash
-- **Interactive TUI** — Tabbed views, live settings, pause/resume hosts ([details](docs/tui.md))
+- **Multi-auth support** — HTTP Basic/Digest/NTLM auto/forced modes, SMTP PLAIN/LOGIN, IMAP/POP3 SASL, SMB pass-the-hash
+- **Interactive TUI** — Tabbed views including Findings, live settings, pause/resume hosts ([details](docs/tui.md))
 - **Multiple input formats** — Nmap GNMAP/XML, Nessus, Nexpose, JSON, lists ([details](docs/usage.md))
 - **Password spray mode** — Lockout-aware spraying with configurable delays ([details](docs/advanced.md#password-spray-mode))
 - **SOCKS5 proxy** — Full proxy support with authentication ([details](docs/advanced.md#socks5-proxy))
@@ -94,7 +94,7 @@ Print discovered services from a scan file with `-P -q`:
 | [Usage](docs/usage.md) | CLI flags, config files, input formats |
 | [Services](docs/services.md) | All 40+ protocols with ports, status, and notes |
 | [Examples](docs/examples.md) | Common usage patterns and recipes |
-| [Interactive TUI](docs/tui.md) | Keybindings, tabs, live settings |
+| [Interactive TUI](docs/tui.md) | Keybindings, tabs, Findings, live settings |
 | [Advanced](docs/advanced.md) | Spray mode, proxy, resume, performance tuning |
 | [Wordlists](docs/wordlists.md) | Manifest system, layers, overrides, customization |
 | [Output & Reporting](docs/output.md) | Summary reports, Metasploit/NetExec integration |

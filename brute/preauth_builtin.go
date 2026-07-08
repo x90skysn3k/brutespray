@@ -21,7 +21,9 @@ func probeRedisNoAuth(ctx context.Context, target PreAuthTarget) ([]Finding, err
 	if err != nil {
 		return nil, err
 	}
-	defer conn.Close()
+	defer func() {
+		_ = conn.Close()
+	}()
 	deadline := time.Now().Add(target.Timeout)
 	if target.Timeout <= 0 {
 		deadline = time.Now().Add(5 * time.Second)
@@ -66,7 +68,9 @@ func probeHTTPStatus(ctx context.Context, target PreAuthTarget, path, code, mess
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
 		return []Finding{{Severity: "HIGH", Code: code, Message: message}}, nil
 	}

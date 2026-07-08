@@ -27,21 +27,31 @@ func (v *AllView) SetSize(width, height int) {
 }
 
 func (v *AllView) AddAttempt(msg AttemptResultMsg, scheme *ColorScheme) {
-	style, status := scheme.AttemptStyle(msg.Success, msg.Connected, msg.Retrying)
+	v.AddAttempts([]AttemptResultMsg{msg}, scheme)
+}
 
-	hostPort := fmt.Sprintf("%s:%d", msg.Host, msg.Port)
-	creds := fmt.Sprintf("%s:%s", msg.User, msg.Password)
-	if msg.User == "" {
-		creds = fmt.Sprintf("pass:%s", msg.Password)
+func (v *AllView) AddAttempts(msgs []AttemptResultMsg, scheme *ColorScheme) {
+	if len(msgs) == 0 {
+		return
 	}
-	line := fmt.Sprintf("[%-*s] %-*s  %-*s  %-*s  %*s",
-		colWidthService, msg.Service,
-		colWidthHostPort, hostPort,
-		colWidthCreds, creds,
-		colWidthStatus, status,
-		colWidthDuration, msg.Duration.Round(1e6))
 
-	v.lines = append(v.lines, style.Render(line))
+	for _, msg := range msgs {
+		style, status := scheme.AttemptStyle(msg.Success, msg.Connected, msg.Retrying)
+
+		hostPort := fmt.Sprintf("%s:%d", msg.Host, msg.Port)
+		creds := fmt.Sprintf("%s:%s", msg.User, msg.Password)
+		if msg.User == "" {
+			creds = fmt.Sprintf("pass:%s", msg.Password)
+		}
+		line := fmt.Sprintf("[%-*s] %-*s  %-*s  %-*s  %*s",
+			colWidthService, msg.Service,
+			colWidthHostPort, hostPort,
+			colWidthCreds, creds,
+			colWidthStatus, status,
+			colWidthDuration, msg.Duration.Round(1e6))
+
+		v.lines = append(v.lines, style.Render(line))
+	}
 
 	// Ring buffer: keep last 5000 entries
 	if len(v.lines) > 5000 {
@@ -55,10 +65,12 @@ func (v *AllView) refreshContent() {
 	if !v.ready {
 		return
 	}
+	wasPinned := v.viewport.AtBottom()
 	content := strings.Join(v.lines, "\n")
 	v.viewport.SetContent(content)
-	// Auto-scroll to bottom
-	v.viewport.GotoBottom()
+	if wasPinned {
+		v.viewport.GotoBottom()
+	}
 }
 
 // View returns the rendered viewport.

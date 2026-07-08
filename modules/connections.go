@@ -250,14 +250,14 @@ func (cm *ConnectionManager) Dial(network, address string) (net.Conn, error) {
 				// Check TTL — discard connections older than maxConnAge
 				if tc, ok := conn.(*timedConn); ok {
 					if time.Since(tc.created) > maxConnAge {
-						conn.Close()
+						_ = conn.Close()
 						break
 					}
 				}
 				if isConnAlive(conn) {
 					return conn, nil
 				}
-				conn.Close()
+				_ = conn.Close()
 			}
 		default:
 		}
@@ -293,7 +293,7 @@ func (cm *ConnectionManager) Release(conn net.Conn) {
 	select {
 	case cm.ConnPool[key] <- conn:
 	default:
-		conn.Close()
+		_ = conn.Close()
 	}
 	cm.PoolMutex.Unlock()
 }
@@ -332,7 +332,7 @@ func (cm *ConnectionManager) ClearPool() {
 		close(pool)
 		for conn := range pool {
 			if conn != nil {
-				conn.Close()
+				_ = conn.Close()
 			}
 		}
 	}
@@ -346,7 +346,7 @@ func (cm *ConnectionManager) LoadProxyList(filename string) error {
 	if err != nil {
 		return fmt.Errorf("opening proxy list: %w", err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	var proxies []string
 	scanner := bufio.NewScanner(file)

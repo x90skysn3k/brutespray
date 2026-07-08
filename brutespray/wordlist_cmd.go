@@ -227,7 +227,9 @@ func validateWordlistFile(path string) error {
 	if err != nil {
 		return fmt.Errorf("%s: %w", path, err)
 	}
-	defer f.Close()
+	defer func() {
+		_ = f.Close()
+	}()
 
 	seen := make(map[string]int)
 	scanner := bufio.NewScanner(f)
@@ -470,7 +472,9 @@ func searchBrave(apiKey, query string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("brave search: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -649,7 +653,9 @@ func queryOllama(baseURL, model, prompt string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("ollama request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -682,7 +688,9 @@ func queryOpenAICompatible(baseURL, model, prompt string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("openai-compatible request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -781,9 +789,10 @@ func cmdMerge() error {
 		var overrideRef string
 		needsManifestRef := false
 		var refs []string
-		if k.typ == "user" {
+		switch k.typ {
+		case "user":
 			refs = resolved.Users
-		} else if k.typ == "password" {
+		case "password":
 			refs = resolved.Passwords
 		}
 		if len(refs) == 0 {
@@ -1001,7 +1010,9 @@ func cmdDownload(args []string) error {
 	if err != nil {
 		return fmt.Errorf("download failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != 200 {
 		return fmt.Errorf("download failed: HTTP %d", resp.StatusCode)
@@ -1011,7 +1022,9 @@ func cmdDownload(args []string) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() {
+		_ = f.Close()
+	}()
 
 	totalBytes := resp.ContentLength
 	bar, _ := pterm.DefaultProgressbar.

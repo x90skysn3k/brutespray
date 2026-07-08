@@ -76,7 +76,7 @@ func BruteSMTP(host string, port int, user, password string, timeout time.Durati
 	}
 
 	go func() {
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 
 		if err := conn.SetDeadline(time.Now().Add(timeout)); err != nil {
 			done <- result{false, false, ""}
@@ -209,7 +209,7 @@ func smtpNTLMAuth(conn net.Conn, user, password, domain string) bool {
 	if err != nil {
 		return false
 	}
-	fmt.Fprintf(conn, "AUTH NTLM %s\r\n", base64.StdEncoding.EncodeToString(negotiateMsg))
+	_, _ = fmt.Fprintf(conn, "AUTH NTLM %s\r\n", base64.StdEncoding.EncodeToString(negotiateMsg))
 
 	// Read challenge response (334 <base64 challenge>)
 	line, err := r.ReadString('\n')
@@ -233,7 +233,7 @@ func smtpNTLMAuth(conn net.Conn, user, password, domain string) bool {
 		return false
 	}
 
-	fmt.Fprintf(conn, "%s\r\n", base64.StdEncoding.EncodeToString(authenticateMsg))
+	_, _ = fmt.Fprintf(conn, "%s\r\n", base64.StdEncoding.EncodeToString(authenticateMsg))
 
 	// Read result
 	line, err = r.ReadString('\n')

@@ -44,7 +44,7 @@ func downloadFileFromGithub(url, localPath string) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	var spinner *pterm.SpinnerPrinter
 	if !TUIMode {
@@ -62,7 +62,7 @@ func downloadFileFromGithub(url, localPath string) error {
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	buf := make([]byte, 8192)
 	for {
@@ -93,7 +93,7 @@ func readFileLines(filename string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	scanner := bufio.NewScanner(file)
 	scanner.Buffer(make([]byte, 64*1024), 1024*1024)

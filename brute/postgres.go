@@ -54,7 +54,9 @@ func BrutePostgres(host string, port int, user, password string, timeout time.Du
 	defer cancel()
 
 	db := sql.OpenDB(connector)
-	defer db.Close()
+	defer func() {
+		_ = db.Close()
+	}()
 
 	err = db.PingContext(ctx)
 	if err != nil {

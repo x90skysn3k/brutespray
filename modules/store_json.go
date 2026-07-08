@@ -107,7 +107,9 @@ func (s *JSONStore) appendJSONL(runID string, name string, value any) error {
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 	return json.NewEncoder(file).Encode(value)
 }
 
@@ -139,7 +141,9 @@ func readJSONL[T any](path string, out *[]T) error {
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		var value T

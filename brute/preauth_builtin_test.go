@@ -17,13 +17,13 @@ func TestRedisNoAuthProbe(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Listen: %v", err)
 	}
-	defer ln.Close()
+	defer func() { _ = ln.Close() }()
 	go func() {
 		conn, err := ln.Accept()
 		if err != nil {
 			return
 		}
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 		buf := make([]byte, 64)
 		_, _ = conn.Read(buf)
 		_, _ = conn.Write([]byte("+PONG\r\n"))
@@ -43,7 +43,7 @@ func TestElasticsearchUnauthenticatedProbe(t *testing.T) {
 			http.NotFound(w, r)
 			return
 		}
-		fmt.Fprint(w, `{"status":"green"}`)
+		_, _ = fmt.Fprint(w, `{"status":"green"}`)
 	}))
 	defer server.Close()
 	findings, err := runFirstProbe("elasticsearch", targetFromURL("elasticsearch", server.URL))
@@ -61,7 +61,7 @@ func TestCouchDBUnauthenticatedProbe(t *testing.T) {
 			http.NotFound(w, r)
 			return
 		}
-		fmt.Fprint(w, `["_users"]`)
+		_, _ = fmt.Fprint(w, `["_users"]`)
 	}))
 	defer server.Close()
 	findings, err := runFirstProbe("couchdb", targetFromURL("couchdb", server.URL))

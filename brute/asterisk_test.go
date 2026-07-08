@@ -29,15 +29,15 @@ func startMockAsteriskServer(t *testing.T, validUser, validPass string) (int, fu
 	}()
 
 	port := listener.Addr().(*net.TCPAddr).Port
-	return port, func() { listener.Close() }
+	return port, func() { _ = listener.Close() }
 }
 
 func handleAsteriskConn(conn net.Conn, validUser, validPass string) {
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 	_ = conn.SetDeadline(time.Now().Add(5 * time.Second))
 
 	// Send AMI banner
-	fmt.Fprintf(conn, "Asterisk Call Manager/5.0.2\r\n")
+	_, _ = fmt.Fprintf(conn, "Asterisk Call Manager/5.0.2\r\n")
 
 	r := bufio.NewReader(conn)
 
@@ -62,13 +62,13 @@ func handleAsteriskConn(conn net.Conn, validUser, validPass string) {
 	pass := headers["Secret"]
 
 	if user == validUser && pass == validPass {
-		fmt.Fprintf(conn, "Response: Success\r\n")
-		fmt.Fprintf(conn, "Message: Authentication accepted\r\n")
-		fmt.Fprintf(conn, "\r\n")
+		_, _ = fmt.Fprintf(conn, "Response: Success\r\n")
+		_, _ = fmt.Fprintf(conn, "Message: Authentication accepted\r\n")
+		_, _ = fmt.Fprintf(conn, "\r\n")
 	} else {
-		fmt.Fprintf(conn, "Response: Error\r\n")
-		fmt.Fprintf(conn, "Message: Authentication failed\r\n")
-		fmt.Fprintf(conn, "\r\n")
+		_, _ = fmt.Fprintf(conn, "Response: Error\r\n")
+		_, _ = fmt.Fprintf(conn, "Message: Authentication failed\r\n")
+		_, _ = fmt.Fprintf(conn, "\r\n")
 	}
 
 	// Read Logoff if sent
@@ -80,8 +80,8 @@ func handleAsteriskConn(conn net.Conn, validUser, validPass string) {
 		line = strings.TrimSpace(line)
 		if line == "" {
 			// End of Logoff action block
-			fmt.Fprintf(conn, "Response: Goodbye\r\n")
-			fmt.Fprintf(conn, "\r\n")
+			_, _ = fmt.Fprintf(conn, "Response: Goodbye\r\n")
+			_, _ = fmt.Fprintf(conn, "\r\n")
 			return
 		}
 	}

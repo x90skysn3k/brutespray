@@ -184,22 +184,22 @@ func BruteSSH(host string, port int, user, password string, timeout time.Duratio
 		_ = conn.SetDeadline(time.Now())
 		select {
 		case result := <-done:
-			conn.Close()
+			_ = conn.Close()
 			if result.err != nil {
 				return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: result.err, Banner: result.banner}
 			}
-			result.client.Close()
+			_ = result.client.Close()
 			return &BruteResult{AuthSuccess: true, ConnectionSuccess: true, Banner: result.banner}
 		default:
-			conn.Close()
+			_ = conn.Close()
 			return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: fmt.Errorf("timeout")}
 		}
 	case result := <-done:
-		conn.Close()
+		_ = conn.Close()
 		if result.err != nil {
 			return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: result.err, Banner: result.banner}
 		}
-		result.client.Close()
+		_ = result.client.Close()
 		return &BruteResult{AuthSuccess: true, ConnectionSuccess: true, Banner: result.banner}
 	}
 }
@@ -229,14 +229,16 @@ func attemptBadKey(host string, port int, user string, e badkeys.Entry,
 	_ = conn.SetDeadline(time.Now().Add(timeout))
 	c, chans, reqs, err := ssh.NewClientConn(conn, net.JoinHostPort(host, strconv.Itoa(port)), cfg)
 	if err != nil {
-		conn.Close()
+		_ = conn.Close()
 		if strings.Contains(err.Error(), "unable to authenticate") {
 			return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: err}
 		}
 		return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
 	}
 	client := ssh.NewClient(c, chans, reqs)
-	defer client.Close()
+	defer func() {
+		_ = client.Close()
+	}()
 	// Fix 3: capture server banner (high-value for a bad-key hit).
 	return &BruteResult{
 		AuthSuccess:       true,

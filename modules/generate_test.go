@@ -12,7 +12,7 @@ func TestParsePasswordGenerator(t *testing.T) {
 		maxLen  int
 		count   int
 	}{
-		{"4:4:1", false, 4, 4, 10000},          // 10^4 = 10000 4-digit PINs
+		{"4:4:1", false, 4, 4, 10000},           // 10^4 = 10000 4-digit PINs
 		{"1:2:1", false, 1, 2, 110},             // 10 + 100
 		{"1:1:a", false, 1, 1, 26},              // 26 lowercase letters
 		{"1:1:A", false, 1, 1, 26},              // 26 uppercase letters
@@ -23,11 +23,11 @@ func TestParsePasswordGenerator(t *testing.T) {
 		{"4:4", true, 0, 0, 0},
 		{"a:4:1", true, 0, 0, 0},
 		{"4:a:1", true, 0, 0, 0},
-		{"0:4:1", true, 0, 0, 0},  // min < 1
-		{"5:3:1", true, 0, 0, 0},  // max < min
-		{"1:9:1", true, 0, 0, 0},  // max > 8
-		{"4:4:", true, 0, 0, 0},   // empty charset
-		{"4:4:z", true, 0, 0, 0},  // unknown charset
+		{"0:4:1", true, 0, 0, 0}, // min < 1
+		{"5:3:1", true, 0, 0, 0}, // max < min
+		{"1:9:1", true, 0, 0, 0}, // max > 8
+		{"4:4:", true, 0, 0, 0},  // empty charset
+		{"4:4:z", true, 0, 0, 0}, // unknown charset
 	}
 
 	for _, tt := range tests {

@@ -88,7 +88,7 @@ func LoadSessionLog(filePath string) ([]SessionEntry, error) {
 		}
 		return nil, fmt.Errorf("reading session log: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	var entries []SessionEntry
 	scanner := bufio.NewScanner(f)

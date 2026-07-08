@@ -31,17 +31,17 @@ func startMockPOP3Server(t *testing.T, handler func(conn net.Conn)) (int, func()
 	}()
 
 	port := listener.Addr().(*net.TCPAddr).Port
-	return port, func() { listener.Close() }
+	return port, func() { _ = listener.Close() }
 }
 
 // handlePOP3UserPass handles standard USER/PASS authentication.
 func handlePOP3UserPass(conn net.Conn, validUser, validPass string) {
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 	_ = conn.SetDeadline(time.Now().Add(5 * time.Second))
 	r := bufio.NewReader(conn)
 
 	// Send greeting
-	fmt.Fprintf(conn, "+OK Mock POP3 server ready\r\n")
+	_, _ = fmt.Fprintf(conn, "+OK Mock POP3 server ready\r\n")
 
 	var user string
 	for {
@@ -54,40 +54,40 @@ func handlePOP3UserPass(conn net.Conn, validUser, validPass string) {
 
 		switch {
 		case strings.HasPrefix(upper, "CAPA"):
-			fmt.Fprintf(conn, "+OK Capability list follows\r\n")
-			fmt.Fprintf(conn, "USER\r\n")
-			fmt.Fprintf(conn, "SASL PLAIN LOGIN\r\n")
-			fmt.Fprintf(conn, ".\r\n")
+			_, _ = fmt.Fprintf(conn, "+OK Capability list follows\r\n")
+			_, _ = fmt.Fprintf(conn, "USER\r\n")
+			_, _ = fmt.Fprintf(conn, "SASL PLAIN LOGIN\r\n")
+			_, _ = fmt.Fprintf(conn, ".\r\n")
 
 		case strings.HasPrefix(upper, "USER "):
 			user = line[5:]
-			fmt.Fprintf(conn, "+OK\r\n")
+			_, _ = fmt.Fprintf(conn, "+OK\r\n")
 
 		case strings.HasPrefix(upper, "PASS "):
 			pass := line[5:]
 			if user == validUser && pass == validPass {
-				fmt.Fprintf(conn, "+OK Logged in\r\n")
+				_, _ = fmt.Fprintf(conn, "+OK Logged in\r\n")
 			} else {
-				fmt.Fprintf(conn, "-ERR Authentication failed\r\n")
+				_, _ = fmt.Fprintf(conn, "-ERR Authentication failed\r\n")
 			}
 
 		case strings.HasPrefix(upper, "QUIT"):
-			fmt.Fprintf(conn, "+OK Bye\r\n")
+			_, _ = fmt.Fprintf(conn, "+OK Bye\r\n")
 			return
 
 		default:
-			fmt.Fprintf(conn, "-ERR Unknown command\r\n")
+			_, _ = fmt.Fprintf(conn, "-ERR Unknown command\r\n")
 		}
 	}
 }
 
 // handlePOP3PlainAuth handles SASL PLAIN authentication over POP3.
 func handlePOP3PlainAuth(conn net.Conn, validUser, validPass string) {
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 	_ = conn.SetDeadline(time.Now().Add(5 * time.Second))
 	r := bufio.NewReader(conn)
 
-	fmt.Fprintf(conn, "+OK Mock POP3 server ready\r\n")
+	_, _ = fmt.Fprintf(conn, "+OK Mock POP3 server ready\r\n")
 
 	for {
 		line, err := r.ReadString('\n')
@@ -99,13 +99,13 @@ func handlePOP3PlainAuth(conn net.Conn, validUser, validPass string) {
 
 		switch {
 		case strings.HasPrefix(upper, "CAPA"):
-			fmt.Fprintf(conn, "+OK Capability list follows\r\n")
-			fmt.Fprintf(conn, "SASL PLAIN LOGIN\r\n")
-			fmt.Fprintf(conn, ".\r\n")
+			_, _ = fmt.Fprintf(conn, "+OK Capability list follows\r\n")
+			_, _ = fmt.Fprintf(conn, "SASL PLAIN LOGIN\r\n")
+			_, _ = fmt.Fprintf(conn, ".\r\n")
 
 		case strings.HasPrefix(upper, "AUTH PLAIN"):
 			// Send continuation prompt
-			fmt.Fprintf(conn, "+ \r\n")
+			_, _ = fmt.Fprintf(conn, "+ \r\n")
 			encoded, err := r.ReadString('\n')
 			if err != nil {
 				return
@@ -113,34 +113,34 @@ func handlePOP3PlainAuth(conn net.Conn, validUser, validPass string) {
 			encoded = strings.TrimRight(encoded, "\r\n")
 			decoded, err := base64.StdEncoding.DecodeString(encoded)
 			if err != nil {
-				fmt.Fprintf(conn, "-ERR Invalid base64\r\n")
+				_, _ = fmt.Fprintf(conn, "-ERR Invalid base64\r\n")
 				continue
 			}
 			// PLAIN format: \0user\0pass
 			parts := strings.SplitN(string(decoded), "\x00", 3)
 			if len(parts) == 3 && parts[1] == validUser && parts[2] == validPass {
-				fmt.Fprintf(conn, "+OK Authentication successful\r\n")
+				_, _ = fmt.Fprintf(conn, "+OK Authentication successful\r\n")
 			} else {
-				fmt.Fprintf(conn, "-ERR Authentication failed\r\n")
+				_, _ = fmt.Fprintf(conn, "-ERR Authentication failed\r\n")
 			}
 
 		case strings.HasPrefix(upper, "QUIT"):
-			fmt.Fprintf(conn, "+OK Bye\r\n")
+			_, _ = fmt.Fprintf(conn, "+OK Bye\r\n")
 			return
 
 		default:
-			fmt.Fprintf(conn, "-ERR Unknown command\r\n")
+			_, _ = fmt.Fprintf(conn, "-ERR Unknown command\r\n")
 		}
 	}
 }
 
 // handlePOP3LoginAuth handles SASL LOGIN authentication over POP3.
 func handlePOP3LoginAuth(conn net.Conn, validUser, validPass string) {
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 	_ = conn.SetDeadline(time.Now().Add(5 * time.Second))
 	r := bufio.NewReader(conn)
 
-	fmt.Fprintf(conn, "+OK Mock POP3 server ready\r\n")
+	_, _ = fmt.Fprintf(conn, "+OK Mock POP3 server ready\r\n")
 
 	for {
 		line, err := r.ReadString('\n')
@@ -152,13 +152,13 @@ func handlePOP3LoginAuth(conn net.Conn, validUser, validPass string) {
 
 		switch {
 		case strings.HasPrefix(upper, "CAPA"):
-			fmt.Fprintf(conn, "+OK Capability list follows\r\n")
-			fmt.Fprintf(conn, "SASL LOGIN\r\n")
-			fmt.Fprintf(conn, ".\r\n")
+			_, _ = fmt.Fprintf(conn, "+OK Capability list follows\r\n")
+			_, _ = fmt.Fprintf(conn, "SASL LOGIN\r\n")
+			_, _ = fmt.Fprintf(conn, ".\r\n")
 
 		case strings.HasPrefix(upper, "AUTH LOGIN"):
 			// Username challenge
-			fmt.Fprintf(conn, "+ %s\r\n", base64.StdEncoding.EncodeToString([]byte("Username:")))
+			_, _ = fmt.Fprintf(conn, "+ %s\r\n", base64.StdEncoding.EncodeToString([]byte("Username:")))
 			userLine, err := r.ReadString('\n')
 			if err != nil {
 				return
@@ -166,7 +166,7 @@ func handlePOP3LoginAuth(conn net.Conn, validUser, validPass string) {
 			userLine = strings.TrimRight(userLine, "\r\n")
 
 			// Password challenge
-			fmt.Fprintf(conn, "+ %s\r\n", base64.StdEncoding.EncodeToString([]byte("Password:")))
+			_, _ = fmt.Fprintf(conn, "+ %s\r\n", base64.StdEncoding.EncodeToString([]byte("Password:")))
 			passLine, err := r.ReadString('\n')
 			if err != nil {
 				return
@@ -177,17 +177,17 @@ func handlePOP3LoginAuth(conn net.Conn, validUser, validPass string) {
 			passDecoded, _ := base64.StdEncoding.DecodeString(passLine)
 
 			if string(userDecoded) == validUser && string(passDecoded) == validPass {
-				fmt.Fprintf(conn, "+OK Authentication successful\r\n")
+				_, _ = fmt.Fprintf(conn, "+OK Authentication successful\r\n")
 			} else {
-				fmt.Fprintf(conn, "-ERR Authentication failed\r\n")
+				_, _ = fmt.Fprintf(conn, "-ERR Authentication failed\r\n")
 			}
 
 		case strings.HasPrefix(upper, "QUIT"):
-			fmt.Fprintf(conn, "+OK Bye\r\n")
+			_, _ = fmt.Fprintf(conn, "+OK Bye\r\n")
 			return
 
 		default:
-			fmt.Fprintf(conn, "-ERR Unknown command\r\n")
+			_, _ = fmt.Fprintf(conn, "-ERR Unknown command\r\n")
 		}
 	}
 }
@@ -299,13 +299,13 @@ func TestBrutePOP3Banner(t *testing.T) {
 // handlePOP3APOPChallenge handles a POP3 server that sends an APOP challenge,
 // rejects APOP auth, but accepts USER/PASS. This tests the APOP fallthrough
 // in auto mode: the module should detect APOP failure and reconnect with USER/PASS.
-func handlePOP3APOPChallenge(conn net.Conn, _ , validPass string) {
-	defer conn.Close()
+func handlePOP3APOPChallenge(conn net.Conn, _, validPass string) {
+	defer func() { _ = conn.Close() }()
 	_ = conn.SetDeadline(time.Now().Add(5 * time.Second))
 	r := bufio.NewReader(conn)
 
 	// Send greeting WITH APOP challenge
-	fmt.Fprintf(conn, "+OK POP3 server ready <12345.67890@example.com>\r\n")
+	_, _ = fmt.Fprintf(conn, "+OK POP3 server ready <12345.67890@example.com>\r\n")
 
 	for {
 		line, err := r.ReadString('\n')
@@ -317,31 +317,31 @@ func handlePOP3APOPChallenge(conn net.Conn, _ , validPass string) {
 
 		switch {
 		case strings.HasPrefix(upper, "CAPA"):
-			fmt.Fprintf(conn, "+OK Capability list follows\r\n")
-			fmt.Fprintf(conn, "USER\r\n")
-			fmt.Fprintf(conn, ".\r\n")
+			_, _ = fmt.Fprintf(conn, "+OK Capability list follows\r\n")
+			_, _ = fmt.Fprintf(conn, "USER\r\n")
+			_, _ = fmt.Fprintf(conn, ".\r\n")
 
 		case strings.HasPrefix(upper, "APOP "):
 			// Always reject APOP
-			fmt.Fprintf(conn, "-ERR APOP authentication failed\r\n")
+			_, _ = fmt.Fprintf(conn, "-ERR APOP authentication failed\r\n")
 
 		case strings.HasPrefix(upper, "USER "):
-			fmt.Fprintf(conn, "+OK\r\n")
+			_, _ = fmt.Fprintf(conn, "+OK\r\n")
 
 		case strings.HasPrefix(upper, "PASS "):
 			pass := line[5:]
 			if pass == validPass {
-				fmt.Fprintf(conn, "+OK Logged in\r\n")
+				_, _ = fmt.Fprintf(conn, "+OK Logged in\r\n")
 			} else {
-				fmt.Fprintf(conn, "-ERR Authentication failed\r\n")
+				_, _ = fmt.Fprintf(conn, "-ERR Authentication failed\r\n")
 			}
 
 		case strings.HasPrefix(upper, "QUIT"):
-			fmt.Fprintf(conn, "+OK Bye\r\n")
+			_, _ = fmt.Fprintf(conn, "+OK Bye\r\n")
 			return
 
 		default:
-			fmt.Fprintf(conn, "-ERR Unknown command\r\n")
+			_, _ = fmt.Fprintf(conn, "-ERR Unknown command\r\n")
 		}
 	}
 }
@@ -385,8 +385,8 @@ func TestBrutePOP3TLSFallback(t *testing.T) {
 		// Send an invalid greeting that doesn't start with +OK
 		// This causes pop3Auth to return ConnectionSuccess=false,
 		// triggering the TLS fallback path.
-		fmt.Fprintf(conn, "-ERR go away\r\n")
-		conn.Close()
+		_, _ = fmt.Fprintf(conn, "-ERR go away\r\n")
+		_ = conn.Close()
 	})
 	defer cleanup()
 

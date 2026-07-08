@@ -34,7 +34,7 @@
 | `-q` | Suppress banner | `-q` |
 | `-P` | Print parsed hosts before execution | `-P` |
 | `--no-tui` | Disable interactive TUI, use legacy output | `--no-tui` |
-| `-m` | Module parameter in KEY:VALUE format (repeatable) | `-m auth:NTLM` |
+| `-m` | Module parameter in KEY:VALUE format (repeatable) | `-m auth:NTLM -m dir:/admin` |
 | `-e` | Extra credential checks: n=blank, s=user-as-pass, r=reversed | `-e nsr` |
 | `-x` | Generate passwords: MIN:MAX:CHARSET | `-x 4:4:1` |
 | `--allow-wrapper` | Allow wrapper module to execute commands | `--allow-wrapper` |
@@ -83,14 +83,19 @@ All fields are optional. Any CLI flag takes precedence over the config file valu
 
 ## Module Parameters (`-m`)
 
-Pass service-specific parameters using `-m KEY:VALUE` (repeatable):
+Pass service-specific parameters using `-m KEY:VALUE` (repeatable). For HTTP/HTTPS, `auth` may be omitted or set to `AUTO` to probe the requested path, or forced to `BASIC`, `DIGEST`, or `NTLM`:
 
 ```bash
-# HTTP Digest auth
-brutespray -H http://10.0.0.1:8080 -u admin -p passlist.txt -m auth:DIGEST
+# HTTP auth auto-detection on the default path
+brutespray -H http://10.0.0.1:8080 -u admin -p passlist.txt
 
-# HTTP NTLM auth
-brutespray -H http://10.0.0.1:8080 -u admin -p passlist.txt -m auth:NTLM
+# HTTP Digest auth on a specific path
+brutespray -H http://10.0.0.1:8080 -u admin -p passlist.txt \
+  -m auth:DIGEST -m dir:/admin
+
+# HTTPS NTLM auth with a domain and custom header
+brutespray -H https://10.0.0.1:8443 -u admin -p passlist.txt \
+  -m auth:NTLM -m domain:CORP -m "custom-header:X-App: intranet"
 
 # SMTP NTLM auth
 brutespray -H smtp://10.0.0.1:25 -u admin -p passlist.txt -m auth:NTLM
@@ -110,6 +115,8 @@ brutespray -H wrapper://10.0.0.1 -u admin -p passlist.txt \
 brutespray -H http-template://10.0.0.1:8080 -u admin -p passlist.txt \
   -m template:json-login.yaml
 ```
+
+For HTTP/HTTPS, an unauthenticated 2xx response is connection evidence only; credentials are recorded only when an authenticated attempt succeeds.
 
 Module params can also be set in YAML config:
 ```yaml

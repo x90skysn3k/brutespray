@@ -126,7 +126,7 @@ func TUIError(format string, args ...interface{}) {
 		ErrorSink(msg)
 		return
 	}
-	fmt.Fprint(os.Stderr, msg)
+	_, _ = fmt.Fprint(os.Stderr, msg)
 }
 
 // OutputFormatMode controls the per-attempt output format ("text" or "json")
@@ -261,13 +261,12 @@ func WriteToFile(service string, content string, port int, output string) error 
 	if err != nil {
 		return err
 	}
-	defer file.Close()
-
 	_, err = file.WriteString(content)
 	if err != nil {
+		_ = file.Close()
 		return err
 	}
-	return nil
+	return file.Close()
 }
 
 // RecordSuccess records a successful credential attempt
@@ -476,7 +475,6 @@ func printResultWithProof(service string, host string, port int, user string, pa
 		content := msg + "\n"
 		if err := WriteToFile(service, content, port, output); err != nil {
 			PrintfColored(pterm.FgRed, "\n[!] WRITE ERROR: could not save credential to file: %v\n", err)
-			PrintfColored(pterm.FgYellow, "[!] CREDENTIAL: %s", content)
 		}
 	case !result && con_result:
 		status = "FAILED"
@@ -490,10 +488,10 @@ func printResultWithProof(service string, host string, port int, user string, pa
 
 	// Determine if we should print this attempt
 	shouldPrint := !TUIMode
-	if shouldPrint && Silent && !(result && con_result) {
+	if shouldPrint && Silent && (!result || !con_result) {
 		shouldPrint = false
 	}
-	if shouldPrint && !Silent && !(result && con_result) && LogEvery > 1 {
+	if shouldPrint && !Silent && (!result || !con_result) && LogEvery > 1 {
 		n := atomic.AddInt64(&attemptCounter, 1)
 		if n%LogEvery != 0 {
 			shouldPrint = false
@@ -801,7 +799,7 @@ func writeCSVReport(stats *OutputStatsCopy, outputDir string) {
 		fmt.Printf("Error creating CSV report: %v\n", err)
 		return
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	writer := csv.NewWriter(file)
 	defer writer.Flush()
@@ -890,55 +888,67 @@ func writeHumanReadableSummary(stats *OutputStatsCopy, outputDir string) {
 		fmt.Printf("Error creating summary file: %v\n", err)
 		return
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
+
+	writef := func(format string, args ...any) {
+		if err != nil {
+			return
+		}
+		_, err = fmt.Fprintf(file, format, args...)
+	}
 
 	// Write the same content as console but to file
-	fmt.Fprintf(file, "%s\n", strings.Repeat("=", 60))
-	fmt.Fprintf(file, "                    BRUTESPRAY SUMMARY REPORT\n")
-	fmt.Fprintf(file, "%s\n", strings.Repeat("=", 60))
+	writef("%s\n", strings.Repeat("=", 60))
+	writef("                    BRUTESPRAY SUMMARY REPORT\n")
+	writef("%s\n", strings.Repeat("=", 60))
 
-	fmt.Fprintf(file, "Session Duration: %v\n", stats.EndTime.Sub(stats.StartTime).Round(time.Second))
-	fmt.Fprintf(file, "Start Time: %s\n", stats.StartTime.Format("2006-01-02 15:04:05"))
-	fmt.Fprintf(file, "End Time: %s\n", stats.EndTime.Format("2006-01-02 15:04:05"))
+	writef("Session Duration: %v\n", stats.EndTime.Sub(stats.StartTime).Round(time.Second))
+	writef("Start Time: %s\n", stats.StartTime.Format("2006-01-02 15:04:05"))
+	writef("End Time: %s\n", stats.EndTime.Format("2006-01-02 15:04:05"))
 
-	fmt.Fprintf(file, "\n--- ATTEMPT STATISTICS ---\n")
-	fmt.Fprintf(file, "Total Attempts: %d\n", stats.TotalAttempts)
-	fmt.Fprintf(file, "Successful Attempts: %d\n", stats.SuccessfulAttempts)
-	fmt.Fprintf(file, "Failed Attempts: %d\n", stats.FailedAttempts)
-	fmt.Fprintf(file, "Success Rate: %.2f%%\n", stats.SuccessRate)
-	fmt.Fprintf(file, "Attempts per Second: %.2f\n", stats.AttemptsPerSecond)
+	writef("\n--- ATTEMPT STATISTICS ---\n")
+	writef("Total Attempts: %d\n", stats.TotalAttempts)
+	writef("Successful Attempts: %d\n", stats.SuccessfulAttempts)
+	writef("Failed Attempts: %d\n", stats.FailedAttempts)
+	writef("Success Rate: %.2f%%\n", stats.SuccessRate)
+	writef("Attempts per Second: %.2f\n", stats.AttemptsPerSecond)
 
-	fmt.Fprintf(file, "\n--- ERROR STATISTICS ---\n")
-	fmt.Fprintf(file, "Connection Errors: %d\n", stats.ConnectionErrors)
-	fmt.Fprintf(file, "Authentication Errors: %d\n", stats.AuthenticationErrors)
+	writef("\n--- ERROR STATISTICS ---\n")
+	writef("Connection Errors: %d\n", stats.ConnectionErrors)
+	writef("Authentication Errors: %d\n", stats.AuthenticationErrors)
 
 	if len(stats.ConnectionErrorHosts) > 0 {
-		fmt.Fprintf(file, "\n--- CONNECTION ERROR HOSTS ---\n")
+		writef("\n--- CONNECTION ERROR HOSTS ---\n")
 		for host, count := range stats.ConnectionErrorHosts {
-			fmt.Fprintf(file, "%s: %d connection errors\n", host, count)
+			writef("%s: %d connection errors\n", host, count)
 		}
 	}
 
-	fmt.Fprintf(file, "\n--- PERFORMANCE STATISTICS ---\n")
-	fmt.Fprintf(file, "Average Response Time: %v\n", stats.AverageResponseTime)
-	fmt.Fprintf(file, "Peak Concurrency: %d\n", stats.PeakConcurrency)
+	writef("\n--- PERFORMANCE STATISTICS ---\n")
+	writef("Average Response Time: %v\n", stats.AverageResponseTime)
+	writef("Peak Concurrency: %d\n", stats.PeakConcurrency)
 
-	fmt.Fprintf(file, "\n--- SCOPE STATISTICS ---\n")
-	fmt.Fprintf(file, "Total Hosts: %d\n", stats.TotalHosts)
-	fmt.Fprintf(file, "Total Services: %d\n", stats.TotalServices)
+	writef("\n--- SCOPE STATISTICS ---\n")
+	writef("Total Hosts: %d\n", stats.TotalHosts)
+	writef("Total Services: %d\n", stats.TotalServices)
 
 	if len(stats.SuccessfulResults) > 0 {
-		fmt.Fprintf(file, "\n--- SUCCESSFUL CREDENTIALS ---\n")
+		writef("\n--- SUCCESSFUL CREDENTIALS ---\n")
 		for _, result := range stats.SuccessfulResults {
 			if result.Service == "vnc" {
-				fmt.Fprintf(file, "[%s] %s:%d - Password: %s\n", result.Service, result.Host, result.Port, result.Password)
+				writef("[%s] %s:%d - Password: %s\n", result.Service, result.Host, result.Port, result.Password)
 			} else {
-				fmt.Fprintf(file, "[%s] %s:%d - User: %s - Password: %s\n", result.Service, result.Host, result.Port, result.User, result.Password)
+				writef("[%s] %s:%d - User: %s - Password: %s\n", result.Service, result.Host, result.Port, result.User, result.Password)
 			}
 		}
 	}
 
-	fmt.Fprintf(file, "%s\n", strings.Repeat("=", 60))
+	writef("%s\n", strings.Repeat("=", 60))
+
+	if err != nil {
+		fmt.Printf("Error writing summary file: %v\n", err)
+		return
+	}
 
 	fmt.Printf("Human-readable summary written to: %s\n", filename)
 }
@@ -955,7 +965,14 @@ func writeMSFResourceScript(stats *OutputStatsCopy, outputDir string) {
 		fmt.Printf("Error creating MSF resource script: %v\n", err)
 		return
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
+
+	writef := func(format string, args ...any) {
+		if err != nil {
+			return
+		}
+		_, err = fmt.Fprintf(file, format, args...)
+	}
 
 	// Map service names to MSF auxiliary modules
 	msfModules := map[string]string{
@@ -978,27 +995,32 @@ func writeMSFResourceScript(stats *OutputStatsCopy, outputDir string) {
 		"https":    "auxiliary/scanner/http/http_login",
 	}
 
-	fmt.Fprintf(file, "# Brutespray Metasploit Resource Script\n")
-	fmt.Fprintf(file, "# Generated: %s\n", time.Now().Format("2006-01-02 15:04:05"))
-	fmt.Fprintf(file, "# Found credentials: %d\n\n", len(stats.SuccessfulResults))
+	writef("# Brutespray Metasploit Resource Script\n")
+	writef("# Generated: %s\n", time.Now().Format("2006-01-02 15:04:05"))
+	writef("# Found credentials: %d\n\n", len(stats.SuccessfulResults))
 
 	for _, result := range stats.SuccessfulResults {
 		module, ok := msfModules[result.Service]
 		if !ok {
-			fmt.Fprintf(file, "# No MSF module mapping for service: %s (%s:%d)\n", result.Service, result.Host, result.Port)
+			writef("# No MSF module mapping for service: %s (%s:%d)\n", result.Service, result.Host, result.Port)
 			continue
 		}
-		fmt.Fprintf(file, "use %s\n", module)
-		fmt.Fprintf(file, "set RHOSTS %s\n", result.Host)
-		fmt.Fprintf(file, "set RPORT %d\n", result.Port)
+		writef("use %s\n", module)
+		writef("set RHOSTS %s\n", result.Host)
+		writef("set RPORT %d\n", result.Port)
 		if result.User != "" {
-			fmt.Fprintf(file, "set USERNAME %s\n", result.User)
+			writef("set USERNAME %s\n", result.User)
 		}
-		fmt.Fprintf(file, "set PASSWORD %s\n", result.Password)
+		writef("set PASSWORD %s\n", result.Password)
 		if result.Service == "https" {
-			fmt.Fprintf(file, "set SSL true\n")
+			writef("set SSL true\n")
 		}
-		fmt.Fprintf(file, "run\n\n")
+		writef("run\n\n")
+	}
+
+	if err != nil {
+		fmt.Printf("Error writing MSF resource script: %v\n", err)
+		return
 	}
 
 	fmt.Printf("Metasploit resource script written to: %s\n", filename)
@@ -1016,7 +1038,14 @@ func writeNetExecCommands(stats *OutputStatsCopy, outputDir string) {
 		fmt.Printf("Error creating NetExec commands file: %v\n", err)
 		return
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
+
+	writef := func(format string, args ...any) {
+		if err != nil {
+			return
+		}
+		_, err = fmt.Fprintf(file, format, args...)
+	}
 
 	// Map service names to nxc protocol names
 	nxcProtocols := map[string]string{
@@ -1029,22 +1058,27 @@ func writeNetExecCommands(stats *OutputStatsCopy, outputDir string) {
 		"ldap":  "ldap",
 	}
 
-	fmt.Fprintf(file, "#!/bin/bash\n")
-	fmt.Fprintf(file, "# Brutespray NetExec Commands\n")
-	fmt.Fprintf(file, "# Generated: %s\n", time.Now().Format("2006-01-02 15:04:05"))
-	fmt.Fprintf(file, "# Found credentials: %d\n\n", len(stats.SuccessfulResults))
+	writef("#!/bin/bash\n")
+	writef("# Brutespray NetExec Commands\n")
+	writef("# Generated: %s\n", time.Now().Format("2006-01-02 15:04:05"))
+	writef("# Found credentials: %d\n\n", len(stats.SuccessfulResults))
 
 	for _, result := range stats.SuccessfulResults {
 		proto, ok := nxcProtocols[result.Service]
 		if !ok {
-			fmt.Fprintf(file, "# No nxc protocol for service: %s (%s:%d user:%s)\n", result.Service, result.Host, result.Port, result.User)
+			writef("# No nxc protocol for service: %s (%s:%d user:%s)\n", result.Service, result.Host, result.Port, result.User)
 			continue
 		}
 		if result.User != "" {
-			fmt.Fprintf(file, "nxc %s %s -u '%s' -p '%s' --port %d\n", proto, result.Host, result.User, result.Password, result.Port)
+			writef("nxc %s %s -u '%s' -p '%s' --port %d\n", proto, result.Host, result.User, result.Password, result.Port)
 		} else {
-			fmt.Fprintf(file, "nxc %s %s -p '%s' --port %d\n", proto, result.Host, result.Password, result.Port)
+			writef("nxc %s %s -p '%s' --port %d\n", proto, result.Host, result.Password, result.Port)
 		}
+	}
+
+	if err != nil {
+		fmt.Printf("Error writing NetExec commands file: %v\n", err)
+		return
 	}
 
 	fmt.Printf("NetExec commands written to: %s\n", filename)

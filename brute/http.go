@@ -16,8 +16,23 @@ import (
 	"github.com/x90skysn3k/brutespray/v2/modules"
 )
 
-// httpAuthCache caches the detected auth type per host:port to avoid re-probing
+// httpAuthCache caches the detected auth type per request scope to avoid cross-path auth reuse.
 var httpAuthCache sync.Map
+
+type httpAuthCacheKey struct {
+	Scheme       string
+	Host         string
+	Port         int
+	Method       string
+	Path         string
+	CustomHeader string
+}
+
+type httpAuthCacheEntry struct {
+	AuthType               string
+	UnauthenticatedSuccess bool
+	UnauthenticatedBanner  string
+}
 
 func BruteHTTP(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager, params ModuleParams) *BruteResult {
 	scheme := "http"
@@ -71,50 +86,72 @@ func BruteHTTP(host string, port int, user, password string, timeout time.Durati
 	// Auto-detect: probe for WWW-Authenticate header
 	detectedAuth := requestedAuth
 	var wwwAuthHeader string
+	var autoDetectUnauthenticatedSuccess bool
+	var autoDetectUnauthenticatedBanner string
 
-	if detectedAuth == "" || detectedAuth == "AUTO" {
-		hostKey := fmt.Sprintf("%s:%d", host, port)
-		if cached, ok := httpAuthCache.Load(hostKey); ok {
-			detectedAuth = cached.(string)
-		} else {
-			// Probe: unauthenticated request
-			probeReq, err := http.NewRequest(method, url, nil)
-			if err != nil {
-				return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
+	switch detectedAuth {
+	case "", "AUTO":
+		cacheKey := httpAuthCacheKey{
+			Scheme:       scheme,
+			Host:         host,
+			Port:         port,
+			Method:       method,
+			Path:         dir,
+			CustomHeader: params["custom-header"],
+		}
+		if cached, ok := httpAuthCache.Load(cacheKey); ok {
+			switch cacheEntry := cached.(type) {
+			case httpAuthCacheEntry:
+				detectedAuth = cacheEntry.AuthType
+				autoDetectUnauthenticatedSuccess = cacheEntry.UnauthenticatedSuccess
+				autoDetectUnauthenticatedBanner = cacheEntry.UnauthenticatedBanner
+			case string:
+				detectedAuth = cacheEntry
 			}
-			probeReq.Header.Set("User-Agent", ua)
-			if h := params["custom-header"]; h != "" {
-				parts := strings.SplitN(h, ":", 2)
-				if len(parts) == 2 {
-					probeReq.Header.Set(strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1]))
+			if detectedAuth == "DIGEST" {
+				probe := probeHTTPAuth(client, method, url, ua, params)
+				if probe.Result != nil {
+					return probe.Result
 				}
+				detectedAuth = probe.AuthType
+				wwwAuthHeader = probe.WWWAuthHeader
+				autoDetectUnauthenticatedSuccess = probe.UnauthenticatedSuccess
+				autoDetectUnauthenticatedBanner = probe.UnauthenticatedBanner
+				httpAuthCache.Store(cacheKey, httpAuthCacheEntry{
+					AuthType:               detectedAuth,
+					UnauthenticatedSuccess: autoDetectUnauthenticatedSuccess,
+					UnauthenticatedBanner:  autoDetectUnauthenticatedBanner,
+				})
 			}
-
-			probeResp, err := client.Do(probeReq)
-			if err != nil {
-				return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
+		} else {
+			probe := probeHTTPAuth(client, method, url, ua, params)
+			if probe.Result != nil {
+				return probe.Result
 			}
-			_, _ = io.Copy(io.Discard, probeResp.Body)
-			probeResp.Body.Close()
-
-			wwwAuthHeader = probeResp.Header.Get("WWW-Authenticate")
-			upperAuth := strings.ToUpper(wwwAuthHeader)
-
-			if strings.Contains(upperAuth, "NTLM") {
-				detectedAuth = "NTLM"
-			} else if strings.Contains(upperAuth, "DIGEST") {
-				detectedAuth = "DIGEST"
-			} else {
-				detectedAuth = "BASIC"
+			detectedAuth = probe.AuthType
+			wwwAuthHeader = probe.WWWAuthHeader
+			autoDetectUnauthenticatedSuccess = probe.UnauthenticatedSuccess
+			autoDetectUnauthenticatedBanner = probe.UnauthenticatedBanner
+			httpAuthCache.Store(cacheKey, httpAuthCacheEntry{
+				AuthType:               detectedAuth,
+				UnauthenticatedSuccess: autoDetectUnauthenticatedSuccess,
+				UnauthenticatedBanner:  autoDetectUnauthenticatedBanner,
+			})
+		}
+	case "BASIC":
+		probeMethod := basicProbeMethod(method)
+		probe := probeHTTPAuth(client, probeMethod, url, ua, params)
+		if probe.Result != nil {
+			if probe.Result.Error != nil || !probe.Result.ConnectionSuccess {
+				return probe.Result
 			}
-
-			// If we got a 200 without auth, the endpoint doesn't require auth
-			if probeResp.StatusCode >= 200 && probeResp.StatusCode < 300 {
-				banner := probeResp.Header.Get("Server")
-				return &BruteResult{AuthSuccess: true, ConnectionSuccess: true, Banner: banner}
+			if strings.EqualFold(probeMethod, method) {
+				autoDetectUnauthenticatedSuccess = true
+				autoDetectUnauthenticatedBanner = probe.Result.Banner
 			}
-
-			httpAuthCache.Store(hostKey, detectedAuth)
+		} else if strings.EqualFold(probeMethod, method) {
+			autoDetectUnauthenticatedSuccess = probe.UnauthenticatedSuccess
+			autoDetectUnauthenticatedBanner = probe.UnauthenticatedBanner
 		}
 	}
 
@@ -124,34 +161,116 @@ func BruteHTTP(host string, port int, user, password string, timeout time.Durati
 		return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
 	}
 	req.Header.Set("User-Agent", ua)
+	applyHTTPCustomHeader(req, params)
+
+	var result *BruteResult
+	switch detectedAuth {
+	case "NTLM":
+		result = bruteHTTPNTLM(client, req, user, password, params["domain"], url, method, ua, params)
+	case "DIGEST":
+		result = bruteHTTPDigest(client, req, user, password, wwwAuthHeader, url, method, ua, params)
+	default: // BASIC
+		auth := user + ":" + password
+		basicAuth := "Basic " + base64.StdEncoding.EncodeToString([]byte(auth))
+		req.Header.Set("Authorization", basicAuth)
+
+		resp, err := client.Do(req)
+		if err != nil {
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
+		}
+		defer func() {
+			_, _ = io.Copy(io.Discard, resp.Body)
+			_ = resp.Body.Close()
+		}()
+
+		result = httpResult(resp)
+	}
+
+	if autoDetectUnauthenticatedSuccess {
+		if result.Banner == "" {
+			result.Banner = autoDetectUnauthenticatedBanner
+		} else if autoDetectUnauthenticatedBanner != "" && !strings.Contains(result.Banner, autoDetectUnauthenticatedBanner) {
+			result.Banner += "; " + autoDetectUnauthenticatedBanner
+		}
+		if result.AuthSuccess {
+			result.AuthSuccess = false
+		}
+	}
+	return result
+}
+
+type httpAuthProbe struct {
+	AuthType               string
+	WWWAuthHeader          string
+	Result                 *BruteResult
+	UnauthenticatedSuccess bool
+	UnauthenticatedBanner  string
+}
+
+func probeHTTPAuth(client *http.Client, method, url, ua string, params ModuleParams) httpAuthProbe {
+	probeReq, err := http.NewRequest(method, url, nil)
+	if err != nil {
+		return httpAuthProbe{Result: &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}}
+	}
+	probeReq.Header.Set("User-Agent", ua)
+	applyHTTPCustomHeader(probeReq, params)
+
+	probeResp, err := client.Do(probeReq)
+	if err != nil {
+		return httpAuthProbe{Result: &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}}
+	}
+	_, _ = io.Copy(io.Discard, probeResp.Body)
+	_ = probeResp.Body.Close()
+
+	wwwAuthHeader := probeResp.Header.Get("WWW-Authenticate")
+	if probeResp.StatusCode >= 200 && probeResp.StatusCode < 300 && wwwAuthHeader == "" {
+		return httpAuthProbe{Result: &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Banner: httpBanner(probeResp)}}
+	}
+
+	probeBanner := httpBanner(probeResp)
+	return httpAuthProbe{
+		AuthType:               detectHTTPAuthType(wwwAuthHeader),
+		WWWAuthHeader:          wwwAuthHeader,
+		UnauthenticatedSuccess: probeResp.StatusCode >= 200 && probeResp.StatusCode < 300,
+		UnauthenticatedBanner:  probeBanner,
+	}
+}
+
+func detectHTTPAuthType(wwwAuthHeader string) string {
+	upperAuth := strings.ToUpper(wwwAuthHeader)
+	switch {
+	case strings.Contains(upperAuth, "NTLM"):
+		return "NTLM"
+	case strings.Contains(upperAuth, "DIGEST"):
+		return "DIGEST"
+	default:
+		return "BASIC"
+	}
+}
+
+func basicProbeMethod(method string) string {
+	if isHTTPSafeMethod(method) {
+		return method
+	}
+	return "GET"
+}
+
+func isHTTPSafeMethod(method string) bool {
+	switch strings.ToUpper(method) {
+	case "GET", "HEAD", "OPTIONS", "TRACE":
+		return true
+	default:
+		return false
+	}
+}
+
+func applyHTTPCustomHeader(req *http.Request, params ModuleParams) {
 	if h := params["custom-header"]; h != "" {
 		parts := strings.SplitN(h, ":", 2)
 		if len(parts) == 2 {
 			req.Header.Set(strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1]))
 		}
 	}
-
-	switch detectedAuth {
-	case "NTLM":
-		return bruteHTTPNTLM(client, req, user, password, params["domain"], url, method, ua, params)
-	case "DIGEST":
-		return bruteHTTPDigest(client, req, user, password, wwwAuthHeader, url, method, ua, params)
-	default: // BASIC
-		auth := user + ":" + password
-		basicAuth := "Basic " + base64.StdEncoding.EncodeToString([]byte(auth))
-		req.Header.Set("Authorization", basicAuth)
-	}
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
-	}
-	defer func() {
-		_, _ = io.Copy(io.Discard, resp.Body)
-		resp.Body.Close()
-	}()
-
-	return httpResult(resp)
 }
 
 // bruteHTTPNTLM performs NTLM authentication via HTTP
@@ -169,7 +288,7 @@ func bruteHTTPNTLM(client *http.Client, req *http.Request, user, password, domai
 		return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
 	}
 	_, _ = io.Copy(io.Discard, resp.Body)
-	resp.Body.Close()
+	_ = resp.Body.Close()
 
 	// Parse challenge from response
 	authHeader := resp.Header.Get("WWW-Authenticate")
@@ -197,12 +316,7 @@ func bruteHTTPNTLM(client *http.Client, req *http.Request, user, password, domai
 	authReq, _ := http.NewRequest(method, url, nil)
 	authReq.Header.Set("User-Agent", ua)
 	authReq.Header.Set("Authorization", "NTLM "+base64.StdEncoding.EncodeToString(authenticateMsg))
-	if h := params["custom-header"]; h != "" {
-		parts := strings.SplitN(h, ":", 2)
-		if len(parts) == 2 {
-			authReq.Header.Set(strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1]))
-		}
-	}
+	applyHTTPCustomHeader(authReq, params)
 
 	authResp, err := client.Do(authReq)
 	if err != nil {
@@ -210,7 +324,7 @@ func bruteHTTPNTLM(client *http.Client, req *http.Request, user, password, domai
 	}
 	defer func() {
 		_, _ = io.Copy(io.Discard, authResp.Body)
-		authResp.Body.Close()
+		_ = authResp.Body.Close()
 	}()
 
 	return httpResult(authResp)
@@ -220,14 +334,18 @@ func bruteHTTPNTLM(client *http.Client, req *http.Request, user, password, domai
 func bruteHTTPDigest(client *http.Client, req *http.Request, user, password, wwwAuth, url, method, ua string, params ModuleParams) *BruteResult {
 	// If we don't have the WWW-Authenticate header yet, do a probe
 	if wwwAuth == "" {
-		probeReq, _ := http.NewRequest(method, url, nil)
+		probeReq, err := http.NewRequest(method, url, nil)
+		if err != nil {
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
+		}
 		probeReq.Header.Set("User-Agent", ua)
+		applyHTTPCustomHeader(probeReq, params)
 		probeResp, err := client.Do(probeReq)
 		if err != nil {
 			return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
 		}
 		_, _ = io.Copy(io.Discard, probeResp.Body)
-		probeResp.Body.Close()
+		_ = probeResp.Body.Close()
 		wwwAuth = probeResp.Header.Get("WWW-Authenticate")
 	}
 
@@ -280,14 +398,13 @@ func bruteHTTPDigest(client *http.Client, req *http.Request, user, password, www
 	}
 	defer func() {
 		_, _ = io.Copy(io.Discard, resp.Body)
-		resp.Body.Close()
+		_ = resp.Body.Close()
 	}()
 
 	return httpResult(resp)
 }
 
-// httpResult converts an HTTP response to a BruteResult
-func httpResult(resp *http.Response) *BruteResult {
+func httpBanner(resp *http.Response) string {
 	banner := resp.Header.Get("Server")
 	if wwwAuth := resp.Header.Get("WWW-Authenticate"); wwwAuth != "" {
 		if banner != "" {
@@ -295,6 +412,12 @@ func httpResult(resp *http.Response) *BruteResult {
 		}
 		banner += "Auth: " + wwwAuth
 	}
+	return banner
+}
+
+// httpResult converts an HTTP response to a BruteResult
+func httpResult(resp *http.Response) *BruteResult {
+	banner := httpBanner(resp)
 
 	switch resp.StatusCode {
 	case 200, 201, 202, 204:

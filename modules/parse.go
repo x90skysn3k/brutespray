@@ -151,7 +151,7 @@ func ParseGNMAP(filename string) (map[Host]int, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
@@ -191,7 +191,7 @@ func ParseJSON(filename string) (map[Host]int, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	decoder := json.NewDecoder(file)
 	for {
@@ -225,7 +225,7 @@ func ParseXML(filename string) (map[Host]int, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	decoder := xml.NewDecoder(file)
 	var report NmapRun
@@ -277,7 +277,7 @@ func ParseNexpose(filename string) (map[Host]int, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	decoder := xml.NewDecoder(file)
 	var nodes []NexposeNode
@@ -327,7 +327,7 @@ func ParseNessus(filename string) (map[Host]int, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	decoder := xml.NewDecoder(file)
 	var report NessusReport
@@ -361,7 +361,7 @@ func ParseList(filename string) (map[Host]int, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	hosts := make(map[Host]int)
 	scanner := bufio.NewScanner(file)

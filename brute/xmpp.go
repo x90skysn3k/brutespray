@@ -20,7 +20,7 @@ func BruteXMPP(host string, port int, user, password string, timeout time.Durati
 	}
 
 	return RunWithTimeout(timeout, func(ctx context.Context) *BruteResult {
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 		go func() { <-ctx.Done(); _ = conn.SetDeadline(time.Now()) }()
 
 		router := xmpp.NewRouter()

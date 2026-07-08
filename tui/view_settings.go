@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -146,7 +147,10 @@ func (v *SettingsView) View(scheme *ColorScheme) string {
 	appliedStyle := lipgloss.NewStyle().Foreground(scheme.Success).Bold(true)
 
 	s := v.stats
-	elapsed := time.Since(s.StartTime)
+	var elapsed time.Duration
+	if !s.StartTime.IsZero() {
+		elapsed = time.Since(s.StartTime)
+	}
 	var aps float64
 	if elapsed.Seconds() > 0 {
 		aps = float64(s.TotalAttempts) / elapsed.Seconds()
@@ -200,9 +204,10 @@ func (v *SettingsView) View(scheme *ColorScheme) string {
 			rendered = prefix + labelStyle.Render(f.label) + "   " + valueStyle.Render(val)
 		} else {
 			vs := valueStyle
-			if f.label == "Successes" || f.label == "Success Rate" {
+			switch f.label {
+			case "Successes", "Success Rate":
 				vs = successStyle
-			} else if f.label == "Conn Errors" || f.label == "Auth Errors" {
+			case "Conn Errors", "Auth Errors":
 				vs = errorStyle
 			}
 			rendered = prefix + labelStyle.Render(f.label) + " " + vs.Render(val)
@@ -221,7 +226,13 @@ func (v *SettingsView) View(scheme *ColorScheme) string {
 		lines = append(lines, "")
 		lines = append(lines, lipgloss.NewStyle().Foreground(scheme.Muted).Render("  "+strings.Repeat("─", 40)))
 		lines = append(lines, titleStyle.Render("  Services"))
-		for svc, count := range s.ServiceBreakdown {
+		services := make([]string, 0, len(s.ServiceBreakdown))
+		for svc := range s.ServiceBreakdown {
+			services = append(services, svc)
+		}
+		sort.Strings(services)
+		for _, svc := range services {
+			count := s.ServiceBreakdown[svc]
 			lines = append(lines, fmt.Sprintf("    %s %s",
 				labelStyle.Render(svc+":"),
 				valueStyle.Render(fmt.Sprintf("%d", count))))

@@ -52,7 +52,7 @@ func BruteMSSQL(host string, port int, user, password string, timeout time.Durat
 	connector.Dialer = &mssqlDialer{cm: cm}
 
 	db := sql.OpenDB(connector)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	err = db.PingContext(ctx)
 	if err != nil {

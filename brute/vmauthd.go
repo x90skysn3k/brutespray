@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"net"
 	"strings"
 	"time"
 
@@ -18,7 +17,7 @@ func BruteVMAuthd(host string, port int, user, password string, timeout time.Dur
 	}
 
 	return RunWithTimeout(timeout, func(ctx context.Context) *BruteResult {
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 		go func() { <-ctx.Done(); _ = conn.SetDeadline(time.Now()) }()
 
 		_ = conn.SetDeadline(time.Now().Add(timeout))
@@ -30,7 +29,7 @@ func BruteVMAuthd(host string, port int, user, password string, timeout time.Dur
 		}
 		response := string(buf[:n])
 
-		var activeConn net.Conn = conn
+		activeConn := conn
 		if strings.Contains(response, "SSL Required") {
 			tlsConn := tls.Client(conn, &tls.Config{InsecureSkipVerify: true})
 			activeConn = tlsConn

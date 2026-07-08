@@ -208,7 +208,9 @@ func executeTUI(cfg *Config, cm *modules.ConnectionManager, totalHosts int, enga
 		fmt.Printf("Warning: could not open session log: %v\n", err)
 	} else {
 		workerPool.sessionLog = sessionLog
-		defer sessionLog.Close()
+		defer func() {
+			_ = sessionLog.Close()
+		}()
 	}
 
 	checkpointStop := make(chan struct{})
@@ -310,7 +312,9 @@ func executeLegacy(cfg *Config, cm *modules.ConnectionManager, totalHosts int, e
 		fmt.Printf("Warning: could not open session log: %v\n", err)
 	} else {
 		workerPool.sessionLog = sessionLog
-		defer sessionLog.Close()
+		defer func() {
+			_ = sessionLog.Close()
+		}()
 	}
 
 	// Register signal handler BEFORE launching the goroutine that reads from it

@@ -201,7 +201,7 @@ func TestPrintResultJSON(t *testing.T) {
 	dir := t.TempDir()
 	PrintResult("ssh", "10.0.0.1", 22, "root", "toor", true, true, false, dir, 0, "OpenSSH_8.9")
 
-	w.Close()
+	_ = w.Close()
 	os.Stdout = old
 
 	var buf bytes.Buffer
@@ -269,7 +269,7 @@ func TestPrintResultWithStatusIncludesStatusCode(t *testing.T) {
 	dir := t.TempDir()
 	PrintResultWithStatus("ssh", "10.0.0.1", 22, "root", "toor", false, false, false, dir, 0, "connection_failure")
 
-	w.Close()
+	_ = w.Close()
 	os.Stdout = old
 
 	var buf bytes.Buffer
@@ -313,7 +313,7 @@ func TestPrintResultWithStatusAndProofIncludesProof(t *testing.T) {
 
 	PrintResultWithStatusAndProof("ssh", "10.0.0.1", 22, "root", "toor", true, true, false, t.TempDir(), 0, "success", "confirmed", "auth_protocol_success", "ssh module result")
 
-	w.Close()
+	_ = w.Close()
 	os.Stdout = old
 
 	var buf bytes.Buffer
@@ -345,7 +345,7 @@ func TestWriteFindingWithProofIncludesProof(t *testing.T) {
 
 	WriteFindingWithProof("HIGH", "redis-no-auth", "redis", "127.0.0.1", 6379, "open redis", "", "probable", "preauth_probe", "PING")
 
-	w.Close()
+	_ = w.Close()
 	os.Stdout = old
 
 	var buf bytes.Buffer
@@ -388,7 +388,7 @@ func TestPrintResultJSONRedactsPasswordInEvidenceMode(t *testing.T) {
 	dir := t.TempDir()
 	PrintResult("ssh", "10.0.0.1", 22, "root", "toor", true, true, false, dir, 0, "OpenSSH_8.9")
 
-	w.Close()
+	_ = w.Close()
 	os.Stdout = old
 
 	var buf bytes.Buffer
@@ -410,6 +410,65 @@ func TestPrintResultJSONRedactsPasswordInEvidenceMode(t *testing.T) {
 	}
 	if attempt.SecretHMACSHA256 == "" {
 		t.Fatal("expected secret_hmac_sha256")
+	}
+}
+
+func TestPrintResultWriteErrorDoesNotEchoRawCredential(t *testing.T) {
+	resetGlobalStats()
+
+	origFormat := OutputFormatMode
+	origSilent := Silent
+	origTUI := TUIMode
+	origNoColor := NoColorMode
+	origEvidence := GetEvidenceConfig()
+	defer func() {
+		OutputFormatMode = origFormat
+		Silent = origSilent
+		TUIMode = origTUI
+		NoColorMode = origNoColor
+		SetEvidenceConfig(origEvidence)
+	}()
+
+	OutputFormatMode = "json"
+	Silent = false
+	TUIMode = false
+	NoColorMode = true
+	SetEvidenceConfig(EvidenceConfig{Mode: EvidenceHash, HMACKey: []byte("engagement-key")})
+
+	outputPath := filepath.Join(t.TempDir(), "regular-file-output-target")
+	if err := os.WriteFile(outputPath, []byte("not a directory"), 0600); err != nil {
+		t.Fatalf("create regular output file: %v", err)
+	}
+
+	const (
+		host      = "10.0.0.1"
+		user      = "root"
+		password  = "raw-write-error-secret-9f2d6c"
+		banner    = "OpenSSH_write_error_regression"
+		rawRecord = "[ssh] 10.0.0.1:22 - User 'root' - Pass 'raw-write-error-secret-9f2d6c' - SUCCESS [Banner: OpenSSH_write_error_regression]"
+	)
+
+	old := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	PrintResult("ssh", host, 22, user, password, true, true, false, outputPath, 0, banner)
+
+	_ = w.Close()
+	os.Stdout = old
+
+	var buf bytes.Buffer
+	_, _ = io.Copy(&buf, r)
+	output := buf.String()
+
+	if !strings.Contains(output, "WRITE ERROR: could not save credential to file") {
+		t.Fatalf("expected write error in stdout, got: %s", output)
+	}
+	if strings.Contains(output, password) {
+		t.Fatalf("raw password leaked in write-error output: %s", output)
+	}
+	if strings.Contains(output, rawRecord) {
+		t.Fatalf("raw credential record leaked in write-error output: %s", output)
 	}
 }
 

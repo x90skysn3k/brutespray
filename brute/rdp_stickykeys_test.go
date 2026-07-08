@@ -89,7 +89,7 @@ func TestDetectTerminalWindowCmdRectangleDetected(t *testing.T) {
 func TestDetectTerminalWindowPowerShellRectangleDetected(t *testing.T) {
 	// Same setup but a blue PowerShell-style window — heuristic must
 	// catch this, not just cmd's black-on-white palette.
-	bg := color.RGBA{0xc0, 0xc0, 0xc0, 0xff}  // pale logon background
+	bg := color.RGBA{0xc0, 0xc0, 0xc0, 0xff}   // pale logon background
 	psBg := color.RGBA{0x01, 0x36, 0xa3, 0xff} // PowerShell blue
 	before := makePNG(t, 1024, 768, bg, 0, 0, 0, 0, bg)
 	after := makePNG(t, 1024, 768, bg, 100, 100, 700, 450, psBg)

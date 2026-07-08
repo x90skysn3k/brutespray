@@ -29,10 +29,7 @@ func formatModuleHelp(selection string) (string, error) {
 		if !ok {
 			return "", fmt.Errorf("missing descriptor for service: %s", service)
 		}
-		credentials := "user,password"
-		if descriptor.CredentialMode == modules.CredentialPasswordOnly {
-			credentials = "password"
-		}
+		credentials := moduleHelpCredentialMode(descriptor.CredentialMode)
 		fmt.Fprintf(&b, "service=%s default_port=%d credentials=%s routing=%s stability=%s",
 			descriptor.Name, descriptor.DefaultPort, credentials, descriptor.Routing, descriptor.Stability)
 		params := moduleHelpParams(descriptor)
@@ -47,11 +44,42 @@ func formatModuleHelp(selection string) (string, error) {
 	return b.String(), nil
 }
 
+func moduleHelpCredentialMode(mode modules.CredentialMode) string {
+	switch mode {
+	case modules.CredentialUserPassword:
+		return "user,password"
+	case modules.CredentialPasswordOnly:
+		return "password"
+	case modules.CredentialUserKey:
+		return "user,key"
+	case modules.CredentialToken:
+		return "token"
+	case modules.CredentialNone:
+		return "none"
+	default:
+		return string(mode)
+	}
+}
+
 func moduleHelpParams(descriptor modules.ServiceDescriptor) []string {
 	params := make([]string, 0, len(descriptor.Params))
 	for _, param := range descriptor.Params {
-		params = append(params, param.Name)
+		params = append(params, formatModuleHelpParam(param))
 	}
 	sort.Strings(params)
 	return params
+}
+
+func formatModuleHelpParam(param modules.ParamDescriptor) string {
+	parts := []string{param.Name}
+	if len(param.Values) > 0 {
+		parts = append(parts, "values="+strings.Join(param.Values, "|"))
+	}
+	if param.Required {
+		parts = append(parts, "required")
+	}
+	if param.Default != "" {
+		parts = append(parts, "default="+param.Default)
+	}
+	return strings.Join(parts, ":")
 }

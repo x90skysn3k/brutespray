@@ -74,7 +74,7 @@ func VerifyAuditLog(path string) error {
 	if err != nil {
 		return fmt.Errorf("opening audit log: %w", err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 	scanner := bufio.NewScanner(file)
 	var prev string
 	var sequence int64

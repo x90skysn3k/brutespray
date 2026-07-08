@@ -29,16 +29,16 @@ func startMockIMAPServer(t *testing.T, handler func(conn net.Conn)) (int, func()
 	}()
 
 	port := listener.Addr().(*net.TCPAddr).Port
-	return port, func() { listener.Close() }
+	return port, func() { _ = listener.Close() }
 }
 
 // handleIMAPLogin handles a basic IMAP server supporting LOGIN command.
 func handleIMAPLogin(conn net.Conn, validUser, validPass string) {
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 	_ = conn.SetDeadline(time.Now().Add(5 * time.Second))
 
 	// Send greeting
-	fmt.Fprintf(conn, "* OK [CAPABILITY IMAP4rev1 LOGIN STARTTLS] IMAP server ready\r\n")
+	_, _ = fmt.Fprintf(conn, "* OK [CAPABILITY IMAP4rev1 LOGIN STARTTLS] IMAP server ready\r\n")
 
 	r := bufio.NewReader(conn)
 	for {
@@ -58,35 +58,35 @@ func handleIMAPLogin(conn net.Conn, validUser, validPass string) {
 
 		switch cmd {
 		case "CAPABILITY":
-			fmt.Fprintf(conn, "* CAPABILITY IMAP4rev1 LOGIN STARTTLS\r\n")
-			fmt.Fprintf(conn, "%s OK CAPABILITY completed\r\n", tag)
+			_, _ = fmt.Fprintf(conn, "* CAPABILITY IMAP4rev1 LOGIN STARTTLS\r\n")
+			_, _ = fmt.Fprintf(conn, "%s OK CAPABILITY completed\r\n", tag)
 
 		case "LOGIN":
 			if len(parts) < 3 {
-				fmt.Fprintf(conn, "%s BAD Missing arguments\r\n", tag)
+				_, _ = fmt.Fprintf(conn, "%s BAD Missing arguments\r\n", tag)
 				continue
 			}
 			// Parse LOGIN user password
 			loginArgs := strings.SplitN(parts[2], " ", 2)
 			if len(loginArgs) < 2 {
-				fmt.Fprintf(conn, "%s BAD Missing password\r\n", tag)
+				_, _ = fmt.Fprintf(conn, "%s BAD Missing password\r\n", tag)
 				continue
 			}
 			user := strings.Trim(loginArgs[0], "\"")
 			pass := strings.Trim(loginArgs[1], "\"")
 			if user == validUser && pass == validPass {
-				fmt.Fprintf(conn, "%s OK LOGIN completed\r\n", tag)
+				_, _ = fmt.Fprintf(conn, "%s OK LOGIN completed\r\n", tag)
 			} else {
-				fmt.Fprintf(conn, "%s NO LOGIN failed\r\n", tag)
+				_, _ = fmt.Fprintf(conn, "%s NO LOGIN failed\r\n", tag)
 			}
 
 		case "LOGOUT":
-			fmt.Fprintf(conn, "* BYE IMAP server logging out\r\n")
-			fmt.Fprintf(conn, "%s OK LOGOUT completed\r\n", tag)
+			_, _ = fmt.Fprintf(conn, "* BYE IMAP server logging out\r\n")
+			_, _ = fmt.Fprintf(conn, "%s OK LOGOUT completed\r\n", tag)
 			return
 
 		default:
-			fmt.Fprintf(conn, "%s BAD Unknown command\r\n", tag)
+			_, _ = fmt.Fprintf(conn, "%s BAD Unknown command\r\n", tag)
 		}
 	}
 }

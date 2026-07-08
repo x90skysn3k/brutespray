@@ -48,7 +48,7 @@ func BruteMYSQL(host string, port int, user, password string, timeout time.Durat
 	if err != nil {
 		return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	err = db.PingContext(ctx)
 	if err != nil {

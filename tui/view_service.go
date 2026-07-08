@@ -13,14 +13,16 @@ type ServiceView struct {
 	services      []string
 	serviceSet    map[string]bool
 	selectedIdx   int
-	attempts      map[string][]string
+	attempts      map[string][]string // service -> rendered lines
+	attemptCounts map[string]int      // service -> total attempts, including lines trimmed from attempts
 	width, height int
 }
 
 func NewServiceView() ServiceView {
 	return ServiceView{
-		serviceSet: make(map[string]bool),
-		attempts:   make(map[string][]string),
+		serviceSet:    make(map[string]bool),
+		attempts:      make(map[string][]string),
+		attemptCounts: make(map[string]int),
 	}
 }
 
@@ -36,6 +38,7 @@ func (v *ServiceView) AddAttempt(msg AttemptResultMsg, scheme *ColorScheme) {
 		v.services = append(v.services, svc)
 		sort.Strings(v.services)
 	}
+	v.attemptCounts[svc]++
 
 	style, status := scheme.AttemptStyle(msg.Success, msg.Connected, msg.Retrying)
 
@@ -97,7 +100,7 @@ func (v *ServiceView) View(scheme *ColorScheme) string {
 		if i == v.selectedIdx {
 			prefix = "▸ "
 		}
-		count := len(v.attempts[svc])
+		count := v.attemptCounts[svc]
 		label := fmt.Sprintf("%s%s (%d)", prefix, svc, count)
 		leftLines = append(leftLines, lipgloss.NewStyle().Foreground(scheme.Primary).Render(label))
 	}

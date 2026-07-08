@@ -16,7 +16,9 @@ func BruteAsterisk(host string, port int, user, password string, timeout time.Du
 	if err != nil {
 		return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
 	}
-	defer conn.Close()
+	defer func() {
+		_ = conn.Close()
+	}()
 
 	deadline := time.Now().Add(timeout)
 	_ = conn.SetDeadline(deadline)

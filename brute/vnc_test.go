@@ -10,10 +10,10 @@ import (
 // anti-brute-force patterns in VNC error messages and sets RetryDelay.
 func TestVNCAntibruteDetection(t *testing.T) {
 	tests := []struct {
-		name          string
-		errMsg        string
-		wantDelay     bool
-		wantBanner    string
+		name       string
+		errMsg     string
+		wantDelay  bool
+		wantBanner string
 	}{
 		{
 			name:       "TooManyAttempts",
@@ -72,9 +72,9 @@ func TestVNCAntibruteDetection(t *testing.T) {
 // delay duration when anti-brute-force is detected.
 func TestVNCMaxSleepParam(t *testing.T) {
 	tests := []struct {
-		name       string
-		maxSleep   string
-		wantDelay  time.Duration
+		name      string
+		maxSleep  string
+		wantDelay time.Duration
 	}{
 		{
 			name:      "Default60s",

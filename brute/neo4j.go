@@ -26,7 +26,7 @@ func BruteNeo4j(host string, port int, user, password string, timeout time.Durat
 		if err != nil {
 			return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
 		}
-		defer driver.Close(ctx)
+		defer func() { _ = driver.Close(ctx) }()
 
 		err = driver.VerifyConnectivity(ctx)
 		if err != nil {

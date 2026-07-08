@@ -59,7 +59,7 @@ func BruteSMB(host string, port int, user, password string, timeout time.Duratio
 	handleResult := func(r result) *BruteResult {
 		if r.err != nil {
 			if r.conn != nil {
-				r.conn.Close()
+				_ = r.conn.Close()
 			}
 			return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: r.err}
 		}
@@ -68,7 +68,7 @@ func BruteSMB(host string, port int, user, password string, timeout time.Duratio
 		_, err := r.session.ListSharenames()
 		if err != nil {
 			_ = r.session.Logoff()
-			r.conn.Close()
+			_ = r.conn.Close()
 			return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: err}
 		}
 
@@ -83,7 +83,7 @@ func BruteSMB(host string, port int, user, password string, timeout time.Duratio
 		}
 
 		_ = r.session.Logoff()
-		r.conn.Close()
+		_ = r.conn.Close()
 		return &BruteResult{AuthSuccess: true, ConnectionSuccess: true, Banner: banner}
 	}
 
@@ -94,7 +94,7 @@ func BruteSMB(host string, port int, user, password string, timeout time.Duratio
 		case r := <-done:
 			return handleResult(r)
 		default:
-			conn.Close()
+			_ = conn.Close()
 			return &BruteResult{AuthSuccess: false, ConnectionSuccess: false}
 		}
 	case r := <-done:

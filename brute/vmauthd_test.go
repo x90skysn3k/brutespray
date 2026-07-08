@@ -2,7 +2,6 @@ package brute
 
 import (
 	"bufio"
-	"fmt"
 	"net"
 	"strings"
 	"testing"
@@ -29,20 +28,24 @@ func startMockVMAuthdServer(t *testing.T, validUser, validPass string, requireSS
 	}()
 
 	port := listener.Addr().(*net.TCPAddr).Port
-	return port, func() { listener.Close() }
+	return port, closeMockListener(listener)
 }
 
 func handleVMAuthdConn(conn net.Conn, validUser, validPass string, requireSSL bool) {
-	defer conn.Close()
+	defer closeMockConn(conn)
 	_ = conn.SetDeadline(time.Now().Add(5 * time.Second))
 
 	if requireSSL {
-		fmt.Fprintf(conn, "220 VMware Authentication Daemon SSL Required\r\n")
+		if !writeMockResponse(conn, "220 VMware Authentication Daemon SSL Required\r\n") {
+			return
+		}
 		// We can't easily do TLS in the mock without certs, so just close
 		return
 	}
 
-	fmt.Fprintf(conn, "220 VMware Authentication Daemon Version 1.10\r\n")
+	if !writeMockResponse(conn, "220 VMware Authentication Daemon Version 1.10\r\n") {
+		return
+	}
 
 	r := bufio.NewReader(conn)
 	var user string
@@ -55,13 +58,19 @@ func handleVMAuthdConn(conn net.Conn, validUser, validPass string, requireSSL bo
 
 		if strings.HasPrefix(line, "USER ") {
 			user = strings.TrimPrefix(line, "USER ")
-			fmt.Fprintf(conn, "331 Password required for %s.\r\n", user)
+			if !writeMockResponse(conn, "331 Password required for %s.\r\n", user) {
+				return
+			}
 		} else if strings.HasPrefix(line, "PASS ") {
 			pass := strings.TrimPrefix(line, "PASS ")
 			if user == validUser && pass == validPass {
-				fmt.Fprintf(conn, "230 User %s logged in.\r\n", user)
+				if !writeMockResponse(conn, "230 User %s logged in.\r\n", user) {
+					return
+				}
 			} else {
-				fmt.Fprintf(conn, "530 Login incorrect.\r\n")
+				if !writeMockResponse(conn, "530 Login incorrect.\r\n") {
+					return
+				}
 			}
 			return
 		}

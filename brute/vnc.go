@@ -36,7 +36,9 @@ func BruteVNC(host string, port int, user string, password string, timeout time.
 	}
 
 	go func() {
-		defer conn.Close()
+		defer func() {
+			_ = conn.Close()
+		}()
 
 		_ = conn.SetDeadline(time.Now().Add(timeout))
 
@@ -45,7 +47,7 @@ func BruteVNC(host string, port int, user string, password string, timeout time.
 			done <- result{false, true, err}
 			return
 		}
-		client.Close()
+		_ = client.Close()
 		done <- result{true, true, nil}
 	}()
 

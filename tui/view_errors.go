@@ -52,7 +52,7 @@ func (v *ErrorsView) View(scheme *ColorScheme) string {
 	var lines []string
 	lines = append(lines, headerStyle.Render(fmt.Sprintf("  Errors (%d)", len(v.entries))))
 	lines = append(lines, lipgloss.NewStyle().Foreground(scheme.Muted).Render(
-		"  "+strings.Repeat("─", v.width-4)))
+		"  "+safeRepeat("─", v.width-4)))
 
 	for _, e := range v.entries {
 		ts := e.Timestamp.Format("15:04:05")
