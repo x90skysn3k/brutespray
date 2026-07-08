@@ -277,7 +277,7 @@ func TestServiceDescriptorsIncludeObservedRuntimeParams(t *testing.T) {
         "svn":           {"https", "path"},
         "telnet":        {"success"},
         "vnc":           {"maxsleep"},
-        "wrapper":       {"allow-wrapper", "cmd"},
+        "wrapper":       {"cmd"},
     }
     descriptors := ServiceDescriptors()
     for service, params := range cases {

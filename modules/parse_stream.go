@@ -129,7 +129,11 @@ func parseNervaURI(buf []byte) []Host {
 		if err != nil {
 			continue
 		}
-		out = append(out, Host{Service: scheme, Host: host, Port: port})
+		svc, ok := normalizeScannerService(scheme)
+		if !ok {
+			continue
+		}
+		out = append(out, Host{Service: svc, Host: host, Port: port})
 	}
 	return out
 }
@@ -148,7 +152,11 @@ func parseNervaJSON(buf []byte) ([]Host, error) {
 		if err := dec.Decode(&row); err != nil {
 			return nil, fmt.Errorf("decode nerva-json: %w", err)
 		}
-		out = append(out, Host{Service: row.Protocol, Host: row.IP, Port: row.Port})
+		svc, ok := normalizeScannerService(row.Protocol)
+		if !ok {
+			continue
+		}
+		out = append(out, Host{Service: svc, Host: row.IP, Port: row.Port})
 	}
 	return out, nil
 }
@@ -172,7 +180,11 @@ func parseFingerprintXJSON(buf []byte) ([]Host, error) {
 		if h == "" {
 			h = row.IP
 		}
-		out = append(out, Host{Service: row.Service, Host: h, Port: row.Port})
+		svc, ok := normalizeScannerService(row.Service)
+		if !ok {
+			continue
+		}
+		out = append(out, Host{Service: svc, Host: h, Port: row.Port})
 	}
 	return out, nil
 }

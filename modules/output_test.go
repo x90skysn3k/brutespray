@@ -386,7 +386,7 @@ func TestPrintResultJSONRedactsPasswordInEvidenceMode(t *testing.T) {
 	os.Stdout = w
 
 	dir := t.TempDir()
-	PrintResult("ssh", "10.0.0.1", 22, "root", "toor", true, true, false, dir, 0, "OpenSSH_8.9")
+	PrintResult("ssh", "10.0.0.1", 22, "root", "raw-evidence-secret-2f3b", true, true, false, dir, 0, "OpenSSH_8.9")
 
 	_ = w.Close()
 	os.Stdout = old
@@ -394,8 +394,17 @@ func TestPrintResultJSONRedactsPasswordInEvidenceMode(t *testing.T) {
 	var buf bytes.Buffer
 	_, _ = io.Copy(&buf, r)
 	output := strings.TrimSpace(buf.String())
-	if strings.Contains(output, "toor") {
-		t.Fatalf("raw password leaked in JSON output: %s", output)
+	if strings.Contains(output, "raw-evidence-secret-2f3b") {
+		t.Fatalf("raw password leaked in JSON evidence output: %s", output)
+	}
+	if !strings.Contains(output, "\"password\":\"[REDACTED]\"") {
+		t.Fatalf("redacted password missing in JSON output: %s", output)
+	}
+	if !strings.Contains(output, "\"secret_hmac_sha256\":") {
+		t.Fatalf("secret HMAC missing in JSON output: %s", output)
+	}
+	if !strings.Contains(output, "\"secret_redacted\":true") {
+		t.Fatalf("secret_redacted flag missing in JSON output: %s", output)
 	}
 
 	var attempt AttemptResult

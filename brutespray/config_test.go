@@ -1,11 +1,142 @@
 package brutespray
 
 import (
+	"flag"
+	"os"
 	"strings"
 	"testing"
 
 	"github.com/x90skysn3k/brutespray/v2/brute"
+	"github.com/x90skysn3k/brutespray/v2/modules"
 )
+
+func parseConfigForTest(t *testing.T, args ...string) *Config {
+	t.Helper()
+
+	oldArgs := os.Args
+	oldCmd := flag.CommandLine
+	t.Cleanup(func() {
+		os.Args = oldArgs
+		flag.CommandLine = oldCmd
+	})
+
+	flag.CommandLine = flag.NewFlagSet("brutespray", flag.ContinueOnError)
+	os.Args = append([]string{"brutespray"}, args...)
+
+	return ParseConfig()
+}
+
+func TestApplyInternalModuleParamsDropsCLIAllowWrapperWithoutFlag(t *testing.T) {
+	cfg := parseConfigForTest(t,
+		"-H", "wrapper://127.0.0.1:0",
+		"-u", "root",
+		"-p", "toor",
+		"-m", "cmd:id",
+		"-m", "allow-wrapper:true",
+		"--no-tui",
+	)
+	if cfg.AllowWrapper {
+		t.Fatal("AllowWrapper should be false without --allow-wrapper")
+	}
+	if got := cfg.ModuleParams["allow-wrapper"]; got != "true" {
+		t.Fatalf("test setup expected user-supplied allow-wrapper:true before boundary, got %q", got)
+	}
+
+	applyInternalModuleParams(cfg)
+
+	if _, ok := cfg.ModuleParams["allow-wrapper"]; ok {
+		t.Fatal("user-supplied allow-wrapper must be removed when --allow-wrapper is absent")
+	}
+	if got := cfg.ModuleParams["cmd"]; got != "id" {
+		t.Fatalf("cmd param should remain intact, got %q", got)
+	}
+}
+
+func TestApplyInternalModuleParamsDropsYAMLAllowWrapperWithoutFlag(t *testing.T) {
+	configPath := t.TempDir() + "/brutespray.yml"
+	configYAML := []byte(`
+user: root
+password: toor
+hosts:
+  - wrapper://127.0.0.1:0
+module_params:
+  cmd: id
+  allow-wrapper: "true"
+`)
+	if err := os.WriteFile(configPath, configYAML, 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	cfg := parseConfigForTest(t,
+		"--config", configPath,
+		"--no-tui",
+	)
+	if cfg.AllowWrapper {
+		t.Fatal("AllowWrapper should be false without --allow-wrapper")
+	}
+	if got := cfg.ModuleParams["allow-wrapper"]; got != "true" {
+		t.Fatalf("test setup expected YAML allow-wrapper:true before boundary, got %q", got)
+	}
+
+	applyInternalModuleParams(cfg)
+
+	if _, ok := cfg.ModuleParams["allow-wrapper"]; ok {
+		t.Fatal("YAML-supplied allow-wrapper must be removed when --allow-wrapper is absent")
+	}
+	if got := cfg.ModuleParams["cmd"]; got != "id" {
+		t.Fatalf("cmd param should remain intact, got %q", got)
+	}
+}
+
+func TestApplyInternalModuleParamsInjectsAllowWrapperOnlyFromFlag(t *testing.T) {
+	cfg := parseConfigForTest(t,
+		"-H", "wrapper://127.0.0.1:0",
+		"-u", "root",
+		"-p", "toor",
+		"-m", "cmd:id",
+		"--allow-wrapper",
+		"--no-tui",
+	)
+	if !cfg.AllowWrapper {
+		t.Fatal("AllowWrapper should be true with --allow-wrapper")
+	}
+	if _, ok := cfg.ModuleParams["allow-wrapper"]; ok {
+		t.Fatal("test setup should not contain user-supplied allow-wrapper")
+	}
+
+	applyInternalModuleParams(cfg)
+
+	if got := cfg.ModuleParams["allow-wrapper"]; got != "true" {
+		t.Fatalf("explicit --allow-wrapper should inject internal allow-wrapper:true, got %q", got)
+	}
+	if got := cfg.ModuleParams["cmd"]; got != "id" {
+		t.Fatalf("cmd param should remain intact, got %q", got)
+	}
+}
+
+func TestBetaServiceListMatchesDescriptorStability(t *testing.T) {
+	listedBeta := map[string]bool{}
+	for _, service := range BetaServiceList {
+		listedBeta[service] = true
+	}
+
+	descriptorBeta := map[string]bool{}
+	for service, descriptor := range modules.ServiceDescriptors() {
+		if descriptor.Stability == modules.ServiceBeta {
+			descriptorBeta[service] = true
+		}
+	}
+
+	for service := range descriptorBeta {
+		if !listedBeta[service] {
+			t.Fatalf("descriptor beta service %s missing from BetaServiceList", service)
+		}
+	}
+	for service := range listedBeta {
+		if !descriptorBeta[service] {
+			t.Fatalf("BetaServiceList service %s is not marked beta in descriptor metadata", service)
+		}
+	}
+}
 
 // TestModuleParamsFlagParsing tests that the moduleParamsFlag type correctly
 // parses KEY:VALUE pairs as the -m flag would provide.
@@ -297,5 +428,29 @@ func TestValidateRejectsUnknownSchedule(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "schedule") {
 		t.Fatalf("expected schedule error, got: %v", err)
+	}
+}
+
+func TestParseConfigResumeNormalization(t *testing.T) {
+	// Save and restore os.Args and flag.CommandLine
+	oldArgs := os.Args
+	defer func() { os.Args = oldArgs }()
+	oldCmd := flag.CommandLine
+	defer func() { flag.CommandLine = oldCmd }()
+
+	// Since ParseConfig uses the global flag package, we must reset it
+	flag.CommandLine = flag.NewFlagSet("brutespray", flag.ContinueOnError)
+	os.Args = []string{
+		"brutespray",
+		"-resume", "engagement-run.jsonl",
+		"-H", "ssh://127.0.0.1:22",
+		"-u", "root",
+		"-p", "toor",
+		"--no-tui",
+	}
+
+	cfg := ParseConfig()
+	if cfg.ResumeFile != "engagement-run.json" {
+		t.Fatalf("ResumeFile = %q, want engagement-run.json", cfg.ResumeFile)
 	}
 }

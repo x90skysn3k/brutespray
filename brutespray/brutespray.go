@@ -35,6 +35,16 @@ func configureCircuitBreaker(cfg *Config) {
 	cb.SetDisabled(policy == "off" || (policy == "auto" && !cfg.SprayMode))
 }
 
+func applyInternalModuleParams(cfg *Config) {
+	delete(cfg.ModuleParams, "allow-wrapper")
+	if cfg.AllowWrapper {
+		if cfg.ModuleParams == nil {
+			cfg.ModuleParams = make(map[string]string)
+		}
+		cfg.ModuleParams["allow-wrapper"] = "true"
+	}
+}
+
 func configureBudgetScheduler(wp *WorkerPool, manifest EngagementManifest) error {
 	policy, err := LockoutPolicyFromManifest(manifest.Policy)
 	if err != nil {
@@ -118,10 +128,8 @@ func Execute() {
 		os.Exit(1)
 	}
 
-	// Inject --allow-wrapper into module params so the wrapper module can check it
-	if cfg.AllowWrapper {
-		cfg.ModuleParams["allow-wrapper"] = "true"
-	}
+	// Inject internal module params at the execution boundary.
+	applyInternalModuleParams(cfg)
 
 	// Set up proxy rotation if proxy list is provided
 	if cfg.ProxyList != "" {

@@ -10,6 +10,8 @@ brutespray -f nmap.gnmap -u admin -p password -o engagement-results
 
 Successful credentials are written to per-service files in the output directory as they are found.
 
+Treat credential-bearing operational artifacts as sensitive even when console or JSON attempt output is redacted. These artifacts may include per-service success files, checkpoints, session logs, summaries, and generated scripts.
+
 ## Summary Reports
 
 Generate comprehensive reports with `-summary`:
@@ -74,7 +76,7 @@ chmod +x brutespray-nxc.sh
 
 ## Evidence Modes
 
-Machine-readable attempt output now carries proof metadata and can render credential material according to the configured evidence mode.
+Machine-readable JSON attempt output honors the configured evidence mode and carries proof metadata. Evidence mode controls how credential material is rendered in those JSON records.
 
 | Mode | Password field | Correlation field | Intended use |
 |---|---|---|---|

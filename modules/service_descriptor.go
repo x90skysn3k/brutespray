@@ -56,11 +56,11 @@ type ServiceDescriptor struct {
 func ServiceDescriptors() map[string]ServiceDescriptor {
 	return map[string]ServiceDescriptor{
 		"ssh":           descriptor("ssh", 22, ServiceStable, CredentialUserPassword, RoutingConnectionManager, sshParams(), ""),
-		"ftp":           descriptor("ftp", 21, ServiceStable, CredentialUserPassword, RoutingConnectionManager, nil, ""),
-		"ftps":          descriptor("ftps", 990, ServiceBeta, CredentialUserPassword, RoutingConnectionManager, nil, "ftp"),
+		"ftp":           descriptor("ftp", 21, ServiceStable, CredentialUserPassword, RoutingConnectionManager, ftpParams(), ""),
+		"ftps":          descriptor("ftps", 990, ServiceBeta, CredentialUserPassword, RoutingConnectionManager, ftpParams(), "ftp"),
 		"telnet":        descriptor("telnet", 23, ServiceStable, CredentialUserPassword, RoutingConnectionManager, []ParamDescriptor{{Name: "success", Description: "Custom success string match"}}, ""),
 		"smtp":          descriptor("smtp", 25, ServiceStable, CredentialUserPassword, RoutingConnectionManager, smtpParams(), ""),
-		"smtp-vrfy":     descriptor("smtp-vrfy", 25, ServiceBeta, CredentialUserPassword, RoutingConnectionManager, nil, ""),
+		"smtp-vrfy":     descriptor("smtp-vrfy", 25, ServiceBeta, CredentialUserPassword, RoutingConnectionManager, smtpVrfyParams(), ""),
 		"imap":          descriptor("imap", 143, ServiceStable, CredentialUserPassword, RoutingConnectionManager, []ParamDescriptor{{Name: "auth", Values: []string{"LOGIN", "PLAIN", "CRAM-MD5"}, Description: "IMAP authentication method"}}, ""),
 		"pop3":          descriptor("pop3", 110, ServiceStable, CredentialUserPassword, RoutingConnectionManager, []ParamDescriptor{{Name: "auth", Values: []string{"USER", "PLAIN", "LOGIN", "APOP"}, Description: "POP3 authentication method"}}, "imap"),
 		"mysql":         descriptor("mysql", 3306, ServiceStable, CredentialUserPassword, RoutingConnectionManager, []ParamDescriptor{{Name: "dbname", Description: "Target database"}}, ""),
@@ -70,12 +70,12 @@ func ServiceDescriptors() map[string]ServiceDescriptor {
 		"redis":         descriptor("redis", 6379, ServiceStable, CredentialPasswordOnly, RoutingConnectionManager, []ParamDescriptor{{Name: "db", Default: "0", Description: "Redis database number"}}, ""),
 		"couchdb":       descriptor("couchdb", 5984, ServiceStable, CredentialUserPassword, RoutingSharedHTTPClient, []ParamDescriptor{{Name: "tls", Values: []string{"true", "false"}, Description: "Use HTTPS"}}, ""),
 		"elasticsearch": descriptor("elasticsearch", 9200, ServiceStable, CredentialUserPassword, RoutingSharedHTTPClient, []ParamDescriptor{{Name: "tls", Values: []string{"true", "false"}, Description: "Use HTTPS"}}, ""),
-		"influxdb":      descriptor("influxdb", 8086, ServiceStable, CredentialToken, RoutingSharedHTTPClient, []ParamDescriptor{{Name: "mode", Values: []string{"v1", "v2"}, Default: "v2", Description: "InfluxDB auth mode"}}, ""),
+		"influxdb":      descriptor("influxdb", 8086, ServiceStable, CredentialToken, RoutingSharedHTTPClient, influxdbParams(), ""),
 		"neo4j":         descriptor("neo4j", 7687, ServiceBeta, CredentialUserPassword, RoutingDirectLibrary, nil, ""),
 		"cassandra":     descriptor("cassandra", 9042, ServiceBeta, CredentialUserPassword, RoutingDirectLibrary, nil, ""),
-		"vnc":           descriptor("vnc", 5900, ServiceStable, CredentialPasswordOnly, RoutingConnectionManager, nil, ""),
+		"vnc":           descriptor("vnc", 5900, ServiceStable, CredentialPasswordOnly, RoutingConnectionManager, vncParams(), ""),
 		"snmp":          descriptor("snmp", 161, ServiceStable, CredentialPasswordOnly, RoutingConnectionManager, snmpParams(), ""),
-		"smbnt":         descriptor("smbnt", 445, ServiceStable, CredentialUserPassword, RoutingConnectionManager, []ParamDescriptor{{Name: "domain", Description: "SMB domain"}}, ""),
+		"smbnt":         descriptor("smbnt", 445, ServiceStable, CredentialUserPassword, RoutingConnectionManager, smbntParams(), ""),
 		"rdp":           descriptor("rdp", 3389, ServiceStable, CredentialUserPassword, RoutingConnectionManager, []ParamDescriptor{{Name: "domain", Description: "RDP domain"}}, ""),
 		"http":          descriptor("http", 80, ServiceStable, CredentialUserPassword, RoutingSharedHTTPClient, httpParams(), ""),
 		"https":         descriptor("https", 443, ServiceStable, CredentialUserPassword, RoutingSharedHTTPClient, httpParams(), "http"),
@@ -90,13 +90,13 @@ func ServiceDescriptors() map[string]ServiceDescriptor {
 		"xmpp":          descriptor("xmpp", 5222, ServiceBeta, CredentialUserPassword, RoutingConnectionManager, nil, ""),
 		"ldap":          descriptor("ldap", 389, ServiceBeta, CredentialUserPassword, RoutingConnectionManager, nil, ""),
 		"ldaps":         descriptor("ldaps", 636, ServiceBeta, CredentialUserPassword, RoutingConnectionManager, nil, "ldap"),
-		"winrm":         descriptor("winrm", 5985, ServiceBeta, CredentialUserPassword, RoutingSharedHTTPClient, []ParamDescriptor{{Name: "domain", Description: "WinRM domain"}}, ""),
-		"rexec":         descriptor("rexec", 512, ServiceBeta, CredentialUserPassword, RoutingConnectionManager, nil, ""),
-		"rlogin":        descriptor("rlogin", 513, ServiceBeta, CredentialUserPassword, RoutingConnectionManager, nil, ""),
-		"rsh":           descriptor("rsh", 514, ServiceBeta, CredentialUserPassword, RoutingConnectionManager, nil, ""),
+		"winrm":         descriptor("winrm", 5985, ServiceBeta, CredentialUserPassword, RoutingDirectLibrary, nil, ""),
+		"rexec":         descriptor("rexec", 512, ServiceBeta, CredentialUserPassword, RoutingConnectionManager, rexecParams(), ""),
+		"rlogin":        descriptor("rlogin", 513, ServiceBeta, CredentialUserPassword, RoutingConnectionManager, rloginParams(), ""),
+		"rsh":           descriptor("rsh", 514, ServiceBeta, CredentialUserPassword, RoutingConnectionManager, rshParams(), ""),
 		"wrapper":       descriptor("wrapper", 0, ServiceBeta, CredentialUserPassword, RoutingPartial, []ParamDescriptor{{Name: "cmd", Required: true, Description: "External command template"}}, ""),
 		"socks5-auth":   descriptor("socks5-auth", 1080, ServiceBeta, CredentialUserPassword, RoutingConnectionManager, nil, ""),
-		"svn":           descriptor("svn", 3690, ServiceBeta, CredentialUserPassword, RoutingSharedHTTPClient, []ParamDescriptor{{Name: "path", Description: "SVN repository path"}}, ""),
+		"svn":           descriptor("svn", 3690, ServiceBeta, CredentialUserPassword, RoutingSharedHTTPClient, svnParams(), ""),
 	}
 }
 
@@ -114,6 +114,7 @@ func sshParams() []ParamDescriptor {
 func smtpParams() []ParamDescriptor {
 	return []ParamDescriptor{
 		{Name: "auth", Values: []string{"PLAIN", "LOGIN", "NTLM"}, Description: "SMTP authentication method"},
+		{Name: "domain", Description: "NTLM domain"},
 		{Name: "ehlo", Description: "EHLO hostname"},
 	}
 }
@@ -131,26 +132,89 @@ func snmpParams() []ParamDescriptor {
 func httpParams() []ParamDescriptor {
 	return []ParamDescriptor{
 		{Name: "auth", Values: []string{"BASIC", "DIGEST", "NTLM", "AUTO"}, Description: "HTTP authentication method"},
-		{Name: "dir", Default: "/", Description: "Target path"},
-		{Name: "method", Description: "HTTP method"},
 		{Name: "custom-header", Description: "Custom HTTP header"},
-		{Name: "user-agent", Description: "Custom User-Agent"},
+		{Name: "dir", Default: "/", Description: "Target path"},
 		{Name: "domain", Description: "NTLM domain"},
+		{Name: "https", Values: []string{"true", "false"}, Description: "Use HTTPS"},
+		{Name: "method", Description: "HTTP method"},
+		{Name: "user-agent", Description: "Custom User-Agent"},
 	}
 }
 
 func httpFormParams() []ParamDescriptor {
 	return []ParamDescriptor{
-		{Name: "url", Required: true, Description: "Login form path"},
 		{Name: "body", Required: true, Description: "POST body with credential placeholders"},
-		{Name: "fail", Description: "Failure string in response"},
-		{Name: "success", Description: "Success string in response"},
-		{Name: "method", Default: "POST", Description: "HTTP method"},
-		{Name: "follow", Values: []string{"true", "false"}, Description: "Follow redirects"},
-		{Name: "cookie", Description: "Custom cookie header"},
 		{Name: "content-type", Default: "application/x-www-form-urlencoded", Description: "Content-Type header"},
+		{Name: "cookie", Description: "Custom cookie header"},
 		{Name: "csrf", Description: "CSRF hidden field name"},
+		{Name: "fail", Description: "Failure string in response"},
+		{Name: "follow", Values: []string{"true", "false"}, Description: "Follow redirects"},
 		{Name: "form-url", Description: "URL to GET for CSRF token"},
+		{Name: "https", Values: []string{"true", "false"}, Description: "Use HTTPS"},
+		{Name: "method", Default: "POST", Description: "HTTP method"},
+		{Name: "success", Description: "Success string in response"},
+		{Name: "url", Required: true, Description: "Login form path"},
+		{Name: "user-agent", Description: "Custom User-Agent"},
+	}
+}
+
+func ftpParams() []ParamDescriptor {
+	return []ParamDescriptor{
+		{Name: "mode", Values: []string{"NORMAL", "EXPLICIT", "IMPLICIT"}, Description: "FTP TLS mode"},
+	}
+}
+
+func influxdbParams() []ParamDescriptor {
+	return []ParamDescriptor{
+		{Name: "mode", Values: []string{"v1", "v2"}, Default: "v2", Description: "InfluxDB auth mode"},
+		{Name: "tls", Values: []string{"true", "false"}, Description: "Use HTTPS"},
+	}
+}
+
+func smtpVrfyParams() []ParamDescriptor {
+	return []ParamDescriptor{
+		{Name: "domain", Description: "Domain for RCPT addresses"},
+		{Name: "verb", Values: []string{"VRFY", "EXPN", "RCPT"}, Default: "VRFY", Description: "SMTP verification verb"},
+	}
+}
+
+func smbntParams() []ParamDescriptor {
+	return []ParamDescriptor{
+		{Name: "domain", Description: "SMB domain"},
+		{Name: "pass", Values: []string{"HASH"}, Description: "Treat password as NTLM hash"},
+	}
+}
+
+func rexecParams() []ParamDescriptor {
+	return []ParamDescriptor{
+		{Name: "cmd", Default: "id", Description: "Command to execute"},
+	}
+}
+
+func rloginParams() []ParamDescriptor {
+	return []ParamDescriptor{
+		{Name: "local-user", Description: "Local username"},
+		{Name: "terminal", Default: "xterm/9600", Description: "Terminal type"},
+	}
+}
+
+func rshParams() []ParamDescriptor {
+	return []ParamDescriptor{
+		{Name: "cmd", Default: "id", Description: "Command to execute"},
+		{Name: "local-user", Description: "Local username"},
+	}
+}
+
+func svnParams() []ParamDescriptor {
+	return []ParamDescriptor{
+		{Name: "https", Values: []string{"true", "false"}, Description: "Use HTTPS"},
+		{Name: "path", Default: "/", Description: "SVN repository path"},
+	}
+}
+
+func vncParams() []ParamDescriptor {
+	return []ParamDescriptor{
+		{Name: "maxsleep", Default: "60", Description: "Maximum retry sleep seconds"},
 	}
 }
 

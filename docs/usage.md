@@ -49,6 +49,12 @@
 | `--require-plan-ack` | Require exact plan hash before execution | `--require-plan-ack <hash>` |
 | `--engagement` | Engagement manifest with scope, lockout policy, and evidence defaults | `--engagement engagement.yaml` |
 
+Plan and resume behavior:
+- `--dry-run` prints the deterministic plan and exits without credential attempts; add `--plan-out plan.json` to save the same plan JSON.
+- `--require-plan-ack <hash>` must match the dry-run plan hash before execution proceeds.
+- `-checkpoint` selects the checkpoint `.json` file written during execution.
+- `-resume` accepts the checkpoint `.json`; passing the session log `.jsonl` resolves to the corresponding checkpoint `.json` path before resuming.
+
 ## YAML Config File
 
 Use `-config` to load per-engagement settings. CLI flags always override config values.

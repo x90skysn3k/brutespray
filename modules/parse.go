@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"regexp"
 	"strconv"
 	"strings"
 )
@@ -77,15 +76,6 @@ type NmapService struct {
 	Name string `xml:"name,attr"`
 }
 
-func contains(s []string, e string) bool {
-	for _, a := range s {
-		if a == e {
-			return true
-		}
-	}
-	return false
-}
-
 var NAME_MAP = map[string]string{
 	"ms-sql-s":       "mssql",
 	"microsoft-ds":   "smbnt",
@@ -121,6 +111,27 @@ func MapService(service string) string {
 	return service
 }
 
+func normalizeScannerService(service string) (string, bool) {
+	token := strings.ToLower(service)
+	canonical := MapService(token)
+	if !isSupportedScannerServiceToken(token) {
+		return "", false
+	}
+	if _, ok := ServiceDescriptors()[canonical]; !ok {
+		return "", false
+	}
+	return canonical, true
+}
+
+func isSupportedScannerServiceToken(service string) bool {
+	for _, supported := range supportedScanServices {
+		if supported == service || MapService(supported) == service {
+			return true
+		}
+	}
+	return false
+}
+
 // supportedScanServices is the canonical list of nmap/scanner service names
 // that brutespray recognises from scan input files. Names are pre-mapping
 // (i.e. the raw names scanners emit); MapService() converts them to
@@ -142,9 +153,29 @@ var supportedScanServices = []string{
 	"rsh", "rexec", "rlogin",
 }
 
-func ParseGNMAP(filename string) (map[Host]int, error) {
-	supported := supportedScanServices
+func parseGNMAPHost(line string) (string, bool) {
+	if !strings.HasPrefix(line, "Host: ") {
+		return "", false
+	}
+	fields := strings.Fields(strings.TrimPrefix(line, "Host: "))
+	if len(fields) == 0 {
+		return "", false
+	}
+	return fields[0], true
+}
 
+func parseGNMAPPortsField(line string) (string, bool) {
+	_, ports, ok := strings.Cut(line, "Ports: ")
+	if !ok {
+		return "", false
+	}
+	if end := strings.IndexByte(ports, '\t'); end >= 0 {
+		ports = ports[:end]
+	}
+	return ports, true
+}
+
+func ParseGNMAP(filename string) (map[Host]int, error) {
 	hosts := make(map[Host]int)
 
 	file, err := os.Open(filename)
@@ -156,23 +187,34 @@ func ParseGNMAP(filename string) (map[Host]int, error) {
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		line := scanner.Text()
-		for _, name := range supported {
-			matches := regexp.MustCompile(fmt.Sprintf(`([0-9][0-9]*)/open/[a-z][a-z]*//%s`, name))
-			portMatches := matches.FindStringSubmatch(line)
-			if len(portMatches) == 0 {
+		ip, ok := parseGNMAPHost(line)
+		if !ok {
+			continue
+		}
+
+		portsField, ok := parseGNMAPPortsField(line)
+		if !ok {
+			continue
+		}
+
+		for _, rawPort := range strings.Split(portsField, ",") {
+			portFields := strings.Split(strings.TrimSpace(rawPort), "/")
+			if len(portFields) < 5 || portFields[1] != "open" {
 				continue
 			}
-			port, err := strconv.Atoi(portMatches[1])
+
+			service, ok := normalizeScannerService(portFields[4])
+			if !ok {
+				continue
+			}
+
+			port, err := strconv.Atoi(portFields[0])
 			if err != nil || port <= 0 {
 				continue
 			}
-			ipMatches := regexp.MustCompile(`[0-9]+(?:\.[0-9]+){3}`).FindAllString(line, -1)
 
-			for _, ip := range ipMatches {
-				mappedService := MapService(name)
-				h := Host{Service: mappedService, Host: ip, Port: port}
-				hosts[h] = 1
-			}
+			h := Host{Service: service, Host: ip, Port: port}
+			hosts[h] = 1
 		}
 	}
 
@@ -183,8 +225,6 @@ func ParseGNMAP(filename string) (map[Host]int, error) {
 	return hosts, nil
 }
 func ParseJSON(filename string) (map[Host]int, error) {
-	supported := supportedScanServices
-
 	hosts := make(map[Host]int)
 
 	file, err := os.Open(filename)
@@ -203,13 +243,12 @@ func ParseJSON(filename string) (map[Host]int, error) {
 		host, _ := data["host"].(string)
 		port, _ := data["port"].(string)
 		name, _ := data["service"].(string)
-		if contains(supported, name) {
+		if service, ok := normalizeScannerService(name); ok {
 			p, err := strconv.Atoi(port)
 			if err != nil || p <= 0 {
 				continue
 			}
-			mappedService := MapService(name)
-			h := Host{Service: mappedService, Host: host, Port: p}
+			h := Host{Service: service, Host: host, Port: p}
 			hosts[h] = 1
 		}
 	}
@@ -217,8 +256,6 @@ func ParseJSON(filename string) (map[Host]int, error) {
 	return hosts, nil
 }
 func ParseXML(filename string) (map[Host]int, error) {
-	supported := supportedScanServices
-
 	hosts := make(map[Host]int)
 
 	file, err := os.Open(filename)
@@ -254,13 +291,12 @@ func ParseXML(filename string) (map[Host]int, error) {
 		for _, port := range host.Ports {
 			if port.PortState.State == "open" {
 				name := port.Service.Name
-				if contains(supported, name) {
+				if service, ok := normalizeScannerService(name); ok {
 					p, err := strconv.Atoi(port.PortId)
 					if err != nil || p <= 0 {
 						continue
 					}
-					mappedService := MapService(name)
-					h := Host{Service: mappedService, Host: ip, Port: p}
+					h := Host{Service: service, Host: ip, Port: p}
 					hosts[h] = 1
 				}
 			}
@@ -270,8 +306,6 @@ func ParseXML(filename string) (map[Host]int, error) {
 	return hosts, nil
 }
 func ParseNexpose(filename string) (map[Host]int, error) {
-	supported := supportedScanServices
-
 	hosts := make(map[Host]int)
 	file, err := os.Open(filename)
 	if err != nil {
@@ -305,13 +339,12 @@ func ParseNexpose(filename string) (map[Host]int, error) {
 			if port.Status == "open" {
 				name := port.Service.Name
 				name = strings.ToLower(name)
-				if contains(supported, name) {
+				if service, ok := normalizeScannerService(name); ok {
 					p, err := strconv.Atoi(port.Port)
 					if err != nil || p <= 0 {
 						continue
 					}
-					mappedService := MapService(name)
-					h := Host{Service: mappedService, Host: ip, Port: p}
+					h := Host{Service: service, Host: ip, Port: p}
 					hosts[h] = 1
 				}
 			}
@@ -320,8 +353,6 @@ func ParseNexpose(filename string) (map[Host]int, error) {
 	return hosts, nil
 }
 func ParseNessus(filename string) (map[Host]int, error) {
-	supported := supportedScanServices
-
 	hosts := make(map[Host]int)
 	file, err := os.Open(filename)
 	if err != nil {
@@ -340,13 +371,12 @@ func ParseNessus(filename string) (map[Host]int, error) {
 		for _, port := range host.Items {
 			if port.Port != "0" {
 				name := port.SvcName
-				if contains(supported, name) {
+				if service, ok := normalizeScannerService(name); ok {
 					p, err := strconv.Atoi(port.Port)
 					if err != nil || p <= 0 {
 						continue
 					}
-					mappedService := MapService(name)
-					h := Host{Service: mappedService, Host: ip, Port: p}
+					h := Host{Service: service, Host: ip, Port: p}
 					hosts[h] = 1
 				}
 			}
@@ -356,7 +386,6 @@ func ParseNessus(filename string) (map[Host]int, error) {
 	return hosts, nil
 }
 func ParseList(filename string) (map[Host]int, error) {
-	supportedServices := supportedScanServices
 	file, err := os.Open(filename)
 	if err != nil {
 		return nil, err
@@ -374,7 +403,10 @@ func ParseList(filename string) (map[Host]int, error) {
 		if len(parts) < 3 {
 			return nil, fmt.Errorf("invalid list line: %q (expected service:ip:port)", line)
 		}
-		service := MapService(parts[0])
+		service, ok := normalizeScannerService(parts[0])
+		if !ok {
+			return nil, fmt.Errorf("unsupported service: %s", parts[0])
+		}
 		ip := parts[1]
 		port, err := strconv.Atoi(parts[2])
 		if err != nil {
@@ -382,18 +414,6 @@ func ParseList(filename string) (map[Host]int, error) {
 		}
 		h := Host{Service: service, Host: ip, Port: port}
 		hosts[h] = 1
-
-		var found bool
-		for _, services := range supportedServices {
-			if service == services {
-				found = true
-				break
-			}
-		}
-
-		if !found {
-			return nil, fmt.Errorf("unsupported service: %s", h.Service)
-		}
 	}
 
 	if err := scanner.Err(); err != nil {

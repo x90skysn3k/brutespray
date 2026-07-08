@@ -38,14 +38,75 @@ func TestSupportedServiceNamesSorted(t *testing.T) {
 	}
 }
 
-func TestDefaultServiceForPortUsesDescriptors(t *testing.T) {
-	if got := defaultServiceForPort(5984); got != "couchdb" {
-		t.Fatalf("5984 maps to %q, want couchdb", got)
+func TestServiceLookupDefaultServiceForPortCanonicalDuplicateDefaults(t *testing.T) {
+	cases := map[int]string{
+		25:  "smtp",
+		80:  "http",
+		443: "https",
 	}
-	if got := defaultServiceForPort(9200); got != "elasticsearch" {
-		t.Fatalf("9200 maps to %q, want elasticsearch", got)
+
+	for port, want := range cases {
+		if got := defaultServiceForPort(port); got != want {
+			t.Fatalf("port %d maps to %q, want %q", port, got, want)
+		}
 	}
-	if got := defaultServiceForPort(5038); got != "asterisk" {
-		t.Fatalf("5038 maps to %q, want asterisk", got)
+}
+
+func TestServiceLookupDefaultServiceForPortIgnoresNonPositiveDescriptorDefaults(t *testing.T) {
+	if got := defaultServiceForPort(0); got != "" {
+		t.Fatalf("port 0 maps to %q, want no default service", got)
+	}
+}
+
+func TestServiceLookupDuplicateDefaultPortsHaveExplicitCanonicalDefaults(t *testing.T) {
+	duplicates := make(map[int][]string)
+	for name, descriptor := range ServiceDescriptors() {
+		duplicates[descriptor.DefaultPort] = append(duplicates[descriptor.DefaultPort], name)
+	}
+
+	wantCanonical := map[int]string{
+		25:  "smtp",
+		80:  "http",
+		443: "https",
+	}
+	if len(canonicalDefaultServicesByPort) != len(wantCanonical) {
+		t.Fatalf("canonical duplicate defaults = %v, want exactly %v", canonicalDefaultServicesByPort, wantCanonical)
+	}
+
+	for port, services := range duplicates {
+		if len(services) < 2 {
+			continue
+		}
+
+		want, ok := wantCanonical[port]
+		if !ok {
+			t.Fatalf("duplicate default port %d has no expected canonical default (services: %v)", port, services)
+		}
+		got, ok := canonicalDefaultServicesByPort[port]
+		if !ok {
+			t.Fatalf("duplicate default port %d has no explicit canonical default (services: %v)", port, services)
+		}
+		if got != want {
+			t.Fatalf("duplicate default port %d canonical default = %q, want %q (services: %v)", port, got, want, services)
+		}
+	}
+}
+
+func TestDefaultServiceForPortUsesSupportedScanServicesOnly(t *testing.T) {
+	cases := map[int]string{
+		3690: "svn",
+		5038: "asterisk",
+	}
+	for port, want := range cases {
+		if got := defaultServiceForPort(port); got != want {
+			t.Fatalf("%d maps to %q, want %q", port, got, want)
+		}
+	}
+
+	descriptorOnlyPorts := []int{1080, 5984, 7687, 8086, 9042, 9200}
+	for _, port := range descriptorOnlyPorts {
+		if got := defaultServiceForPort(port); got != "" {
+			t.Fatalf("descriptor-only port %d maps to %q, want no default service", port, got)
+		}
 	}
 }

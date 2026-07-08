@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/x90skysn3k/brutespray/v2/modules"
@@ -63,4 +64,25 @@ func readJSONFile(path string, out any) error {
 		return err
 	}
 	return json.Unmarshal(data, out)
+}
+
+func TestValidatePlanAcknowledgementAcceptsMatchingHash(t *testing.T) {
+	plan := ExecutionPlan{Hash: "abc123"}
+	cfg := &Config{RequirePlanAck: "abc123"}
+	if err := ValidatePlanAcknowledgement(cfg, plan); err != nil {
+		t.Fatalf("ValidatePlanAcknowledgement: %v", err)
+	}
+}
+
+func TestValidatePlanAcknowledgementRejectsMismatchedHash(t *testing.T) {
+	plan := ExecutionPlan{Hash: "expected-hash"}
+	cfg := &Config{RequirePlanAck: "wrong-hash"}
+	err := ValidatePlanAcknowledgement(cfg, plan)
+	if err == nil {
+		t.Fatal("expected mismatched plan acknowledgement to fail")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "expected-hash") || !strings.Contains(msg, "wrong-hash") {
+		t.Fatalf("error should include expected and supplied hashes, got %q", msg)
+	}
 }

@@ -131,6 +131,24 @@ func TestFormatModuleHelpKeepsHTTPAndHTTPSMetadataInParity(t *testing.T) {
 	}
 }
 
+func TestFormatModuleHelpResolvesBackedAliasesOnly(t *testing.T) {
+	out, err := formatModuleHelp("postgres")
+	if err != nil {
+		t.Fatalf("formatModuleHelp(postgres): %v", err)
+	}
+	requireModuleHelpToken(t, out, "service=postgres")
+
+	out, err = formatModuleHelp("postgresql")
+	if err != nil {
+		t.Fatalf("formatModuleHelp(postgresql): %v", err)
+	}
+	requireModuleHelpToken(t, out, "service=postgres")
+
+	if _, err := formatModuleHelp("pcanywheredata"); err == nil {
+		t.Fatal("formatModuleHelp(pcanywheredata) succeeded, want unsupported alias error")
+	}
+}
+
 func requireModuleHelpParam(t *testing.T, out, want string) {
 	t.Helper()
 	for _, field := range strings.Fields(out) {

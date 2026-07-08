@@ -21,3 +21,13 @@ func TestCheckpointSaveUsesOwnerOnlyPermissions(t *testing.T) {
 		t.Fatalf("checkpoint permissions = %o, want 600", got)
 	}
 }
+
+func TestLoadCheckpointRejectsMalformedJSON(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "checkpoint.json")
+	if err := os.WriteFile(path, []byte(`{"completed_hosts":`), 0o600); err != nil {
+		t.Fatalf("write malformed checkpoint: %v", err)
+	}
+	if _, err := LoadCheckpoint(path); err == nil {
+		t.Fatal("expected malformed checkpoint to fail")
+	}
+}

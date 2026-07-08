@@ -55,7 +55,7 @@ evidence:
   # hmac_key: "replace-with-secret-engagement-key"
 ```
 
-Use `--require-plan-ack <hash>` to require the exact dry-run hash before execution. This protects against accidental scope or credential-list drift between planning and running.
+Use `--require-plan-ack <hash>` with the hash from a dry-run plan to require the exact plan before execution. This protects against accidental scope or credential-list drift between planning and running.
 
 ## Lockout-Aware Scheduling
 
@@ -122,7 +122,7 @@ brutespray -f nmap.gnmap -u admin -p passlist.txt -resume brutespray-checkpoint.
 - **Checkpoint file** (`.json`) — Tracks which hosts are fully completed. On resume, completed hosts are skipped entirely.
 - **Session log** (`.jsonl`) — Records every attempt result. On resume, the full session history is replayed into the TUI so it appears as if the scan never stopped.
 - Auto-saves every 30 seconds and on interrupt
-- Pass either file to `-resume` — brutespray resolves both automatically
+- Pass either the checkpoint `.json` file or the session log `.jsonl` file to `-resume`; when a `.jsonl` path is provided, brutespray resolves it to the corresponding checkpoint `.json` path before resuming
 
 Custom checkpoint path:
 ```bash

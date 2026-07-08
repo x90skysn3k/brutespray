@@ -36,27 +36,53 @@ func TestEvidenceModeValidate(t *testing.T) {
 			t.Fatalf("%s should validate: %v", mode, err)
 		}
 	}
-	if err := EvidenceMode("invalid").Validate(); err == nil {
-		t.Fatal("invalid evidence mode should fail")
+
+	for _, mode := range []EvidenceMode{"invalid", "bogus"} {
+		if err := mode.Validate(); err == nil {
+			t.Fatalf("%s evidence mode should fail", mode)
+		}
 	}
 }
 
 func TestEvidenceConfigRenderSecret(t *testing.T) {
-	cfg := EvidenceConfig{Mode: EvidenceHash, HMACKey: []byte("engagement-key")}
-	display, digest, redacted := cfg.RenderSecret("secret")
-	if display != "[REDACTED]" {
-		t.Fatalf("display = %q, want redacted", display)
-	}
-	if digest == "" {
-		t.Fatal("hash mode should return digest")
-	}
-	if !redacted {
-		t.Fatal("hash mode should mark secret redacted")
+	tests := []struct {
+		name         string
+		cfg          EvidenceConfig
+		wantDisplay  string
+		wantDigest   bool
+		wantRedacted bool
+	}{
+		{
+			name:         "hash mode redacts display and returns digest",
+			cfg:          EvidenceConfig{Mode: EvidenceHash, HMACKey: []byte("engagement-key")},
+			wantDisplay:  "[REDACTED]",
+			wantDigest:   true,
+			wantRedacted: true,
+		},
+		{
+			name:        "full mode keeps secret for compatibility",
+			cfg:         EvidenceConfig{Mode: EvidenceFull},
+			wantDisplay: "secret",
+		},
+		{
+			name:        "empty mode defaults to full for compatibility",
+			cfg:         EvidenceConfig{Mode: ""},
+			wantDisplay: "secret",
+		},
 	}
 
-	cfg = EvidenceConfig{Mode: EvidenceFull}
-	display, digest, redacted = cfg.RenderSecret("secret")
-	if display != "secret" || digest != "" || redacted {
-		t.Fatalf("full mode display=%q digest=%q redacted=%v", display, digest, redacted)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			display, digest, redacted := tt.cfg.RenderSecret("secret")
+			if display != tt.wantDisplay {
+				t.Fatalf("display = %q, want %q", display, tt.wantDisplay)
+			}
+			if (digest != "") != tt.wantDigest {
+				t.Fatalf("digest presence = %v, want %v (digest=%q)", digest != "", tt.wantDigest, digest)
+			}
+			if redacted != tt.wantRedacted {
+				t.Fatalf("redacted = %v, want %v", redacted, tt.wantRedacted)
+			}
+		})
 	}
 }

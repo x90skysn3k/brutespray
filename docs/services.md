@@ -175,7 +175,7 @@ brutespray -H imap://10.0.0.1:143 -u admin -p passlist.txt -m auth:CRAM-MD5
 ```
 
 ### HTTP Auth Templates
-Use `http-template` when login requires a JSON/API style request instead of a classic HTML form. Templates are YAML, HTTP/HTTPS only, and cannot execute shell commands.
+Use `http-template` when login requires a fixed-step JSON/API style authentication workflow instead of a classic HTML form. Templates are YAML and HTTP/HTTPS only: they do not crawl, recurse, discover paths, brute-force directories, or execute shell commands.
 
 ```yaml
 id: json-login

@@ -16,10 +16,11 @@ func formatModuleHelp(selection string) (string, error) {
 	}
 	services := brute.Services()
 	if selection != "all" {
-		if !brute.IsRegistered(selection) {
+		descriptor, ok := modules.DescriptorForService(selection)
+		if !ok || !brute.IsRegistered(descriptor.Name) {
 			return "", fmt.Errorf("unknown service: %s", selection)
 		}
-		services = []string{selection}
+		services = []string{descriptor.Name}
 	}
 	sort.Strings(services)
 
