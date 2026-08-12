@@ -101,4 +101,4 @@ Print discovered services from a scan file with `-P -q`:
 
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=x90skysn3k/brutespray&type=Date)](https://star-history.com/#x90skysn3k/brutespray&Date)
+[![Star History Chart](https://star-history.dera.page/svg?repos=x90skysn3k/brutespray&type=Date)](https://star-history.dera.page/#x90skysn3k/brutespray&Date)
