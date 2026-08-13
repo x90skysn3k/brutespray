@@ -91,15 +91,16 @@ func estimateAttemptsForTarget(cfg *Config, host modules.Host) (int, error) {
 		users, passwords := modules.GetUsersAndPasswordsCombo(&host, cfg.Combo, version)
 		return min(len(users), len(passwords)), nil
 	}
+	attempts := len(ParseInlineCreds(cfg.Creds))
 	if modules.IsPasswordOnlyService(host.Service) {
 		if cfg.PasswordGen != nil {
-			return cfg.PasswordGen.Count(), nil
+			return attempts + cfg.PasswordGen.Count(), nil
 		}
 		_, passwords, err := modules.GetUsersAndPasswords(&host, cfg.User, cfg.Password, version)
 		if err != nil {
 			return 0, err
 		}
-		return len(passwords), nil
+		return attempts + len(passwords), nil
 	}
 
 	users, passwords, err := modules.GetUsersAndPasswords(&host, cfg.User, cfg.Password, version)
@@ -110,7 +111,7 @@ func estimateAttemptsForTarget(cfg *Config, host modules.Host) (int, error) {
 	if cfg.PasswordGen != nil {
 		passCount = cfg.PasswordGen.Count()
 	}
-	attempts := len(ParseInlineCreds(cfg.Creds))
+
 	if host.Service == "ssh" && !cfg.NoBadKeys {
 		bundle, err := badkeys.Load()
 		if err != nil {

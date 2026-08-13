@@ -698,6 +698,7 @@ func ParseConfig() *Config {
 					users, _ := modules.GetUsersAndPasswordsCombo(&h, cfg.Combo, version)
 					cfg.TotalCombinations += len(users)
 				} else {
+					cfg.TotalCombinations += len(ParseInlineCreds(cfg.Creds))
 					if modules.IsPasswordOnlyService(service) {
 						_, passwords, err := modules.GetUsersAndPasswords(&h, cfg.User, cfg.Password, version)
 						if err != nil {
