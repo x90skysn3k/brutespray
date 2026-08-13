@@ -408,7 +408,7 @@ func CalculateFinalStats() OutputStatsCopy {
 // formatCredentialMsg formats a credential attempt message for display/logging.
 func formatCredentialMsg(service, host string, port int, user, pass, status, banner string) string {
 	var msg string
-	if service == "vnc" || service == "snmp" {
+	if IsPasswordOnlyService(service) {
 		msg = fmt.Sprintf("[%s] %s:%d - Password '%s' - %s", service, host, port, pass, status)
 	} else {
 		msg = fmt.Sprintf("[%s] %s:%d - User '%s' - Pass '%s' - %s", service, host, port, user, pass, status)
@@ -762,7 +762,7 @@ func printSummaryToConsole(stats *OutputStatsCopy) {
 				fmt.Printf("... and %d more successful attempts\n", len(stats.SuccessfulResults)-10)
 				break
 			}
-			if result.Service == "vnc" {
+			if IsPasswordOnlyService(result.Service) {
 				fmt.Printf("[%s] %s:%d - Password: %s\n", result.Service, result.Host, result.Port, result.Password)
 			} else {
 				fmt.Printf("[%s] %s:%d - User: %s - Password: %s\n", result.Service, result.Host, result.Port, result.User, result.Password)
@@ -935,7 +935,7 @@ func writeHumanReadableSummary(stats *OutputStatsCopy, outputDir string) {
 	if len(stats.SuccessfulResults) > 0 {
 		writef("\n--- SUCCESSFUL CREDENTIALS ---\n")
 		for _, result := range stats.SuccessfulResults {
-			if result.Service == "vnc" {
+			if IsPasswordOnlyService(result.Service) {
 				writef("[%s] %s:%d - Password: %s\n", result.Service, result.Host, result.Port, result.Password)
 			} else {
 				writef("[%s] %s:%d - User: %s - Password: %s\n", result.Service, result.Host, result.Port, result.User, result.Password)

@@ -1,0 +1,82 @@
+package brutespray
+
+import (
+	"os"
+	"os/exec"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/x90skysn3k/brutespray/v2/brute"
+	"github.com/x90skysn3k/brutespray/v2/modules"
+	"github.com/x90skysn3k/brutespray/v2/tui"
+)
+
+type captureDispatchEventSink struct {
+	mu       sync.Mutex
+	attempts []tui.AttemptResultMsg
+}
+
+func (s *captureDispatchEventSink) Send(msg interface{}) {
+	attempt, ok := msg.(tui.AttemptResultMsg)
+	if !ok {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.attempts = append(s.attempts, attempt)
+}
+
+func (s *captureDispatchEventSink) Close() {}
+
+func (s *captureDispatchEventSink) attemptResults() []tui.AttemptResultMsg {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]tui.AttemptResultMsg(nil), s.attempts...)
+}
+
+func TestProcessHostQueuesRedisPasswordWithoutUsers(t *testing.T) {
+	if os.Getenv("BRUTESPRAY_REDIS_PROCESS_HOST_HELPER") != "1" {
+		cmd := exec.Command(os.Args[0], "-test.run=^TestProcessHostQueuesRedisPasswordWithoutUsers$", "-test.v")
+		cmd.Env = append(os.Environ(), "BRUTESPRAY_REDIS_PROCESS_HOST_HELPER=1")
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("redis ProcessHost helper failed: %v\n%s", err, out)
+		}
+		return
+	}
+	originalRedis, ok := brute.Lookup("redis")
+	if !ok {
+		t.Fatal("redis brute function is not registered")
+	}
+	defer brute.Register("redis", originalRedis)
+	defer brute.GetCircuitBreaker().Reset("127.0.0.1:1")
+
+	brute.Register("redis", func(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager, params brute.ModuleParams) *brute.BruteResult {
+		return &brute.BruteResult{ConnectionSuccess: true}
+	})
+
+	cm, err := modules.NewConnectionManager("", time.Millisecond)
+	if err != nil {
+		t.Fatalf("NewConnectionManager: %v", err)
+	}
+
+	const wantPassword = "redis-secret"
+	sink := &captureDispatchEventSink{}
+	workerPool := NewWorkerPool(1, sink, 1, 1)
+	workerPool.noStats = true
+	host := modules.Host{Service: "redis", Host: "127.0.0.1", Port: 1}
+
+	workerPool.ProcessHost(host, "redis", "", "", wantPassword, version, time.Millisecond, 1, t.TempDir(), cm, "", brute.ModuleParams{}, false)
+
+	attempts := sink.attemptResults()
+	if len(attempts) != 1 {
+		t.Fatalf("captured redis attempts = %d, want 1", len(attempts))
+	}
+	if attempts[0].User != "" {
+		t.Fatalf("redis attempt user = %q, want empty", attempts[0].User)
+	}
+	if attempts[0].Password != wantPassword {
+		t.Fatalf("redis attempt password = %q, want %q", attempts[0].Password, wantPassword)
+	}
+}

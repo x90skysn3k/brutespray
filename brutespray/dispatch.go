@@ -214,7 +214,7 @@ func (wp *WorkerPool) ProcessHost(host modules.Host, service string, combo strin
 			}
 		}
 	} else {
-		if service == "vnc" || service == "snmp" {
+		if modules.IsPasswordOnlyService(service) {
 			var passwords []string
 			if wp.passwordGen != nil {
 				passwords = wp.passwordGen.Generate()
