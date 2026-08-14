@@ -34,6 +34,79 @@ func resetGlobalStats() {
 	globalStats.ConnectionErrorHosts = make(map[string]int)
 }
 
+func TestFormatCredentialMsgUsesPasswordOnlyMetadataForRedis(t *testing.T) {
+	msg := formatCredentialMsg("redis", "127.0.0.1", 6379, "", "redis-secret", "FAILED", "")
+	if strings.Contains(msg, "User") {
+		t.Fatalf("redis attempt message includes user field: %s", msg)
+	}
+	want := "[redis] 127.0.0.1:6379 - Password 'redis-secret' - FAILED"
+	if msg != want {
+		t.Fatalf("redis attempt message = %q, want %q", msg, want)
+	}
+}
+
+func TestPrintSummaryToConsoleUsesPasswordOnlyMetadataForRedis(t *testing.T) {
+	stats := &OutputStatsCopy{
+		StartTime: time.Now(),
+		EndTime:   time.Now(),
+		SuccessfulResults: []SuccessResult{{
+			Service:  "redis",
+			Host:     "127.0.0.1",
+			Port:     6379,
+			User:     "",
+			Password: "redis-secret",
+		}},
+	}
+
+	old := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("Pipe: %v", err)
+	}
+	os.Stdout = w
+	printSummaryToConsole(stats)
+	_ = w.Close()
+	os.Stdout = old
+	out, _ := io.ReadAll(r)
+
+	if strings.Contains(string(out), "User:") {
+		t.Fatalf("redis console summary includes user field: %s", string(out))
+	}
+	want := "[redis] 127.0.0.1:6379 - Password: redis-secret"
+	if !strings.Contains(string(out), want) {
+		t.Fatalf("redis console summary missing %q: %s", want, string(out))
+	}
+}
+
+func TestWriteHumanReadableSummaryUsesPasswordOnlyMetadataForRedis(t *testing.T) {
+	stats := &OutputStatsCopy{
+		StartTime: time.Now(),
+		EndTime:   time.Now(),
+		SuccessfulResults: []SuccessResult{{
+			Service:  "redis",
+			Host:     "127.0.0.1",
+			Port:     6379,
+			User:     "",
+			Password: "redis-secret",
+		}},
+	}
+
+	dir := t.TempDir()
+	writeHumanReadableSummary(stats, dir)
+	data, err := os.ReadFile(filepath.Join(dir, "brutespray-summary.txt"))
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	text := string(data)
+	if strings.Contains(text, "User:") {
+		t.Fatalf("redis human-readable summary includes user field: %s", text)
+	}
+	want := "[redis] 127.0.0.1:6379 - Password: redis-secret"
+	if !strings.Contains(text, want) {
+		t.Fatalf("redis human-readable summary missing %q: %s", want, text)
+	}
+}
+
 func TestRecordSuccess(t *testing.T) {
 	resetGlobalStats()
 

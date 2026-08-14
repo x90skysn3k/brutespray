@@ -369,16 +369,21 @@ func isJunkValue(value string) bool {
 			return true
 		}
 	}
-	lower := strings.ToLower(v)
-	if strings.Contains(lower, "<") || strings.Contains(lower, ">") {
+	if strings.Contains(v, "<") || strings.Contains(v, ">") {
 		return true
 	}
+	canonical := strings.ToLower(strings.Trim(v, "()[]{}"))
+	canonical = strings.NewReplacer("-", " ", "_", " ", "/", " ").Replace(canonical)
+	canonical = strings.Join(strings.Fields(canonical), " ")
+
 	junk := map[string]struct{}{
-		"***": {}, "default": {}, "n/a": {}, "na": {}, "none": {}, "null": {},
+		"***": {}, "default": {}, "n a": {}, "na": {}, "none": {}, "null": {},
 		"password": {}, "redacted": {}, "unknown": {}, "user": {}, "username": {},
-		"your_password": {}, "yourpassword": {},
+		"your password": {}, "yourpassword": {},
+		"any": {}, "managed blank": {}, "system generated": {}, "user defined": {},
+		"local system or domain password": {}, "local system or domain user": {},
 	}
-	_, ok := junk[lower]
+	_, ok := junk[canonical]
 	return ok
 }
 

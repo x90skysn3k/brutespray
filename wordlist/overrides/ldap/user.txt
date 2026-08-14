@@ -6,3 +6,7 @@ administrator
 admin
 ldapadmin
 lam
+Administrator
+cn=Manager,o=ibm-cm
+cn=orcladmin
+uid=admin,ou=system

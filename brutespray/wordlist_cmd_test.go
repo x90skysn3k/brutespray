@@ -16,6 +16,9 @@ func TestIsJunkValue(t *testing.T) {
 		"", " ", "x", "<password>", "<USERNAME>", "username", "Password",
 		"none", "N/A", "redacted", "***", "unknown", "default",
 		"has space", "tab\tinside", strings.Repeat("a", 65), "your_password",
+		"User-Defined", "user_defined", "system-generated", "managed/blank",
+		"local_system_or_domain_user", "local-system-or-domain-password",
+		"(any)", "(none)",
 	}
 	for _, v := range junk {
 		if !isJunkValue(v) {
@@ -26,6 +29,7 @@ func TestIsJunkValue(t *testing.T) {
 	valid := []string{
 		"admin", "root", "Cisco123", "P@ssw0rd!", "ubnt", "raspberry",
 		"sap*", "default123", "Wg@2026", "manager",
+		"CHANGE_ON_INSTALL", "SI_INFORMTN_SCHEMA",
 	}
 	for _, v := range valid {
 		if isJunkValue(v) {

@@ -698,7 +698,8 @@ func ParseConfig() *Config {
 					users, _ := modules.GetUsersAndPasswordsCombo(&h, cfg.Combo, version)
 					cfg.TotalCombinations += len(users)
 				} else {
-					if service == "vnc" || service == "snmp" {
+					cfg.TotalCombinations += len(ParseInlineCreds(cfg.Creds))
+					if modules.IsPasswordOnlyService(service) {
 						_, passwords, err := modules.GetUsersAndPasswords(&h, cfg.User, cfg.Password, version)
 						if err != nil {
 							fmt.Printf("Error loading wordlist for %s: %v\n", service, err)

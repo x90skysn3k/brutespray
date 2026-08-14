@@ -214,7 +214,45 @@ func (wp *WorkerPool) ProcessHost(host modules.Host, service string, combo strin
 			}
 		}
 	} else {
-		if service == "vnc" || service == "snmp" {
+		if modules.IsPasswordOnlyService(service) {
+			queuePassword := func(p string) bool {
+				// Check if we should stop before processing each credential
+				select {
+				case <-wp.globalStopChan:
+					return false
+				case <-hostPool.stopChan:
+					return false
+				default:
+				}
+
+				if resumeCursor.skipNext() {
+					return true
+				}
+				cred := Credential{
+					Host:     host,
+					User:     "",
+					Password: p,
+					Service:  service,
+					Params:   moduleParams,
+				}
+				select {
+				case hostPool.jobQueue <- cred:
+					return true
+				case <-hostPool.stopChan:
+					return false
+				case <-wp.globalStopChan:
+					return false
+				}
+			}
+
+			if wp.inlineCreds != "" {
+				for _, pair := range ParseInlineCreds(wp.inlineCreds) {
+					if !queuePassword(pair.Password) {
+						return
+					}
+				}
+			}
+
 			var passwords []string
 			if wp.passwordGen != nil {
 				passwords = wp.passwordGen.Generate()
@@ -227,30 +265,7 @@ func (wp *WorkerPool) ProcessHost(host modules.Host, service string, combo strin
 				passwords = pw
 			}
 			for _, p := range passwords {
-				// Check if we should stop before processing each credential
-				select {
-				case <-wp.globalStopChan:
-					return
-				case <-hostPool.stopChan:
-					return
-				default:
-				}
-
-				if resumeCursor.skipNext() {
-					continue
-				}
-				cred := Credential{
-					Host:     host,
-					User:     "",
-					Password: p,
-					Service:  service,
-					Params:   moduleParams,
-				}
-				select {
-				case hostPool.jobQueue <- cred:
-				case <-hostPool.stopChan:
-					return
-				case <-wp.globalStopChan:
+				if !queuePassword(p) {
 					return
 				}
 			}

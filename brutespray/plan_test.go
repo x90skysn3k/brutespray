@@ -1,7 +1,9 @@
 package brutespray
 
 import (
+	"flag"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 
@@ -141,6 +143,7 @@ func TestBuildExecutionPlanCountsComboFile(t *testing.T) {
 		t.Fatalf("write combo: %v", err)
 	}
 	cfg := &Config{
+		Creds: "ignored:inline-secret",
 		Hosts: []modules.Host{{Service: "ssh", Host: "10.0.0.1", Port: 22}},
 		Combo: combo,
 	}
@@ -150,6 +153,65 @@ func TestBuildExecutionPlanCountsComboFile(t *testing.T) {
 	}
 	if plan.TotalAttempts != 2 {
 		t.Fatalf("attempts = %d, want 2", plan.TotalAttempts)
+	}
+}
+
+func TestEstimateAttemptsForRedisCountsInlineCredentialAndExplicitPassword(t *testing.T) {
+	cfg := &Config{
+		Creds:    "ignored:redis-inline-secret",
+		Password: "base-secret",
+	}
+	got, err := estimateAttemptsForTarget(cfg, modules.Host{Service: "redis", Host: "10.0.0.1", Port: 6379})
+	if err != nil {
+		t.Fatalf("estimateAttemptsForTarget: %v", err)
+	}
+	if got != 2 {
+		t.Fatalf("attempts = %d, want 2", got)
+	}
+}
+
+func TestParseConfigTotalCombinationsCountsInlineCredsWithoutCombo(t *testing.T) {
+	if mode := os.Getenv("BRUTESPRAY_PARSECONFIG_TOTALS_HELPER"); mode != "" {
+		originalArgs := os.Args
+		originalCommandLine := flag.CommandLine
+		defer func() {
+			os.Args = originalArgs
+			flag.CommandLine = originalCommandLine
+		}()
+
+		os.Args = []string{os.Args[0], "-q", "-nc", "-c", "ignored:inline-secret"}
+		switch mode {
+		case "redis":
+			os.Args = append(os.Args, "-s", "redis", "-H", "redis://127.0.0.1:6379", "-p", "base-secret")
+		case "ftp":
+			os.Args = append(os.Args, "-s", "ftp", "-H", "ftp://127.0.0.1:21", "-u", "admin", "-p", "base-secret")
+		case "combo":
+			os.Args = append(os.Args, "-s", "ftp", "-H", "ftp://127.0.0.1:21", "-C", "admin:base-secret")
+		default:
+			t.Fatalf("unknown helper mode %q", mode)
+		}
+		flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
+
+		cfg := ParseConfig()
+		want := 2
+		if mode == "combo" {
+			want = 1
+		}
+		if cfg.TotalCombinations != want {
+			t.Fatalf("%s TotalCombinations = %d, want %d", mode, cfg.TotalCombinations, want)
+		}
+		return
+	}
+
+	for _, mode := range []string{"redis", "ftp", "combo"} {
+		t.Run(mode, func(t *testing.T) {
+			cmd := exec.Command(os.Args[0], "-test.run=^TestParseConfigTotalCombinationsCountsInlineCredsWithoutCombo$", "-test.v")
+			cmd.Env = append(os.Environ(), "BRUTESPRAY_PARSECONFIG_TOTALS_HELPER="+mode)
+			out, err := cmd.CombinedOutput()
+			if err != nil {
+				t.Fatalf("ParseConfig totals helper failed for %s: %v\n%s", mode, err, out)
+			}
+		})
 	}
 }
 
