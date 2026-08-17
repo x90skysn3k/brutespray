@@ -167,8 +167,8 @@ github.com/jcmturner/gokrb5/v8 v8.4.4 h1:x1Sv4HaTpepFkXbt2IkL29DXRf8sOfZXo8eRKh6
 github.com/jcmturner/gokrb5/v8 v8.4.4/go.mod h1:1btQEpgT6k+unzCwX1KdWMEwPPkkgBtP+F6aCACiMrs=
 github.com/jcmturner/rpc/v2 v2.0.3 h1:7FXXj8Ti1IaVFpSAziCZWNzbNuZmnvw/i6CqLNdWfZY=
 github.com/jcmturner/rpc/v2 v2.0.3/go.mod h1:VUJYCIDm3PVOEHw8sgt091/20OJjskO/YJki3ELg/Hc=
-github.com/jlaffaye/ftp v0.2.1 h1:AICcTYPMkaXlmjLMm9I+lB36f6jXCsCvBqVQc6EfC1Y=
-github.com/jlaffaye/ftp v0.2.1/go.mod h1:gXSIr1pA9NhynDNigiFHs4+yL7o7I6bGF9Za9wi9tcE=
+github.com/jlaffaye/ftp v0.2.2 h1:JwjrXCAIjN9ZYrF1/8qlmHFXDteh9MHYaiEIh/Oqtd8=
+github.com/jlaffaye/ftp v0.2.2/go.mod h1:zuLAKdqFqFvNgkCrH0SC7K1XyUiydS7BFCmmoHUWWg0=
 github.com/jonboulle/clockwork v0.1.0/go.mod h1:Ii8DK3G1RaLaWxj9trq07+26W01tbo22gdxWY5EU2bo=
 github.com/klauspost/compress v1.18.4 h1:RPhnKRAQ4Fh8zU2FY/6ZFDwTVTxgJ/EMydqSTzE9a2c=
 github.com/klauspost/compress v1.18.4/go.mod h1:R0h/fSBs8DE4ENlcrlib3PsXS61voFxhIs2DeRhCvJ4=
