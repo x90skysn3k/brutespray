@@ -26,7 +26,7 @@ require (
 	github.com/sijms/go-ora/v2 v2.9.0
 	github.com/x90skysn3k/grdp v1.0.4
 	go.mongodb.org/mongo-driver v1.17.9
-	golang.org/x/crypto v0.54.0
+	golang.org/x/crypto v0.55.0
 	golang.org/x/net v0.57.0
 	golang.org/x/term v0.45.0
 	gopkg.in/yaml.v3 v3.0.1
@@ -91,7 +91,7 @@ require (
 	github.com/youmark/pkcs8 v0.0.0-20240726163527-a2c0da244d78 // indirect
 	golang.org/x/sync v0.22.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
-	golang.org/x/text v0.40.0 // indirect
+	golang.org/x/text v0.41.0 // indirect
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	nhooyr.io/websocket v1.8.17 // indirect
