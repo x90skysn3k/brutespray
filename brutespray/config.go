@@ -699,7 +699,7 @@ func ParseConfig() *Config {
 					cfg.TotalCombinations += len(users)
 				} else {
 					cfg.TotalCombinations += len(ParseInlineCreds(cfg.Creds))
-					if modules.IsPasswordOnlyService(service) {
+					if modules.IsSingleSecretService(service, cfg.ModuleParams) {
 						_, passwords, err := modules.GetUsersAndPasswords(&h, cfg.User, cfg.Password, version)
 						if err != nil {
 							fmt.Printf("Error loading wordlist for %s: %v\n", service, err)

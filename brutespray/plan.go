@@ -1,11 +1,14 @@
 package brutespray
 
 import (
+	"crypto/hmac"
 	"crypto/sha256"
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strconv"
 	"time"
 
 	"github.com/x90skysn3k/brutespray/v2/brute/badkeys"
@@ -27,10 +30,11 @@ type ExecutionPlan struct {
 
 // PlannedTarget describes a target that remains in scope.
 type PlannedTarget struct {
-	Service  string `json:"service"`
-	Host     string `json:"host"`
-	Port     int    `json:"port"`
-	Attempts int    `json:"attempts"`
+	Service        string `json:"service"`
+	Host           string `json:"host"`
+	Port           int    `json:"port"`
+	Attempts       int    `json:"attempts"`
+	CredentialHMAC string `json:"credential_hmac,omitempty"`
 }
 
 // PlanWarning is a stable warning emitted before execution.
@@ -55,6 +59,10 @@ func BuildExecutionPlan(cfg *Config, manifest EngagementManifest) (ExecutionPlan
 	if err := manifest.Validate(); err != nil {
 		return ExecutionPlan{}, err
 	}
+	credentialKey := []byte(manifest.Evidence.HMACKey)
+	if cfg.RequirePlanAck != "" && len(credentialKey) == 0 {
+		return ExecutionPlan{}, fmt.Errorf("plan acknowledgment requires evidence.hmac_key to bind credential inputs")
+	}
 	matcher, err := NewScopeMatcher(manifest.Scope)
 	if err != nil {
 		return ExecutionPlan{}, err
@@ -70,11 +78,17 @@ func BuildExecutionPlan(cfg *Config, manifest EngagementManifest) (ExecutionPlan
 			plan.ScopeRejects = append(plan.ScopeRejects, ScopeRejection{Service: host.Service, Host: host.Host, Port: host.Port, Reason: reason})
 			continue
 		}
-		attempts, err := estimateAttemptsForTarget(cfg, host)
+		attempts, credentialHMAC, err := estimateAttemptsForTarget(cfg, host, credentialKey)
 		if err != nil {
 			return ExecutionPlan{}, err
 		}
-		plan.Targets = append(plan.Targets, PlannedTarget{Service: host.Service, Host: host.Host, Port: host.Port, Attempts: attempts})
+		plan.Targets = append(plan.Targets, PlannedTarget{
+			Service:        host.Service,
+			Host:           host.Host,
+			Port:           host.Port,
+			Attempts:       attempts,
+			CredentialHMAC: credentialHMAC,
+		})
 		plan.TotalTargets++
 		plan.TotalAttempts += attempts
 		if host.Service == "wrapper" {
@@ -86,43 +100,110 @@ func BuildExecutionPlan(cfg *Config, manifest EngagementManifest) (ExecutionPlan
 	return plan, nil
 }
 
-func estimateAttemptsForTarget(cfg *Config, host modules.Host) (int, error) {
+func estimateAttemptsForTarget(cfg *Config, host modules.Host, credentialKey []byte) (int, string, error) {
+	mac := hmac.New(sha256.New, credentialKey)
+	hashEnabled := len(credentialKey) > 0
+	writeValue := func(value string) {
+		if !hashEnabled {
+			return
+		}
+		var size [8]byte
+		binary.BigEndian.PutUint64(size[:], uint64(len(value)))
+		_, _ = mac.Write(size[:])
+		_, _ = mac.Write([]byte(value))
+	}
+	writeValues := func(label string, values []string) {
+		writeValue(label)
+		for _, value := range values {
+			writeValue(value)
+		}
+	}
+	digest := func() string {
+		if !hashEnabled {
+			return ""
+		}
+		return hex.EncodeToString(mac.Sum(nil))
+	}
+
+	writeValue("brutespray.plan.credentials.v1")
+	writeValue(host.Service)
+	writeValue(host.Host)
+	writeValue(strconv.Itoa(host.Port))
+
 	if cfg.Combo != "" {
 		users, passwords := modules.GetUsersAndPasswordsCombo(&host, cfg.Combo, version)
-		return min(len(users), len(passwords)), nil
+		count := min(len(users), len(passwords))
+		writeValue("combo")
+		for i := range count {
+			writeValue(users[i])
+			writeValue(passwords[i])
+		}
+		return count, digest(), nil
 	}
-	attempts := len(ParseInlineCreds(cfg.Creds))
-	if modules.IsPasswordOnlyService(host.Service) {
+
+	inline := ParseInlineCreds(cfg.Creds)
+	attempts := len(inline)
+	if modules.IsSingleSecretService(host.Service, cfg.ModuleParams) {
+		writeValue("single-secret")
+		for _, pair := range inline {
+			writeValue(pair.Password)
+		}
 		if cfg.PasswordGen != nil {
-			return attempts + cfg.PasswordGen.Count(), nil
+			writeValue("generator")
+			writeValue(strconv.Itoa(cfg.PasswordGen.MinLen))
+			writeValue(strconv.Itoa(cfg.PasswordGen.MaxLen))
+			writeValue(string(cfg.PasswordGen.Charset))
+			return attempts + cfg.PasswordGen.Count(), digest(), nil
 		}
 		_, passwords, err := modules.GetUsersAndPasswords(&host, cfg.User, cfg.Password, version)
 		if err != nil {
-			return 0, err
+			return 0, "", err
 		}
-		return attempts + len(passwords), nil
+		writeValues("passwords", passwords)
+		return attempts + len(passwords), digest(), nil
 	}
 
+	writeValue("user-password")
+	for _, pair := range inline {
+		writeValue(pair.User)
+		writeValue(pair.Password)
+	}
 	users, passwords, err := modules.GetUsersAndPasswords(&host, cfg.User, cfg.Password, version)
 	if err != nil {
-		return 0, err
+		return 0, "", err
 	}
+	writeValues("users", users)
 	passCount := len(passwords)
 	if cfg.PasswordGen != nil {
+		writeValue("generator")
+		writeValue(strconv.Itoa(cfg.PasswordGen.MinLen))
+		writeValue(strconv.Itoa(cfg.PasswordGen.MaxLen))
+		writeValue(string(cfg.PasswordGen.Charset))
 		passCount = cfg.PasswordGen.Count()
+	} else {
+		writeValues("passwords", passwords)
 	}
+	writeValue(normalizedScheduleMode(cfg))
+	writeValue(strconv.FormatBool(cfg.UseUsernameAsPass))
+	writeValue(strconv.FormatBool(cfg.UseReversedPass))
 
 	if host.Service == "ssh" && !cfg.NoBadKeys {
 		bundle, err := badkeys.Load()
 		if err != nil {
-			return 0, fmt.Errorf("loading bad-keys bundle: %w", err)
+			return 0, "", fmt.Errorf("loading bad-keys bundle: %w", err)
+		}
+		writeValue("ssh-badkeys")
+		for _, entry := range bundle {
+			writeValue(entry.Username)
+			writeValue(entry.PEMHash)
 		}
 		attempts += len(bundle)
 	}
 	if host.Service == "ssh" && cfg.BadKeysOnly {
-		return attempts, nil
+		return attempts, digest(), nil
 	}
-	return attempts + countCredentialPairs(users, passCount, normalizedScheduleMode(cfg), cfg.UseUsernameAsPass, cfg.UseReversedPass), nil
+	attempts += countCredentialPairs(users, passCount, normalizedScheduleMode(cfg), cfg.UseUsernameAsPass, cfg.UseReversedPass)
+	return attempts, digest(), nil
 }
 
 func countCredentialPairs(users []string, passwordCount int, mode string, useUsernameAsPass bool, useReversedPass bool) int {

@@ -50,12 +50,12 @@ policy:
   safe_margin: 1
   jitter_percent: 10
 evidence:
-  # redacted is safest for shareable reports; hash requires hmac_key.
+  # hmac_key is required for hash mode and --require-plan-ack.
   mode: redacted
-  # hmac_key: "replace-with-secret-engagement-key"
+  hmac_key: "SENTINEL_NOT_A_REAL_KEY"
 ```
 
-Use `--require-plan-ack <hash>` to require the exact dry-run hash before execution. This protects against accidental scope or credential-list drift between planning and running.
+Use `--require-plan-ack <hash>` to require the exact dry-run hash before execution. The engagement manifest must provide `evidence.hmac_key`; Brutespray uses it to bind the plan hash to the resolved credential contents without writing plaintext credentials into the plan. Changing a target, credential, or credential-list entry invalidates the acknowledgment.
 
 ## Lockout-Aware Scheduling
 

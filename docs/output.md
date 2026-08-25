@@ -95,10 +95,14 @@ JSON attempt records may include:
 
 ## Audit log verification
 
-`brutespray audit verify <audit.jsonl>` validates a hash-chained JSONL audit log. Each event includes `sequence`, `prev_hash`, and `hash`; verification fails if an event is edited, removed, or reordered.
+`brutespray audit verify <audit.jsonl>` validates an HMAC-SHA256-chained JSONL audit log. Each event includes `sequence`, `prev_hash`, and `hash`; verification fails if an event is edited, removed, reordered, or authenticated with a different key. Supply the same key used by the audit writer through `BRUTESPRAY_AUDIT_HMAC_KEY`; the command fails closed when the variable is unset.
 
 ```bash
+export BRUTESPRAY_AUDIT_HMAC_KEY
+read -rsp 'Audit HMAC key: ' BRUTESPRAY_AUDIT_HMAC_KEY
+printf '\n'
 brutespray audit verify brutespray-audit.jsonl
+unset BRUTESPRAY_AUDIT_HMAC_KEY
 ```
 
 ## Finding records (JSONL)

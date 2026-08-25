@@ -3,6 +3,7 @@ package brutespray
 import (
 	"os"
 	"os/exec"
+	"path/filepath"
 	"sync"
 	"testing"
 	"time"
@@ -127,5 +128,55 @@ func TestProcessHostQueuesRedisInlinePasswordBeforeExplicitPassword(t *testing.T
 		if attempts[i].Password != wantPassword {
 			t.Fatalf("attempt %d password = %q, want %q", i, attempts[i].Password, wantPassword)
 		}
+	}
+}
+
+func TestProcessHostQueuesInfluxDBV2TokenOnce(t *testing.T) {
+	if os.Getenv("BRUTESPRAY_INFLUX_TOKEN_PROCESS_HOST_HELPER") != "1" {
+		cmd := exec.Command(os.Args[0], "-test.run=^TestProcessHostQueuesInfluxDBV2TokenOnce$", "-test.v")
+		cmd.Env = append(os.Environ(), "BRUTESPRAY_INFLUX_TOKEN_PROCESS_HOST_HELPER=1")
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("influx token ProcessHost helper failed: %v\n%s", err, out)
+		}
+		return
+	}
+	originalInflux, ok := brute.Lookup("influxdb")
+	if !ok {
+		t.Fatal("influxdb brute function is not registered")
+	}
+	defer brute.Register("influxdb", originalInflux)
+	defer brute.GetCircuitBreaker().Reset("127.0.0.1:1")
+
+	brute.Register("influxdb", func(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager, params brute.ModuleParams) *brute.BruteResult {
+		return &brute.BruteResult{ConnectionSuccess: true}
+	})
+
+	cm, err := modules.NewConnectionManager("", time.Millisecond)
+	if err != nil {
+		t.Fatalf("NewConnectionManager: %v", err)
+	}
+	users := filepath.Join(t.TempDir(), "users.txt")
+	if err := os.WriteFile(users, []byte("admin\noperator\n"), 0o600); err != nil {
+		t.Fatalf("write users: %v", err)
+	}
+
+	const wantToken = "influx-token"
+	sink := &captureDispatchEventSink{}
+	workerPool := NewWorkerPool(1, sink, 1, 1)
+	workerPool.noStats = true
+	host := modules.Host{Service: "influxdb", Host: "127.0.0.1", Port: 1}
+
+	workerPool.ProcessHost(host, "influxdb", "", users, wantToken, version, time.Millisecond, 1, t.TempDir(), cm, "", brute.ModuleParams{"mode": "v2"}, false)
+
+	attempts := sink.attemptResults()
+	if len(attempts) != 1 {
+		t.Fatalf("captured influxdb attempts = %d, want 1", len(attempts))
+	}
+	if attempts[0].User != "" {
+		t.Fatalf("influxdb token attempt user = %q, want empty", attempts[0].User)
+	}
+	if attempts[0].Password != wantToken {
+		t.Fatalf("influxdb token attempt password = %q, want %q", attempts[0].Password, wantToken)
 	}
 }

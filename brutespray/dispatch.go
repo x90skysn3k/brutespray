@@ -214,7 +214,7 @@ func (wp *WorkerPool) ProcessHost(host modules.Host, service string, combo strin
 			}
 		}
 	} else {
-		if modules.IsPasswordOnlyService(service) {
+		if modules.IsSingleSecretService(service, moduleParams) {
 			queuePassword := func(p string) bool {
 				// Check if we should stop before processing each credential
 				select {
