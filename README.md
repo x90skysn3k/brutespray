@@ -102,10 +102,8 @@ Print discovered services from a scan file with `-P -q`:
 ## Star History
 
 <!-- star-history:start -->
-<a href="https://github.com/x90skysn3k/brutespray/stargazers">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/star-history/star-history-dark.svg">
-    <img alt="Brutespray GitHub star history" src="assets/star-history/star-history-light.svg">
-  </picture>
-</a>
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/star-history/star-history-dark.svg">
+  <img alt="Star history" src="assets/star-history/star-history-light.svg">
+</picture>
 <!-- star-history:end -->
