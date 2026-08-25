@@ -6,12 +6,6 @@ on:
   watch:
     types: [started]
   workflow_dispatch:
-  # Bootstrap the first renderer-produced chart on this PR branch.
-  push:
-    branches: [fix/readme-stars-badge]
-    paths:
-      - .github/workflows/star-history.yml
-      - README.md
 
 permissions:
   contents: write
