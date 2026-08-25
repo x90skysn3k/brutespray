@@ -14,13 +14,15 @@ type HostView struct {
 	hostSet       map[string]bool // for dedup
 	selectedIdx   int
 	attempts      map[string][]string // hostKey -> rendered lines
+	attemptCounts map[string]int      // hostKey -> total attempts, including lines trimmed from attempts
 	width, height int
 }
 
 func NewHostView() HostView {
 	return HostView{
-		hostSet:  make(map[string]bool),
-		attempts: make(map[string][]string),
+		hostSet:       make(map[string]bool),
+		attempts:      make(map[string][]string),
+		attemptCounts: make(map[string]int),
 	}
 }
 
@@ -36,6 +38,7 @@ func (v *HostView) AddAttempt(msg AttemptResultMsg, scheme *ColorScheme) {
 		v.hosts = append(v.hosts, hostKey)
 		sort.Strings(v.hosts)
 	}
+	v.attemptCounts[hostKey]++
 
 	style, status := scheme.AttemptStyle(msg.Success, msg.Connected, msg.Retrying)
 
@@ -109,7 +112,7 @@ func (v *HostView) View(scheme *ColorScheme, pausedHosts map[string]bool, hostSt
 		if i == v.selectedIdx {
 			prefix = "▸ "
 		}
-		count := len(v.attempts[h])
+		count := v.attemptCounts[h]
 		label := fmt.Sprintf("%s%s %s (%d)", prefix, icon, h, count)
 		leftLines = append(leftLines, lipgloss.NewStyle().Foreground(color).Render(label))
 	}

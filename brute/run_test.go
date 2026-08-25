@@ -265,7 +265,7 @@ func TestRunBruteJSONOutputIncludesStatusCode(t *testing.T) {
 	r, w, _ := os.Pipe()
 	os.Stdout = w
 	got := RunBrute(host, "user", "pass", time.Second, 1, t.TempDir(), "", "", "", cm, nil)
-	w.Close()
+	_ = w.Close()
 	os.Stdout = old
 
 	if got.Status != StatusConnectionFailure {

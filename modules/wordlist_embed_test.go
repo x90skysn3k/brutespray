@@ -71,6 +71,28 @@ func TestEmbeddedManifestReferencesValidate(t *testing.T) {
 	}
 }
 
+func TestEmbeddedManifestCoversDescriptorServices(t *testing.T) {
+	m, err := LoadManifestFS(wordlist.FS, "manifest.yaml")
+	if err != nil {
+		t.Fatalf("LoadManifestFS: %v", err)
+	}
+	for service, descriptor := range ServiceDescriptors() {
+		if descriptor.CredentialMode == CredentialNone {
+			continue
+		}
+		if descriptor.WordlistAlias == "-" {
+			continue
+		}
+		lookup := service
+		if descriptor.WordlistAlias != "" {
+			lookup = descriptor.WordlistAlias
+		}
+		if _, err := m.ResolveService(lookup); err != nil {
+			t.Fatalf("service %s wordlist profile %s missing: %v", service, lookup, err)
+		}
+	}
+}
+
 func TestEmbeddedAliases(t *testing.T) {
 	m, err := LoadManifestFS(wordlist.FS, "manifest.yaml")
 	if err != nil {

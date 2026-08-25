@@ -58,7 +58,7 @@ func BruteSVN(host string, port int, user, password string, timeout time.Duratio
 	}
 	defer func() {
 		_, _ = io.Copy(io.Discard, resp.Body)
-		resp.Body.Close()
+		_ = resp.Body.Close()
 	}()
 
 	banner := resp.Header.Get("Server")

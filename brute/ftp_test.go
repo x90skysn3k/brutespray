@@ -30,15 +30,15 @@ func startMockFTPServer(t *testing.T, validUser, validPass string) (int, func())
 	}()
 
 	port := listener.Addr().(*net.TCPAddr).Port
-	return port, func() { listener.Close() }
+	return port, func() { _ = listener.Close() }
 }
 
 func handleFTPConn(conn net.Conn, validUser, validPass string) {
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 	_ = conn.SetDeadline(time.Now().Add(5 * time.Second))
 
 	// Send greeting
-	fmt.Fprintf(conn, "220 Mock FTP Server Ready\r\n")
+	_, _ = fmt.Fprintf(conn, "220 Mock FTP Server Ready\r\n")
 
 	buf := make([]byte, 4096)
 	var user string
@@ -60,25 +60,25 @@ func handleFTPConn(conn net.Conn, validUser, validPass string) {
 			switch {
 			case strings.HasPrefix(upper, "USER "):
 				user = cmd[5:]
-				fmt.Fprintf(conn, "331 Password required for %s\r\n", user)
+				_, _ = fmt.Fprintf(conn, "331 Password required for %s\r\n", user)
 			case strings.HasPrefix(upper, "PASS "):
 				pass := cmd[5:]
 				if user == validUser && pass == validPass {
-					fmt.Fprintf(conn, "230 Login successful\r\n")
+					_, _ = fmt.Fprintf(conn, "230 Login successful\r\n")
 				} else {
-					fmt.Fprintf(conn, "530 Login incorrect\r\n")
+					_, _ = fmt.Fprintf(conn, "530 Login incorrect\r\n")
 				}
 			case strings.HasPrefix(upper, "QUIT"):
-				fmt.Fprintf(conn, "221 Goodbye\r\n")
+				_, _ = fmt.Fprintf(conn, "221 Goodbye\r\n")
 				return
 			case strings.HasPrefix(upper, "FEAT"):
-				fmt.Fprintf(conn, "211-Features:\r\n UTF8\r\n211 End\r\n")
+				_, _ = fmt.Fprintf(conn, "211-Features:\r\n UTF8\r\n211 End\r\n")
 			case strings.HasPrefix(upper, "TYPE"):
-				fmt.Fprintf(conn, "200 Type set\r\n")
+				_, _ = fmt.Fprintf(conn, "200 Type set\r\n")
 			case strings.HasPrefix(upper, "OPTS"):
-				fmt.Fprintf(conn, "200 OK\r\n")
+				_, _ = fmt.Fprintf(conn, "200 OK\r\n")
 			default:
-				fmt.Fprintf(conn, "502 Command not implemented\r\n")
+				_, _ = fmt.Fprintf(conn, "502 Command not implemented\r\n")
 			}
 		}
 	}

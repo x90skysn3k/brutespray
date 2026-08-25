@@ -23,7 +23,7 @@ func GetUsersAndPasswordsCombo(h *Host, combo string, version string) ([]string,
 			fmt.Println("Error opening combo file:", err)
 			os.Exit(1)
 		}
-		defer file.Close()
+		defer func() { _ = file.Close() }()
 
 		scanner := bufio.NewScanner(file)
 		for scanner.Scan() {
@@ -133,7 +133,7 @@ func IsPwDumpFile(filename string) bool {
 	if err != nil {
 		return false
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	scanner := bufio.NewScanner(file)
 	if scanner.Scan() {
@@ -148,7 +148,7 @@ func ReadPwDumpFile(filename string) (users []string, hashes []string, err error
 	if err != nil {
 		return nil, nil, err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
@@ -164,4 +164,3 @@ func ReadPwDumpFile(filename string) (users []string, hashes []string, err error
 	}
 	return users, hashes, nil
 }
-

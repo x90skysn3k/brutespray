@@ -5,7 +5,7 @@
 | Flag | Description | Example |
 |------|-------------|---------|
 | `-f` | Input file (Nmap, Nessus, Nexpose, JSON, lists) | `-f nmap.gnmap` |
-| `-H` | Target as service://host:port (CIDR supported, repeatable) | `-H ssh://10.1.1.0/24:22` |
+| `-H` | Target as service://host:port (CIDR and bracketed IPv6 supported, repeatable) | `-H ssh://10.1.1.0/24:22` |
 | `-u` | Username or user list | `-u admin` or `-u users.txt` |
 | `-p` | Password or password list | `-p password` or `-p pass.txt` |
 | `-C` | Combo wordlist (user:pass per line) | `-C combos.txt` |
@@ -34,7 +34,7 @@
 | `-q` | Suppress banner | `-q` |
 | `-P` | Print parsed hosts before execution | `-P` |
 | `--no-tui` | Disable interactive TUI, use legacy output | `--no-tui` |
-| `-m` | Module parameter in KEY:VALUE format (repeatable) | `-m auth:NTLM` |
+| `-m` | Module parameter in KEY:VALUE format (repeatable) | `-m auth:NTLM -m dir:/admin` |
 | `-e` | Extra credential checks: n=blank, s=user-as-pass, r=reversed | `-e nsr` |
 | `-x` | Generate passwords: MIN:MAX:CHARSET | `-x 4:4:1` |
 | `--allow-wrapper` | Allow wrapper module to execute commands | `--allow-wrapper` |
@@ -44,6 +44,10 @@
 | `--badkeys-only` | Run the embedded SSH bad-keys pre-pass only; skip passwords | `--badkeys-only` |
 | `--no-rdp-scan` | Skip pre-auth RDP recon (NLA + sticky-keys) | `--no-rdp-scan` |
 | `-c`, `--creds` | Inline credential pairs, comma-separated: `admin:admin,root:toor` | `-c admin:admin,root:toor` |
+| `--dry-run` | Print deterministic execution plan JSON without attempts | `--dry-run -H ssh://127.0.0.1:22 -u root -p toor` |
+| `--plan-out` | Write the dry-run plan JSON to a file | `--plan-out plan.json` |
+| `--require-plan-ack` | Require exact plan hash before execution | `--require-plan-ack <hash>` |
+| `--engagement` | Engagement manifest with scope, lockout policy, and evidence defaults | `--engagement engagement.yaml` |
 
 ## YAML Config File
 
@@ -68,18 +72,30 @@ hosts:
   - "rdp://10.0.0.0/24:3389"
 ```
 
+Direct IPv6 targets with ports use bracket syntax:
+
+```bash
+brutespray -H 'ssh://[2001:db8::10]:22' -u admin -p passlist.txt
+brutespray -H 'ssh://2001:db8::/126' -u admin -p passlist.txt
+```
+
 All fields are optional. Any CLI flag takes precedence over the config file value.
 
 ## Module Parameters (`-m`)
 
-Pass service-specific parameters using `-m KEY:VALUE` (repeatable):
+Pass service-specific parameters using `-m KEY:VALUE` (repeatable). For HTTP/HTTPS, `auth` may be omitted or set to `AUTO` to probe the requested path, or forced to `BASIC`, `DIGEST`, or `NTLM`:
 
 ```bash
-# HTTP Digest auth
-brutespray -H http://10.0.0.1:8080 -u admin -p passlist.txt -m auth:DIGEST
+# HTTP auth auto-detection on the default path
+brutespray -H http://10.0.0.1:8080 -u admin -p passlist.txt
 
-# HTTP NTLM auth
-brutespray -H http://10.0.0.1:8080 -u admin -p passlist.txt -m auth:NTLM
+# HTTP Digest auth on a specific path
+brutespray -H http://10.0.0.1:8080 -u admin -p passlist.txt \
+  -m auth:DIGEST -m dir:/admin
+
+# HTTPS NTLM auth with a domain and custom header
+brutespray -H https://10.0.0.1:8443 -u admin -p passlist.txt \
+  -m auth:NTLM -m domain:CORP -m "custom-header:X-App: intranet"
 
 # SMTP NTLM auth
 brutespray -H smtp://10.0.0.1:25 -u admin -p passlist.txt -m auth:NTLM
@@ -94,7 +110,13 @@ brutespray -H ssh://10.0.0.1:22 -u admin -p /path/to/key -m key:true
 # Wrapper module (requires --allow-wrapper)
 brutespray -H wrapper://10.0.0.1 -u admin -p passlist.txt \
   -m "cmd:sshpass -p %W ssh %U@%H -p %P" --allow-wrapper
+
+# Declarative HTTP auth template
+brutespray -H http-template://10.0.0.1:8080 -u admin -p passlist.txt \
+  -m template:json-login.yaml
 ```
+
+For HTTP/HTTPS, an unauthenticated 2xx response is connection evidence only; credentials are recorded only when an authenticated attempt succeeds.
 
 Module params can also be set in YAML config:
 ```yaml

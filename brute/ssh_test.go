@@ -159,7 +159,7 @@ func TestBruteSSHKeyCache(t *testing.T) {
 	})
 
 	// Delete the file
-	os.Remove(keyPath)
+	_ = os.Remove(keyPath)
 
 	// Second call — should use cached key, not fail with file-not-found
 	result := BruteSSH("127.0.0.1", 1, "root", keyPath, 2*time.Second, cm, ModuleParams{

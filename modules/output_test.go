@@ -34,6 +34,79 @@ func resetGlobalStats() {
 	globalStats.ConnectionErrorHosts = make(map[string]int)
 }
 
+func TestFormatCredentialMsgUsesPasswordOnlyMetadataForRedis(t *testing.T) {
+	msg := formatCredentialMsg("redis", "127.0.0.1", 6379, "", "redis-secret", "FAILED", "")
+	if strings.Contains(msg, "User") {
+		t.Fatalf("redis attempt message includes user field: %s", msg)
+	}
+	want := "[redis] 127.0.0.1:6379 - Password 'redis-secret' - FAILED"
+	if msg != want {
+		t.Fatalf("redis attempt message = %q, want %q", msg, want)
+	}
+}
+
+func TestPrintSummaryToConsoleUsesPasswordOnlyMetadataForRedis(t *testing.T) {
+	stats := &OutputStatsCopy{
+		StartTime: time.Now(),
+		EndTime:   time.Now(),
+		SuccessfulResults: []SuccessResult{{
+			Service:  "redis",
+			Host:     "127.0.0.1",
+			Port:     6379,
+			User:     "",
+			Password: "redis-secret",
+		}},
+	}
+
+	old := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("Pipe: %v", err)
+	}
+	os.Stdout = w
+	printSummaryToConsole(stats)
+	_ = w.Close()
+	os.Stdout = old
+	out, _ := io.ReadAll(r)
+
+	if strings.Contains(string(out), "User:") {
+		t.Fatalf("redis console summary includes user field: %s", string(out))
+	}
+	want := "[redis] 127.0.0.1:6379 - Password: redis-secret"
+	if !strings.Contains(string(out), want) {
+		t.Fatalf("redis console summary missing %q: %s", want, string(out))
+	}
+}
+
+func TestWriteHumanReadableSummaryUsesPasswordOnlyMetadataForRedis(t *testing.T) {
+	stats := &OutputStatsCopy{
+		StartTime: time.Now(),
+		EndTime:   time.Now(),
+		SuccessfulResults: []SuccessResult{{
+			Service:  "redis",
+			Host:     "127.0.0.1",
+			Port:     6379,
+			User:     "",
+			Password: "redis-secret",
+		}},
+	}
+
+	dir := t.TempDir()
+	writeHumanReadableSummary(stats, dir)
+	data, err := os.ReadFile(filepath.Join(dir, "brutespray-summary.txt"))
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	text := string(data)
+	if strings.Contains(text, "User:") {
+		t.Fatalf("redis human-readable summary includes user field: %s", text)
+	}
+	want := "[redis] 127.0.0.1:6379 - Password: redis-secret"
+	if !strings.Contains(text, want) {
+		t.Fatalf("redis human-readable summary missing %q: %s", want, text)
+	}
+}
+
 func TestRecordSuccess(t *testing.T) {
 	resetGlobalStats()
 
@@ -201,7 +274,7 @@ func TestPrintResultJSON(t *testing.T) {
 	dir := t.TempDir()
 	PrintResult("ssh", "10.0.0.1", 22, "root", "toor", true, true, false, dir, 0, "OpenSSH_8.9")
 
-	w.Close()
+	_ = w.Close()
 	os.Stdout = old
 
 	var buf bytes.Buffer
@@ -269,7 +342,7 @@ func TestPrintResultWithStatusIncludesStatusCode(t *testing.T) {
 	dir := t.TempDir()
 	PrintResultWithStatus("ssh", "10.0.0.1", 22, "root", "toor", false, false, false, dir, 0, "connection_failure")
 
-	w.Close()
+	_ = w.Close()
 	os.Stdout = old
 
 	var buf bytes.Buffer
@@ -285,6 +358,190 @@ func TestPrintResultWithStatusIncludesStatusCode(t *testing.T) {
 	}
 	if attempt.Timestamp == "" {
 		t.Error("expected non-empty timestamp")
+	}
+}
+
+func TestPrintResultWithStatusAndProofIncludesProof(t *testing.T) {
+	resetGlobalStats()
+
+	origFormat := OutputFormatMode
+	origSilent := Silent
+	origTUI := TUIMode
+	origNoColor := NoColorMode
+	defer func() {
+		OutputFormatMode = origFormat
+		Silent = origSilent
+		TUIMode = origTUI
+		NoColorMode = origNoColor
+	}()
+
+	OutputFormatMode = "json"
+	Silent = false
+	TUIMode = false
+	NoColorMode = true
+
+	old := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	PrintResultWithStatusAndProof("ssh", "10.0.0.1", 22, "root", "toor", true, true, false, t.TempDir(), 0, "success", "confirmed", "auth_protocol_success", "ssh module result")
+
+	_ = w.Close()
+	os.Stdout = old
+
+	var buf bytes.Buffer
+	_, _ = io.Copy(&buf, r)
+	output := strings.TrimSpace(buf.String())
+
+	var attempt AttemptResult
+	if err := json.Unmarshal([]byte(output), &attempt); err != nil {
+		t.Fatalf("invalid JSON output: %v\nraw: %s", err, output)
+	}
+	if attempt.Confidence != "confirmed" || attempt.ProofType != "auth_protocol_success" || attempt.ProofDetail != "ssh module result" {
+		t.Fatalf("proof fields = %+v", attempt)
+	}
+}
+
+func TestWriteFindingWithProofIncludesProof(t *testing.T) {
+	origFormat := OutputFormatMode
+	origTUI := TUIMode
+	defer func() {
+		OutputFormatMode = origFormat
+		TUIMode = origTUI
+	}()
+	OutputFormatMode = "json"
+	TUIMode = false
+
+	old := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	WriteFindingWithProof("HIGH", "redis-no-auth", "redis", "127.0.0.1", 6379, "open redis", "", "probable", "preauth_probe", "PING")
+
+	_ = w.Close()
+	os.Stdout = old
+
+	var buf bytes.Buffer
+	_, _ = io.Copy(&buf, r)
+	var rec map[string]any
+	if err := json.Unmarshal(bytes.TrimSpace(buf.Bytes()), &rec); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+	if rec["confidence"] != "probable" || rec["proof_type"] != "preauth_probe" || rec["proof_detail"] != "PING" {
+		t.Fatalf("proof fields missing: %+v", rec)
+	}
+}
+
+func TestPrintResultJSONRedactsPasswordInEvidenceMode(t *testing.T) {
+	resetGlobalStats()
+
+	origFormat := OutputFormatMode
+	origSilent := Silent
+	origTUI := TUIMode
+	origNoColor := NoColorMode
+	origEvidence := GetEvidenceConfig()
+	defer func() {
+		OutputFormatMode = origFormat
+		Silent = origSilent
+		TUIMode = origTUI
+		NoColorMode = origNoColor
+		SetEvidenceConfig(origEvidence)
+	}()
+
+	OutputFormatMode = "json"
+	Silent = false
+	TUIMode = false
+	NoColorMode = true
+	SetEvidenceConfig(EvidenceConfig{Mode: EvidenceHash, HMACKey: []byte("engagement-key")})
+
+	old := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	dir := t.TempDir()
+	PrintResult("ssh", "10.0.0.1", 22, "root", "toor", true, true, false, dir, 0, "OpenSSH_8.9")
+
+	_ = w.Close()
+	os.Stdout = old
+
+	var buf bytes.Buffer
+	_, _ = io.Copy(&buf, r)
+	output := strings.TrimSpace(buf.String())
+	if strings.Contains(output, "toor") {
+		t.Fatalf("raw password leaked in JSON output: %s", output)
+	}
+
+	var attempt AttemptResult
+	if err := json.Unmarshal([]byte(output), &attempt); err != nil {
+		t.Fatalf("invalid JSON output: %v\nraw: %s", err, output)
+	}
+	if attempt.Password != "[REDACTED]" {
+		t.Fatalf("password = %q, want redacted", attempt.Password)
+	}
+	if !attempt.SecretRedacted {
+		t.Fatal("expected secret_redacted=true")
+	}
+	if attempt.SecretHMACSHA256 == "" {
+		t.Fatal("expected secret_hmac_sha256")
+	}
+}
+
+func TestPrintResultWriteErrorDoesNotEchoRawCredential(t *testing.T) {
+	resetGlobalStats()
+
+	origFormat := OutputFormatMode
+	origSilent := Silent
+	origTUI := TUIMode
+	origNoColor := NoColorMode
+	origEvidence := GetEvidenceConfig()
+	defer func() {
+		OutputFormatMode = origFormat
+		Silent = origSilent
+		TUIMode = origTUI
+		NoColorMode = origNoColor
+		SetEvidenceConfig(origEvidence)
+	}()
+
+	OutputFormatMode = "json"
+	Silent = false
+	TUIMode = false
+	NoColorMode = true
+	SetEvidenceConfig(EvidenceConfig{Mode: EvidenceHash, HMACKey: []byte("engagement-key")})
+
+	outputPath := filepath.Join(t.TempDir(), "regular-file-output-target")
+	if err := os.WriteFile(outputPath, []byte("not a directory"), 0600); err != nil {
+		t.Fatalf("create regular output file: %v", err)
+	}
+
+	const (
+		host      = "10.0.0.1"
+		user      = "root"
+		password  = "raw-write-error-secret-9f2d6c"
+		banner    = "OpenSSH_write_error_regression"
+		rawRecord = "[ssh] 10.0.0.1:22 - User 'root' - Pass 'raw-write-error-secret-9f2d6c' - SUCCESS [Banner: OpenSSH_write_error_regression]"
+	)
+
+	old := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	PrintResult("ssh", host, 22, user, password, true, true, false, outputPath, 0, banner)
+
+	_ = w.Close()
+	os.Stdout = old
+
+	var buf bytes.Buffer
+	_, _ = io.Copy(&buf, r)
+	output := buf.String()
+
+	if !strings.Contains(output, "WRITE ERROR: could not save credential to file") {
+		t.Fatalf("expected write error in stdout, got: %s", output)
+	}
+	if strings.Contains(output, password) {
+		t.Fatalf("raw password leaked in write-error output: %s", output)
+	}
+	if strings.Contains(output, rawRecord) {
+		t.Fatalf("raw credential record leaked in write-error output: %s", output)
 	}
 }
 

@@ -49,7 +49,7 @@ func BruteIMAP(host string, port int, user, password string, timeout time.Durati
 	}
 
 	go func() {
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 
 		if err := conn.SetDeadline(time.Now().Add(timeout)); err != nil {
 			done <- result{false, false, ""}

@@ -40,7 +40,7 @@ func BruteSNMP(host string, port int, user, password string, timeout time.Durati
 	if err != nil {
 		return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
 	}
-	udpConn.Close()
+	_ = udpConn.Close()
 
 	return RunWithTimeout(timeout, func(ctx context.Context) *BruteResult {
 		type result struct {
@@ -63,7 +63,7 @@ func BruteSNMP(host string, port int, user, password string, timeout time.Durati
 					done <- result{false}
 					return
 				}
-				defer gs.Conn.Close()
+				defer func() { _ = gs.Conn.Close() }()
 
 				_, err = gs.Get([]string{".1.3.6.1.2.1.1.1.0"}) // sysDescr
 				done <- result{err == nil}
@@ -94,7 +94,7 @@ func bruteSNMPv3(host string, port int, user, password string, timeout time.Dura
 	if err != nil {
 		return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
 	}
-	udpConn.Close()
+	_ = udpConn.Close()
 
 	// Determine auth protocol
 	authProto := gosnmp.MD5
@@ -140,7 +140,7 @@ func bruteSNMPv3(host string, port int, user, password string, timeout time.Dura
 		if err != nil {
 			return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
 		}
-		defer gs.Conn.Close()
+		defer func() { _ = gs.Conn.Close() }()
 
 		// Try to get sysDescr as auth verification
 		_, err = gs.Get([]string{".1.3.6.1.2.1.1.1.0"})

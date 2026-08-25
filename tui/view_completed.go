@@ -51,7 +51,7 @@ func (v *CompletedView) View(scheme *ColorScheme) string {
 	lines = append(lines, headerStyle.Render(
 		fmt.Sprintf("  %-25s %-12s %10s %12s %12s", "Host", "Service", "Attempts", "Success %", "Avg Response")))
 	lines = append(lines, lipgloss.NewStyle().Foreground(scheme.Muted).Render(
-		"  "+strings.Repeat("─", v.width-4)))
+		"  "+safeRepeat("─", v.width-4)))
 
 	for _, e := range v.entries {
 		line := fmt.Sprintf("  %-25s %-12s %10d %11.1f%% %10.0fms",
@@ -63,13 +63,23 @@ func (v *CompletedView) View(scheme *ColorScheme) string {
 		lines = append(lines, rowStyle.Render(line))
 	}
 
-	// Show last entries that fit
 	visibleLines := v.height
-	start := 0
-	if len(lines) > visibleLines {
-		start = len(lines) - visibleLines
+	if visibleLines <= 0 {
+		return ""
 	}
-	return strings.Join(lines[start:], "\n")
+	if len(lines) <= visibleLines {
+		return strings.Join(lines, "\n")
+	}
+	headerLines := 2
+	if visibleLines <= headerLines {
+		return strings.Join(lines[:visibleLines], "\n")
+	}
+	entryLines := lines[headerLines:]
+	start := 0
+	if len(entryLines) > visibleLines-headerLines {
+		start = len(entryLines) - (visibleLines - headerLines)
+	}
+	return strings.Join(append(lines[:headerLines:headerLines], entryLines[start:]...), "\n")
 }
 
 func (v *CompletedView) Count() int {

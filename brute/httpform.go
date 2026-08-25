@@ -136,7 +136,7 @@ func BruteHTTPForm(host string, port int, user, password string, timeout time.Du
 			csrfResp, err := httpClient.Do(csrfReq)
 			if err == nil {
 				csrfBody, _ := io.ReadAll(io.LimitReader(csrfResp.Body, 1<<20))
-				csrfResp.Body.Close()
+				_ = csrfResp.Body.Close()
 
 				// Extract CSRF token value from hidden input field
 				pattern := fmt.Sprintf(`<input[^>]*name="%s"[^>]*value="([^"]*)"`, regexp.QuoteMeta(csrfField))
@@ -196,7 +196,7 @@ func BruteHTTPForm(host string, port int, user, password string, timeout time.Du
 	}
 	defer func() {
 		_, _ = io.Copy(io.Discard, resp.Body)
-		resp.Body.Close()
+		_ = resp.Body.Close()
 	}()
 
 	// Read response body (limit to 1MB to avoid memory issues)

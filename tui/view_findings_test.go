@@ -41,6 +41,32 @@ func TestViewFindingsRendersCVE(t *testing.T) {
 	}
 }
 
+func TestViewFindingsRendersStableCodeAndPreservesUnknownSeverity(t *testing.T) {
+	m := Model{
+		findings: []FindingEntry{
+			{
+				Severity: "NOTICE",
+				Code:     "RDP_NLA_DISABLED",
+				Service:  "rdp",
+				Target:   "10.0.0.5:3389",
+				Message:  "NLA not enforced",
+				Time:     time.Now(),
+			},
+		},
+	}
+
+	out := m.viewFindings()
+	if !strings.Contains(out, "RDP_NLA_DISABLED") {
+		t.Errorf("finding output missing stable code: %s", out)
+	}
+	if !strings.Contains(out, "NOTICE") {
+		t.Errorf("finding output missing original unknown severity: %s", out)
+	}
+	if strings.Contains(out, "INFO") {
+		t.Errorf("finding output silently presented unknown severity as INFO: %s", out)
+	}
+}
+
 func TestAddFindingThroughUpdate(t *testing.T) {
 	m := Model{}
 	updated, _ := m.Update(FindingMsg{Entry: FindingEntry{Severity: "INFO", Service: "ssh", Target: "10.0.0.5:22", Message: "test"}})

@@ -29,11 +29,11 @@ func startMockRedisServer(t *testing.T, validPass string) (int, func()) {
 	}()
 
 	port := listener.Addr().(*net.TCPAddr).Port
-	return port, func() { listener.Close() }
+	return port, func() { _ = listener.Close() }
 }
 
 func handleRedisConn(conn net.Conn, validPass string) {
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 	_ = conn.SetDeadline(time.Now().Add(5 * time.Second))
 
 	r := bufio.NewReader(conn)
@@ -89,30 +89,30 @@ func handleRedisConn(conn net.Conn, validPass string) {
 		case "AUTH":
 			if len(args) >= 2 && args[len(args)-1] == validPass {
 				authenticated = true
-				fmt.Fprintf(conn, "+OK\r\n")
+				_, _ = fmt.Fprintf(conn, "+OK\r\n")
 			} else {
-				fmt.Fprintf(conn, "-WRONGPASS invalid username-password pair or user is disabled\r\n")
+				_, _ = fmt.Fprintf(conn, "-WRONGPASS invalid username-password pair or user is disabled\r\n")
 			}
 
 		case "SELECT":
 			if authenticated || validPass == "" {
-				fmt.Fprintf(conn, "+OK\r\n")
+				_, _ = fmt.Fprintf(conn, "+OK\r\n")
 			} else {
-				fmt.Fprintf(conn, "-NOAUTH Authentication required\r\n")
+				_, _ = fmt.Fprintf(conn, "-NOAUTH Authentication required\r\n")
 			}
 
 		case "PING":
 			if authenticated || validPass == "" {
-				fmt.Fprintf(conn, "+PONG\r\n")
+				_, _ = fmt.Fprintf(conn, "+PONG\r\n")
 			} else {
-				fmt.Fprintf(conn, "-NOAUTH Authentication required\r\n")
+				_, _ = fmt.Fprintf(conn, "-NOAUTH Authentication required\r\n")
 			}
 
 		case "CLIENT":
-			fmt.Fprintf(conn, "+OK\r\n")
+			_, _ = fmt.Fprintf(conn, "+OK\r\n")
 
 		default:
-			fmt.Fprintf(conn, "-ERR unknown command\r\n")
+			_, _ = fmt.Fprintf(conn, "-ERR unknown command\r\n")
 		}
 	}
 }

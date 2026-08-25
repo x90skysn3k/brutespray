@@ -151,7 +151,9 @@ func BruteTelnet(host string, port int, user, password string, timeout time.Dura
 		if err != nil {
 			return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
 		}
-		defer connection.Close()
+		defer func() {
+			_ = connection.Close()
+		}()
 
 		// Propagate context cancellation to the connection
 		go func() {

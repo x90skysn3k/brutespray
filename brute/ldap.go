@@ -28,7 +28,7 @@ func BruteLDAP(host string, port int, user, password string, timeout time.Durati
 			ServerName:         host,
 		})
 		if err := tlsConn.Handshake(); err != nil {
-			conn.Close()
+			_ = conn.Close()
 			return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
 		}
 		l = ldap.NewConn(tlsConn, true)
@@ -36,7 +36,7 @@ func BruteLDAP(host string, port int, user, password string, timeout time.Durati
 		l = ldap.NewConn(conn, false)
 	}
 	l.Start()
-	defer l.Close()
+	defer func() { _ = l.Close() }()
 
 	err = l.Bind(user, password)
 	if err != nil {

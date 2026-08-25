@@ -55,7 +55,22 @@ func BruteRDP(host string, port int, user, password string, timeout time.Duratio
 	})
 }
 
-func init() { Register("rdp", BruteRDP) }
+func init() {
+	Register("rdp", BruteRDP)
+	RegisterPreAuthProbe("rdp", PreAuthProbe{
+		Code:        "rdp-recon",
+		Description: "RDP NLA fingerprint and sticky-keys probe",
+		Default:     true,
+		Run: func(ctx context.Context, target PreAuthTarget) ([]Finding, error) {
+			findings := ScanRDPReconContext(ctx, target.Host, target.Port, target.Timeout)
+			out := make([]Finding, 0, len(findings))
+			for _, finding := range findings {
+				out = append(out, *finding)
+			}
+			return out, nil
+		},
+	})
+}
 
 func nlaFinding(status string) *Finding {
 	switch status {
@@ -72,13 +87,8 @@ func nlaFinding(status string) *Finding {
 	return nil
 }
 
-// ScanRDPRecon runs pre-auth RDP recon (NLA fingerprint, sticky-keys probe)
-// against a single target. Returns a slice of findings to emit. Called once
-// per host by the dispatcher before any brute attempts.
-func ScanRDPRecon(host string, port int, timeout time.Duration) []*Finding {
+func ScanRDPReconContext(ctx context.Context, host string, port int, timeout time.Duration) []*Finding {
 	target := fmt.Sprintf("%s:%d", host, port)
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
 	status, err := client.FingerprintNLA(ctx, target, timeout)
 	if err != nil {
 		return nil
@@ -113,6 +123,15 @@ func ScanRDPRecon(host string, port int, timeout time.Duration) []*Finding {
 	return out
 }
 
+// ScanRDPRecon runs pre-auth RDP recon (NLA fingerprint, sticky-keys probe)
+// against a single target. Returns a slice of findings to emit. Called once
+// per host by the dispatcher before any brute attempts.
+func ScanRDPRecon(host string, port int, timeout time.Duration) []*Finding {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	return ScanRDPReconContext(ctx, host, port, timeout)
+}
+
 // terminalWindowVerdict captures the outcome of the post-trigger
 // framebuffer analysis.
 type terminalWindowVerdict int
@@ -134,7 +153,8 @@ const (
 // thresholds and the rectangle-fill-ratio gate are adapted from Praetorian's
 // Brutus project (Apache 2.0), which exercises the same algorithm against
 // real-world Windows RDP targets:
-//   https://github.com/praetorian-inc/brutus/blob/main/internal/plugins/rdp/analyze.go
+//
+//	https://github.com/praetorian-inc/brutus/blob/main/internal/plugins/rdp/analyze.go
 const (
 	pixelChangeThreshold     = 30  // per-pixel brightness delta to count as "changed"
 	minChangedPercent        = 2.0 // <2% changed → noise, no window

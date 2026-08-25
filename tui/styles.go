@@ -3,7 +3,8 @@ package tui
 import (
 	"fmt"
 	"math"
-	"math/rand"
+	"math/rand/v2"
+	"strings"
 
 	"github.com/charmbracelet/lipgloss"
 )
@@ -16,6 +17,17 @@ const (
 	colWidthStatus   = 8  // "CONN ERR" = 8
 	colWidthDuration = 10 // right-aligned
 )
+
+func clampMin(value, min int) int {
+	if value < min {
+		return min
+	}
+	return value
+}
+
+func safeRepeat(s string, count int) string {
+	return strings.Repeat(s, clampMin(count, 0))
+}
 
 // ColorScheme holds the dynamic color theme for the TUI.
 type ColorScheme struct {

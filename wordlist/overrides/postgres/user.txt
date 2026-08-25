@@ -1,3 +1,4 @@
 root
 admin
 postgres
+IPS_postgres

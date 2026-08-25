@@ -167,13 +167,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case BatchAttemptMsg:
+		m.allView.AddAttempts(msg, &m.scheme)
 		for _, a := range msg {
 			if a.Retrying {
 				m.retryProgress++
 			} else {
 				m.currentProgress++
 			}
-			m.allView.AddAttempt(a, &m.scheme)
 			m.hostView.AddAttempt(a, &m.scheme)
 			m.serviceView.AddAttempt(a, &m.scheme)
 			if a.Success && a.Connected {
@@ -533,7 +533,7 @@ func (m Model) renderStatusBar() string {
 
 	separator := lipgloss.NewStyle().
 		Foreground(m.scheme.CycleColor()).
-		Render(strings.Repeat("─", m.width))
+		Render(safeRepeat("─", m.width))
 
 	keyStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#ffffff")).Bold(true)
 	descStyle := lipgloss.NewStyle().Foreground(m.scheme.Muted)

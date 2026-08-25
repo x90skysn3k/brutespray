@@ -19,13 +19,13 @@ func BruteSMTPVRFY(host string, port int, user, password string, timeout time.Du
 	}
 
 	return RunWithTimeout(timeout, func(ctx context.Context) *BruteResult {
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 		go func() { <-ctx.Done(); _ = conn.SetDeadline(time.Now()) }()
 
 		_ = conn.SetDeadline(time.Now().Add(timeout))
 
 		tc := textproto.NewConn(conn)
-		defer tc.Close()
+		defer func() { _ = tc.Close() }()
 
 		// Read greeting
 		code, greeting, err := tc.ReadResponse(220)

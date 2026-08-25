@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -38,6 +39,182 @@ func TestBruteHTTPAuthSuccess(t *testing.T) {
 	}
 	if !result.ConnectionSuccess {
 		t.Fatal("expected connection success")
+	}
+}
+
+func TestBruteHTTPUnauthenticatedSuccessDoesNotProveCredentials(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	host, port := parseHostPort(t, server.URL)
+	cm := newTestCM()
+
+	result := BruteHTTP(host, port, "admin", "secret", 5*time.Second, cm, ModuleParams{})
+	if !result.ConnectionSuccess {
+		t.Fatalf("expected connection success for unauthenticated 2xx probe, got %+v", result)
+	}
+	if result.AuthSuccess {
+		t.Fatalf("unauthenticated 2xx without WWW-Authenticate must not prove credential auth success, got %+v", result)
+	}
+}
+
+func TestBruteHTTPForcedBasicUnauthenticatedSuccessDoesNotProveCredentials(t *testing.T) {
+	expected := "Basic " + base64.StdEncoding.EncodeToString([]byte("admin:secret"))
+	var sawBasic atomic.Bool
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") == expected {
+			sawBasic.Store(true)
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	host, port := parseHostPort(t, server.URL)
+	cm := newTestCM()
+
+	result := BruteHTTP(host, port, "admin", "secret", 5*time.Second, cm, ModuleParams{"auth": "BASIC"})
+	if !sawBasic.Load() {
+		t.Fatal("expected forced BASIC credential attempt to send Authorization header")
+	}
+	if !result.ConnectionSuccess {
+		t.Fatalf("expected connection success for forced BASIC 2xx response, got %+v", result)
+	}
+	if result.AuthSuccess {
+		t.Fatalf("forced BASIC 2xx from a target that ignores Authorization must not prove credential auth success, got %+v", result)
+	}
+}
+
+func TestBruteHTTPForcedBasicPostDoesNotSendUnauthenticatedPostPreflight(t *testing.T) {
+	expected := "Basic " + base64.StdEncoding.EncodeToString([]byte("admin:secret"))
+	var unauthPOSTs atomic.Int32
+	var authPOSTs atomic.Int32
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") == expected {
+			if r.Method == http.MethodPost {
+				authPOSTs.Add(1)
+			}
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		if r.Method == http.MethodPost {
+			unauthPOSTs.Add(1)
+		}
+		w.Header().Set("WWW-Authenticate", `Basic realm="test"`)
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer server.Close()
+
+	host, port := parseHostPort(t, server.URL)
+	cm := newTestCM()
+
+	result := BruteHTTP(host, port, "admin", "secret", 5*time.Second, cm, ModuleParams{
+		"auth":   "BASIC",
+		"method": "POST",
+	})
+	if got := unauthPOSTs.Load(); got != 0 {
+		t.Errorf("forced BASIC POST must not preflight with unauthenticated POST; got %d unauthenticated POST request(s)", got)
+	}
+	if got := authPOSTs.Load(); got != 1 {
+		t.Errorf("expected exactly one authenticated POST request, got %d", got)
+	}
+	if !result.AuthSuccess {
+		t.Fatalf("expected authenticated POST to succeed, got %+v", result)
+	}
+}
+
+func TestBruteHTTPForcedBasicPostIgnoresPublicFallbackGet(t *testing.T) {
+	expected := "Basic " + base64.StdEncoding.EncodeToString([]byte("admin:secret"))
+	var unauthGETs atomic.Int32
+	var unauthPOSTs atomic.Int32
+	var authPOSTs atomic.Int32
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Header.Get("Authorization") == expected && r.Method == http.MethodPost:
+			authPOSTs.Add(1)
+			w.WriteHeader(http.StatusOK)
+		case r.Header.Get("Authorization") == "" && r.Method == http.MethodGet:
+			unauthGETs.Add(1)
+			_, _ = w.Write([]byte("public"))
+		case r.Header.Get("Authorization") == "" && r.Method == http.MethodPost:
+			unauthPOSTs.Add(1)
+			t.Errorf("forced BASIC POST must not send an unauthenticated POST request")
+			w.WriteHeader(http.StatusInternalServerError)
+		default:
+			t.Errorf("unexpected %s request with Authorization %q", r.Method, r.Header.Get("Authorization"))
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+	}))
+	defer server.Close()
+
+	host, port := parseHostPort(t, server.URL)
+	cm := newTestCM()
+
+	result := BruteHTTP(host, port, "admin", "secret", 5*time.Second, cm, ModuleParams{
+		"auth":   "BASIC",
+		"method": "POST",
+	})
+	if got := unauthGETs.Load(); got != 1 {
+		t.Errorf("expected exactly one unauthenticated fallback GET probe, got %d", got)
+	}
+	if got := unauthPOSTs.Load(); got != 0 {
+		t.Errorf("forced BASIC POST must not send unauthenticated POST; got %d request(s)", got)
+	}
+	if got := authPOSTs.Load(); got != 1 {
+		t.Errorf("expected exactly one authenticated POST request, got %d", got)
+	}
+	if !result.ConnectionSuccess {
+		t.Fatalf("expected connection success for authenticated POST, got %+v", result)
+	}
+	if !result.AuthSuccess {
+		t.Fatalf("expected public fallback GET not to demote successful authenticated POST, got %+v", result)
+	}
+}
+
+func TestBruteHTTPUnauthenticatedSuccessWithChallengeDoesNotProveCredentials(t *testing.T) {
+	var requests atomic.Int32
+	var sawAuth atomic.Bool
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch requests.Add(1) {
+		case 1:
+			if auth := r.Header.Get("Authorization"); auth != "" {
+				t.Errorf("probe request unexpectedly sent Authorization header %q", auth)
+			}
+			w.Header().Set("WWW-Authenticate", `Basic realm="ignored"`)
+			w.WriteHeader(http.StatusOK)
+		case 2:
+			if r.Header.Get("Authorization") != "" {
+				sawAuth.Store(true)
+			}
+			w.WriteHeader(http.StatusOK)
+		default:
+			t.Errorf("unexpected extra HTTP request %d", requests.Load())
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+	}))
+	defer server.Close()
+
+	host, port := parseHostPort(t, server.URL)
+	cm := newTestCM()
+
+	result := BruteHTTP(host, port, "admin", "secret", 5*time.Second, cm, ModuleParams{})
+	if requests.Load() != 2 {
+		t.Fatalf("expected probe plus credential attempt, got %d request(s)", requests.Load())
+	}
+	if !sawAuth.Load() {
+		t.Fatal("expected credential attempt to send Authorization header")
+	}
+	if !result.ConnectionSuccess {
+		t.Fatalf("expected connection success for challenged 2xx probe, got %+v", result)
+	}
+	if result.AuthSuccess {
+		t.Fatalf("challenged 2xx followed by unvalidated 2xx must not prove credential auth success, got %+v", result)
 	}
 }
 

@@ -2,7 +2,6 @@ package brute
 
 import (
 	"bufio"
-	"fmt"
 	"net"
 	"strings"
 	"testing"
@@ -29,16 +28,20 @@ func startMockTeamSpeakServer(t *testing.T, validUser, validPass string) (int, f
 	}()
 
 	port := listener.Addr().(*net.TCPAddr).Port
-	return port, func() { listener.Close() }
+	return port, closeMockListener(listener)
 }
 
 func handleTeamSpeakConn(conn net.Conn, validUser, validPass string) {
-	defer conn.Close()
+	defer closeMockConn(conn)
 	_ = conn.SetDeadline(time.Now().Add(5 * time.Second))
 
 	// Send TS3 banner
-	fmt.Fprintf(conn, "TS3\r\n")
-	fmt.Fprintf(conn, "Welcome to the TeamSpeak 3 ServerQuery interface.\r\n")
+	if !writeMockResponse(conn, "TS3\r\n") {
+		return
+	}
+	if !writeMockResponse(conn, "Welcome to the TeamSpeak 3 ServerQuery interface.\r\n") {
+		return
+	}
 
 	r := bufio.NewReader(conn)
 	for {
@@ -62,9 +65,13 @@ func handleTeamSpeakConn(conn net.Conn, validUser, validPass string) {
 			}
 
 			if user == validUser && pass == validPass {
-				fmt.Fprintf(conn, "error id=0 msg=ok\r\n")
+				if !writeMockResponse(conn, "error id=0 msg=ok\r\n") {
+					return
+				}
 			} else {
-				fmt.Fprintf(conn, "error id=520 msg=invalid\\sloginname\\sor\\spassword\r\n")
+				if !writeMockResponse(conn, "error id=520 msg=invalid\\sloginname\\sor\\spassword\r\n") {
+					return
+				}
 			}
 		} else if strings.HasPrefix(line, "quit") {
 			return

@@ -26,10 +26,11 @@ Brutespray supports 40+ protocols. Services marked as **beta** may have edge cas
 | snmp | 161 | Stable | Supports v1/v2c (default) and v3 (`-m version:3`) |
 | smbnt | 445 | Stable | Use `-d DOMAIN` for domain auth |
 | rdp | 3389 | Stable | Use `-d DOMAIN` for domain auth |
-| http | 80 | Stable | Basic, Digest, NTLM auth (`-m auth:DIGEST`) |
+| http | 80 | Stable | Basic, Digest, NTLM auth with auto/forced modes, target path, and custom headers |
 | https | 443 | Stable | Same as HTTP over TLS |
 | http-form | 80 | Beta | HTML form brute-forcing with `%U`/`%W` placeholders, cookie jar, CSRF token extraction |
 | https-form | 443 | Beta | HTTPS form brute-forcing |
+| http-template | 80 | Beta | Declarative HTTP auth templates (`-m template:path.yaml` or `-m template-inline:...`) |
 | svn | 3690 | Beta | SVN repository HTTP Basic auth |
 | vmauthd | 902 | Stable | VMware authentication daemon |
 | teamspeak | 10011 | Stable | ServerQuery interface |
@@ -84,17 +85,22 @@ brutespray -H snmp://10.0.0.1:161 -u snmpuser -p authpass \
 ```
 
 ### HTTP / HTTPS
-Supports Basic, Digest, and NTLM authentication:
+Supports Basic, Digest, and NTLM authentication over HTTP and HTTPS. Auto mode probes the requested path for `WWW-Authenticate`; use `-m auth:BASIC`, `-m auth:DIGEST`, or `-m auth:NTLM` to force a method.
+
 ```bash
-# Basic (auto-detected)
+# Auto-detect Basic/Digest/NTLM on the default path
 brutespray -H http://10.0.0.1:8080 -u admin -p passlist.txt
 
-# Force Digest auth
-brutespray -H http://10.0.0.1:8080 -u admin -p passlist.txt -m auth:DIGEST
+# Probe a specific path and force Digest auth
+brutespray -H http://10.0.0.1:8080 -u admin -p passlist.txt \
+  -m dir:/admin -m auth:DIGEST
 
-# NTLM auth
-brutespray -H http://10.0.0.1:8080 -u admin -p passlist.txt -m auth:NTLM
+# HTTPS target with NTLM and a custom header
+brutespray -H https://10.0.0.1:8443 -u admin -p passlist.txt \
+  -m auth:NTLM -m domain:CORP -m "custom-header:X-App: intranet"
 ```
+
+An unauthenticated 2xx probe confirms connectivity only; it is not recorded as credential proof unless the authenticated request succeeds.
 
 ### HTTP Form / HTTPS Form
 Brute-force HTML login forms with customizable requests:
@@ -167,6 +173,34 @@ brutespray -H imap://10.0.0.1:143 -u admin -p passlist.txt
 # Force CRAM-MD5
 brutespray -H imap://10.0.0.1:143 -u admin -p passlist.txt -m auth:CRAM-MD5
 ```
+
+### HTTP Auth Templates
+Use `http-template` when login requires a JSON/API style request instead of a classic HTML form. Templates are YAML, HTTP/HTTPS only, and cannot execute shell commands.
+
+```yaml
+id: json-login
+service: http-template
+transport: http
+steps:
+  - request:
+      method: POST
+      path: /login
+      headers:
+        content-type: application/json
+      body: '{"username":"{{username}}","password":"{{password}}"}'
+    matchers:
+      - type: status
+        status: [200]
+      - type: body_contains
+        body: token
+```
+
+```bash
+brutespray -H http-template://10.0.0.1:8080 -u admin -p passlist.txt \
+  -m template:json-login.yaml
+```
+
+Supported placeholders: `{{host}}`, `{{port}}`, `{{username}}`, `{{password}}`.
 
 ### SOCKS5 Proxy Authentication
 Brute-force SOCKS5 proxy credentials:

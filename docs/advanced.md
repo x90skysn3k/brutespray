@@ -21,6 +21,54 @@ brutespray -f nmap.gnmap -u userlist.txt -p passlist.txt -spray -spray-delay 15m
 
 The circuit breaker is automatically enabled in spray mode to skip hosts that become unreachable after 5 consecutive connection failures.
 
+## Engagement Manifests and Dry Runs
+
+`--dry-run` resolves targets and credential cardinality without making credential attempts. The JSON plan includes a deterministic `hash`, total targets, total attempts, scope rejections, and warnings such as wrapper command execution.
+
+```bash
+brutespray --dry-run -H ssh://127.0.0.1:22 -u root -p toor --no-tui
+brutespray --dry-run -f nmap.xml -u users.txt -p passwords.txt \
+  --engagement engagement.yaml --plan-out plan.json
+```
+
+An engagement manifest can describe the authorized context, scope, lockout policy, and evidence defaults:
+
+```yaml
+engagement:
+  id: acme-q3
+  customer: Acme
+  operator: syoung
+  authorization_ref: ROE-123
+scope:
+  allow:
+    cidrs: ["10.0.0.0/24"]
+  deny:
+    hosts: ["10.0.0.13"]
+policy:
+  lockout_threshold: 5
+  lockout_window: 15m
+  safe_margin: 1
+  jitter_percent: 10
+evidence:
+  # hmac_key is required for hash mode and --require-plan-ack.
+  mode: redacted
+  hmac_key: "SENTINEL_NOT_A_REAL_KEY"
+```
+
+Use `--require-plan-ack <hash>` to require the exact dry-run hash before execution. The engagement manifest must provide `evidence.hmac_key`; Brutespray uses it to bind the plan hash to the resolved credential contents without writing plaintext credentials into the plan. Changing a target, credential, or credential-list entry invalidates the acknowledgment.
+
+## Lockout-Aware Scheduling
+
+When an engagement policy sets `lockout_threshold`, `lockout_window`, and `safe_margin`, Brutespray budgets attempts per normalized account identity (`service|domain|user`) across worker pools. Attempts that would exceed the safe budget sleep until the window clears, with optional positive jitter from `jitter_percent`.
+
+The effective budget is:
+
+```text
+lockout_threshold - safe_margin
+```
+
+Set `safe_margin` below `lockout_threshold`. A missing or zero threshold leaves the scheduler disabled and preserves legacy behavior.
+
 ## SOCKS5 Proxy
 
 All services support SOCKS5 proxies. Supported formats:
@@ -247,6 +295,23 @@ brutespray -H snmp://10.0.0.1:161 -u snmpuser -p authpass \
 
 Without `-m version:3`, SNMP defaults to v2c with community strings.
 
+## HTTP / HTTPS Authentication
+
+HTTP and HTTPS targets support Basic, Digest, and NTLM authentication through the same `http`/`https` services. By default, `auth` is `AUTO`: Brutespray probes the requested path, reads `WWW-Authenticate`, and chooses NTLM, Digest, or Basic. Use `-m auth:BASIC`, `-m auth:DIGEST`, or `-m auth:NTLM` to force a method.
+
+```bash
+# Auto-detect auth on /admin
+brutespray -H https://10.0.0.1:8443 -u admin -p passlist.txt -m dir:/admin
+
+# Force NTLM with a domain, User-Agent, and custom header
+brutespray -H http://10.0.0.1:8080 -u admin -p passlist.txt \
+  -m auth:NTLM -m domain:CORP \
+  -m "user-agent:Brutespray" \
+  -m "custom-header:X-App: intranet"
+```
+
+The auth probe is scoped to the requested path. A 2xx response to the unauthenticated probe means the endpoint is reachable, not that the tested credentials are valid; credential success requires the authenticated request to succeed.
+
 ## HTTP-Form CSRF Token Extraction
 
 For forms protected by CSRF tokens, use `-m csrf:FIELD_NAME` to automatically extract the token:
@@ -268,8 +333,8 @@ Use `-m form-url:/path` if the CSRF form page differs from the login URL.
 
 | Service | Parameter | Values | Description |
 |---------|-----------|--------|-------------|
-| http/https | `auth` | BASIC, DIGEST, NTLM, AUTO | Authentication method |
-| http/https | `dir` | path | Target path (default: /) |
+| http/https | `auth` | BASIC, DIGEST, NTLM, AUTO | Authentication method; AUTO probes the requested path |
+| http/https | `dir` | path | Request path (default: /) |
 | http/https | `method` | GET, POST, etc. | HTTP method |
 | http/https | `custom-header` | Header:Value | Custom HTTP header |
 | http/https | `user-agent` | string | Custom User-Agent |

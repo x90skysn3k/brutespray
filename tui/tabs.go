@@ -84,7 +84,7 @@ func RenderTabBar(activeTab Tab, width int, scheme *ColorScheme, badges map[Tab]
 	// Separator line
 	separator := lipgloss.NewStyle().
 		Foreground(accentColor).
-		Render(strings.Repeat("─", width))
+		Render(safeRepeat("─", width))
 
 	return line1 + "\n" + separator
 }

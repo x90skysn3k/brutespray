@@ -2,7 +2,6 @@ package brute
 
 import (
 	"bufio"
-	"fmt"
 	"net"
 	"strings"
 	"testing"
@@ -30,16 +29,18 @@ func startMockSMTPVRFYServer(t *testing.T, validUsers map[string]bool, validList
 	}()
 
 	port := listener.Addr().(*net.TCPAddr).Port
-	return port, func() { listener.Close() }
+	return port, closeMockListener(listener)
 }
 
 func handleSMTPVRFYConn(conn net.Conn, validUsers map[string]bool, validLists map[string]bool) {
-	defer conn.Close()
+	defer closeMockConn(conn)
 	_ = conn.SetDeadline(time.Now().Add(5 * time.Second))
 	r := bufio.NewReader(conn)
 
 	// Send greeting (must be 220 for textproto.ReadResponse)
-	fmt.Fprintf(conn, "220 mock.smtp.vrfy ESMTP\r\n")
+	if !writeMockResponse(conn, "220 mock.smtp.vrfy ESMTP\r\n") {
+		return
+	}
 
 	for {
 		line, err := r.ReadString('\n')
@@ -51,27 +52,41 @@ func handleSMTPVRFYConn(conn net.Conn, validUsers map[string]bool, validLists ma
 
 		switch {
 		case strings.HasPrefix(upper, "EHLO"):
-			fmt.Fprintf(conn, "250-mock.smtp.vrfy\r\n")
-			fmt.Fprintf(conn, "250 VRFY\r\n")
+			if !writeMockResponse(conn, "250-mock.smtp.vrfy\r\n") {
+				return
+			}
+			if !writeMockResponse(conn, "250 VRFY\r\n") {
+				return
+			}
 
 		case strings.HasPrefix(upper, "VRFY "):
 			user := strings.TrimSpace(line[5:])
 			if validUsers[user] {
-				fmt.Fprintf(conn, "250 %s <user@mock.smtp.vrfy>\r\n", user)
+				if !writeMockResponse(conn, "250 %s <user@mock.smtp.vrfy>\r\n", user) {
+					return
+				}
 			} else {
-				fmt.Fprintf(conn, "550 %s... User unknown\r\n", user)
+				if !writeMockResponse(conn, "550 %s... User unknown\r\n", user) {
+					return
+				}
 			}
 
 		case strings.HasPrefix(upper, "EXPN "):
 			list := strings.TrimSpace(line[5:])
 			if validLists[list] {
-				fmt.Fprintf(conn, "250 %s <list@mock.smtp.vrfy>\r\n", list)
+				if !writeMockResponse(conn, "250 %s <list@mock.smtp.vrfy>\r\n", list) {
+					return
+				}
 			} else {
-				fmt.Fprintf(conn, "550 %s... List unknown\r\n", list)
+				if !writeMockResponse(conn, "550 %s... List unknown\r\n", list) {
+					return
+				}
 			}
 
 		case strings.HasPrefix(upper, "MAIL FROM:"):
-			fmt.Fprintf(conn, "250 OK\r\n")
+			if !writeMockResponse(conn, "250 OK\r\n") {
+				return
+			}
 
 		case strings.HasPrefix(upper, "RCPT TO:"):
 			// Extract the address between < and >
@@ -83,17 +98,25 @@ func handleSMTPVRFYConn(conn net.Conn, validUsers map[string]bool, validLists ma
 				local = addr[:idx]
 			}
 			if validUsers[local] {
-				fmt.Fprintf(conn, "250 OK\r\n")
+				if !writeMockResponse(conn, "250 OK\r\n") {
+					return
+				}
 			} else {
-				fmt.Fprintf(conn, "550 User unknown\r\n")
+				if !writeMockResponse(conn, "550 User unknown\r\n") {
+					return
+				}
 			}
 
 		case strings.HasPrefix(upper, "QUIT"):
-			fmt.Fprintf(conn, "221 Bye\r\n")
+			if !writeMockResponse(conn, "221 Bye\r\n") {
+				return
+			}
 			return
 
 		default:
-			fmt.Fprintf(conn, "502 Command not implemented\r\n")
+			if !writeMockResponse(conn, "502 Command not implemented\r\n") {
+				return
+			}
 		}
 	}
 }

@@ -100,7 +100,7 @@ func BruteFTP(host string, port int, user, password string, timeout time.Duratio
 		_ = conn.SetDeadline(time.Now())
 		select {
 		case result := <-done:
-			conn.Close()
+			_ = conn.Close()
 			if result.client != nil {
 				_ = result.client.Quit()
 			}
@@ -112,11 +112,11 @@ func BruteFTP(host string, port int, user, password string, timeout time.Duratio
 			}
 			return &BruteResult{AuthSuccess: true, ConnectionSuccess: true}
 		default:
-			conn.Close()
+			_ = conn.Close()
 			return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: nil}
 		}
 	case result := <-done:
-		conn.Close()
+		_ = conn.Close()
 		if result.client != nil {
 			_ = result.client.Quit()
 		}

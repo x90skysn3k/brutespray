@@ -31,11 +31,11 @@ func startMockRexecServer(t *testing.T, validUser, validPass string) (int, func(
 	}()
 
 	port := listener.Addr().(*net.TCPAddr).Port
-	return port, func() { listener.Close() }
+	return port, func() { _ = listener.Close() }
 }
 
 func handleRexecConn(conn net.Conn, validUser, validPass string) {
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 	_ = conn.SetDeadline(time.Now().Add(5 * time.Second))
 
 	// Read the entire payload: \0user\0pass\0cmd\0
@@ -49,14 +49,14 @@ func handleRexecConn(conn net.Conn, validUser, validPass string) {
 	payload := string(buf[:n])
 	// First byte should be \0
 	if len(payload) == 0 || payload[0] != 0 {
-		fmt.Fprintf(conn, "\x01Invalid protocol\n")
+		_, _ = fmt.Fprintf(conn, "\x01Invalid protocol\n")
 		return
 	}
 
 	// Split by null bytes (skip the leading null)
 	parts := strings.SplitN(payload[1:], "\x00", 3)
 	if len(parts) < 2 {
-		fmt.Fprintf(conn, "\x01Invalid protocol\n")
+		_, _ = fmt.Fprintf(conn, "\x01Invalid protocol\n")
 		return
 	}
 
@@ -66,11 +66,11 @@ func handleRexecConn(conn net.Conn, validUser, validPass string) {
 	if user == validUser && pass == validPass {
 		// Success: \0 followed by output
 		_, _ = conn.Write([]byte{0})
-		fmt.Fprintf(conn, "uid=0(root) gid=0(root)\n")
+		_, _ = fmt.Fprintf(conn, "uid=0(root) gid=0(root)\n")
 	} else {
 		// Failure: \1 followed by error message
 		_, _ = conn.Write([]byte{1})
-		fmt.Fprintf(conn, "Permission denied\n")
+		_, _ = fmt.Fprintf(conn, "Permission denied\n")
 	}
 }
 

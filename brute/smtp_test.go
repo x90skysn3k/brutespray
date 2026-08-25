@@ -32,18 +32,41 @@ func startMockSMTPServer(t *testing.T, handler func(conn net.Conn)) (int, func()
 	}()
 
 	port := listener.Addr().(*net.TCPAddr).Port
-	return port, func() { listener.Close() }
+	return port, closeMockListener(listener)
+}
+
+func closeMockConn(conn net.Conn) {
+	if err := conn.Close(); err != nil {
+		return
+	}
+}
+
+func closeMockListener(listener net.Listener) func() {
+	return func() {
+		if err := listener.Close(); err != nil {
+			return
+		}
+	}
+}
+
+func writeMockResponse(conn net.Conn, format string, args ...any) bool {
+	if _, err := fmt.Fprintf(conn, format, args...); err != nil {
+		return false
+	}
+	return true
 }
 
 // handleSMTPPlainAuth handles a mock SMTP session that advertises AUTH PLAIN.
 func handleSMTPPlainAuth(conn net.Conn, validUser, validPass string) {
-	defer conn.Close()
+	defer closeMockConn(conn)
 	_ = conn.SetDeadline(time.Now().Add(5 * time.Second))
 
 	r := bufio.NewReader(conn)
 
 	// Send greeting
-	fmt.Fprintf(conn, "220 mock.smtp.server ESMTP\r\n")
+	if !writeMockResponse(conn, "220 mock.smtp.server ESMTP\r\n") {
+		return
+	}
 
 	for {
 		line, err := r.ReadString('\n')
@@ -55,8 +78,12 @@ func handleSMTPPlainAuth(conn net.Conn, validUser, validPass string) {
 
 		switch {
 		case strings.HasPrefix(upper, "EHLO"):
-			fmt.Fprintf(conn, "250-mock.smtp.server\r\n")
-			fmt.Fprintf(conn, "250 AUTH PLAIN\r\n")
+			if !writeMockResponse(conn, "250-mock.smtp.server\r\n") {
+				return
+			}
+			if !writeMockResponse(conn, "250 AUTH PLAIN\r\n") {
+				return
+			}
 
 		case strings.HasPrefix(upper, "AUTH PLAIN"):
 			// AUTH PLAIN may have the data inline or require a continuation
@@ -65,7 +92,9 @@ func handleSMTPPlainAuth(conn net.Conn, validUser, validPass string) {
 			if len(parts) == 3 {
 				encoded = parts[2]
 			} else {
-				fmt.Fprintf(conn, "334 \r\n")
+				if !writeMockResponse(conn, "334 \r\n") {
+					return
+				}
 				enc, err := r.ReadString('\n')
 				if err != nil {
 					return
@@ -74,23 +103,33 @@ func handleSMTPPlainAuth(conn net.Conn, validUser, validPass string) {
 			}
 			decoded, err := base64.StdEncoding.DecodeString(encoded)
 			if err != nil {
-				fmt.Fprintf(conn, "535 Authentication failed\r\n")
+				if !writeMockResponse(conn, "535 Authentication failed\r\n") {
+					return
+				}
 				continue
 			}
 			// PLAIN format: \0username\0password
 			parts2 := strings.SplitN(string(decoded), "\x00", 3)
 			if len(parts2) == 3 && parts2[1] == validUser && parts2[2] == validPass {
-				fmt.Fprintf(conn, "235 2.7.0 Authentication successful\r\n")
+				if !writeMockResponse(conn, "235 2.7.0 Authentication successful\r\n") {
+					return
+				}
 			} else {
-				fmt.Fprintf(conn, "535 5.7.8 Authentication credentials invalid\r\n")
+				if !writeMockResponse(conn, "535 5.7.8 Authentication credentials invalid\r\n") {
+					return
+				}
 			}
 
 		case strings.HasPrefix(upper, "QUIT"):
-			fmt.Fprintf(conn, "221 Bye\r\n")
+			if !writeMockResponse(conn, "221 Bye\r\n") {
+				return
+			}
 			return
 
 		default:
-			fmt.Fprintf(conn, "502 Command not implemented\r\n")
+			if !writeMockResponse(conn, "502 Command not implemented\r\n") {
+				return
+			}
 		}
 	}
 }
@@ -108,12 +147,14 @@ func handleSMTPPlainAuth(conn net.Conn, validUser, validPass string) {
 // So the server receives double-base64 encoded credentials. When AUTH LOGIN
 // is sent with initial data, we skip the username challenge.
 func handleSMTPLoginAuth(conn net.Conn, validUser, validPass string) {
-	defer conn.Close()
+	defer closeMockConn(conn)
 	_ = conn.SetDeadline(time.Now().Add(5 * time.Second))
 
 	r := bufio.NewReader(conn)
 
-	fmt.Fprintf(conn, "220 mock.smtp.server ESMTP\r\n")
+	if !writeMockResponse(conn, "220 mock.smtp.server ESMTP\r\n") {
+		return
+	}
 
 	for {
 		line, err := r.ReadString('\n')
@@ -125,8 +166,12 @@ func handleSMTPLoginAuth(conn net.Conn, validUser, validPass string) {
 
 		switch {
 		case strings.HasPrefix(upper, "EHLO"):
-			fmt.Fprintf(conn, "250-mock.smtp.server\r\n")
-			fmt.Fprintf(conn, "250 AUTH LOGIN\r\n")
+			if !writeMockResponse(conn, "250-mock.smtp.server\r\n") {
+				return
+			}
+			if !writeMockResponse(conn, "250 AUTH LOGIN\r\n") {
+				return
+			}
 
 		case strings.HasPrefix(upper, "AUTH LOGIN"):
 			// The client may send initial data with AUTH LOGIN
@@ -138,7 +183,9 @@ func handleSMTPLoginAuth(conn net.Conn, validUser, validPass string) {
 				userB64B64 = parts[2]
 			} else {
 				// No initial data — send username challenge
-				fmt.Fprintf(conn, "334 %s\r\n", base64.StdEncoding.EncodeToString([]byte("Username:")))
+				if !writeMockResponse(conn, "334 %s\r\n", base64.StdEncoding.EncodeToString([]byte("Username:"))) {
+					return
+				}
 				userLine, err := r.ReadString('\n')
 				if err != nil {
 					return
@@ -147,7 +194,9 @@ func handleSMTPLoginAuth(conn net.Conn, validUser, validPass string) {
 			}
 
 			// Send password challenge
-			fmt.Fprintf(conn, "334 %s\r\n", base64.StdEncoding.EncodeToString([]byte("Password:")))
+			if !writeMockResponse(conn, "334 %s\r\n", base64.StdEncoding.EncodeToString([]byte("Password:"))) {
+				return
+			}
 			passB64B64, err := r.ReadString('\n')
 			if err != nil {
 				return
@@ -158,28 +207,40 @@ func handleSMTPLoginAuth(conn net.Conn, validUser, validPass string) {
 			userB64, err1 := base64.StdEncoding.DecodeString(userB64B64)
 			passB64, err2 := base64.StdEncoding.DecodeString(passB64B64)
 			if err1 != nil || err2 != nil {
-				fmt.Fprintf(conn, "535 5.7.8 Authentication credentials invalid\r\n")
+				if !writeMockResponse(conn, "535 5.7.8 Authentication credentials invalid\r\n") {
+					return
+				}
 				continue
 			}
 			userDecoded, err1 := base64.StdEncoding.DecodeString(string(userB64))
 			passDecoded, err2 := base64.StdEncoding.DecodeString(string(passB64))
 			if err1 != nil || err2 != nil {
-				fmt.Fprintf(conn, "535 5.7.8 Authentication credentials invalid\r\n")
+				if !writeMockResponse(conn, "535 5.7.8 Authentication credentials invalid\r\n") {
+					return
+				}
 				continue
 			}
 
 			if string(userDecoded) == validUser && string(passDecoded) == validPass {
-				fmt.Fprintf(conn, "235 2.7.0 Authentication successful\r\n")
+				if !writeMockResponse(conn, "235 2.7.0 Authentication successful\r\n") {
+					return
+				}
 			} else {
-				fmt.Fprintf(conn, "535 5.7.8 Authentication credentials invalid\r\n")
+				if !writeMockResponse(conn, "535 5.7.8 Authentication credentials invalid\r\n") {
+					return
+				}
 			}
 
 		case strings.HasPrefix(upper, "QUIT"):
-			fmt.Fprintf(conn, "221 Bye\r\n")
+			if !writeMockResponse(conn, "221 Bye\r\n") {
+				return
+			}
 			return
 
 		default:
-			fmt.Fprintf(conn, "502 Command not implemented\r\n")
+			if !writeMockResponse(conn, "502 Command not implemented\r\n") {
+				return
+			}
 		}
 	}
 }
@@ -245,11 +306,13 @@ func TestBruteSMTPLoginAuth(t *testing.T) {
 func TestBruteSMTPAutoDetect(t *testing.T) {
 	// Server advertises both PLAIN and LOGIN; auto should try PLAIN first
 	port, cleanup := startMockSMTPServer(t, func(conn net.Conn) {
-		defer conn.Close()
+		defer closeMockConn(conn)
 		_ = conn.SetDeadline(time.Now().Add(5 * time.Second))
 		r := bufio.NewReader(conn)
 
-		fmt.Fprintf(conn, "220 mock.smtp.server ESMTP\r\n")
+		if !writeMockResponse(conn, "220 mock.smtp.server ESMTP\r\n") {
+			return
+		}
 
 		for {
 			line, err := r.ReadString('\n')
@@ -261,8 +324,12 @@ func TestBruteSMTPAutoDetect(t *testing.T) {
 
 			switch {
 			case strings.HasPrefix(upper, "EHLO"):
-				fmt.Fprintf(conn, "250-mock.smtp.server\r\n")
-				fmt.Fprintf(conn, "250 AUTH PLAIN LOGIN\r\n")
+				if !writeMockResponse(conn, "250-mock.smtp.server\r\n") {
+					return
+				}
+				if !writeMockResponse(conn, "250 AUTH PLAIN LOGIN\r\n") {
+					return
+				}
 
 			case strings.HasPrefix(upper, "AUTH PLAIN"):
 				parts := strings.SplitN(line, " ", 3)
@@ -270,7 +337,9 @@ func TestBruteSMTPAutoDetect(t *testing.T) {
 				if len(parts) == 3 {
 					encoded = parts[2]
 				} else {
-					fmt.Fprintf(conn, "334 \r\n")
+					if !writeMockResponse(conn, "334 \r\n") {
+						return
+					}
 					enc, err := r.ReadString('\n')
 					if err != nil {
 						return
@@ -280,17 +349,25 @@ func TestBruteSMTPAutoDetect(t *testing.T) {
 				decoded, _ := base64.StdEncoding.DecodeString(encoded)
 				parts2 := strings.SplitN(string(decoded), "\x00", 3)
 				if len(parts2) == 3 && parts2[1] == "autouser" && parts2[2] == "autopass" {
-					fmt.Fprintf(conn, "235 2.7.0 Authentication successful\r\n")
+					if !writeMockResponse(conn, "235 2.7.0 Authentication successful\r\n") {
+						return
+					}
 				} else {
-					fmt.Fprintf(conn, "535 5.7.8 Authentication credentials invalid\r\n")
+					if !writeMockResponse(conn, "535 5.7.8 Authentication credentials invalid\r\n") {
+						return
+					}
 				}
 
 			case strings.HasPrefix(upper, "QUIT"):
-				fmt.Fprintf(conn, "221 Bye\r\n")
+				if !writeMockResponse(conn, "221 Bye\r\n") {
+					return
+				}
 				return
 
 			default:
-				fmt.Fprintf(conn, "502 Command not implemented\r\n")
+				if !writeMockResponse(conn, "502 Command not implemented\r\n") {
+					return
+				}
 			}
 		}
 	})
@@ -310,11 +387,13 @@ func TestBruteSMTPStartTLS(t *testing.T) {
 	// Since we don't perform a real TLS handshake, this will fail gracefully
 	// and fall back to authentication over the plain connection.
 	port, cleanup := startMockSMTPServer(t, func(conn net.Conn) {
-		defer conn.Close()
+		defer closeMockConn(conn)
 		_ = conn.SetDeadline(time.Now().Add(5 * time.Second))
 		r := bufio.NewReader(conn)
 
-		fmt.Fprintf(conn, "220 mock.smtp.server ESMTP\r\n")
+		if !writeMockResponse(conn, "220 mock.smtp.server ESMTP\r\n") {
+			return
+		}
 
 		for {
 			line, err := r.ReadString('\n')
@@ -326,15 +405,23 @@ func TestBruteSMTPStartTLS(t *testing.T) {
 
 			switch {
 			case strings.HasPrefix(upper, "EHLO"):
-				fmt.Fprintf(conn, "250-mock.smtp.server\r\n")
-				fmt.Fprintf(conn, "250-STARTTLS\r\n")
-				fmt.Fprintf(conn, "250 AUTH PLAIN\r\n")
+				if !writeMockResponse(conn, "250-mock.smtp.server\r\n") {
+					return
+				}
+				if !writeMockResponse(conn, "250-STARTTLS\r\n") {
+					return
+				}
+				if !writeMockResponse(conn, "250 AUTH PLAIN\r\n") {
+					return
+				}
 
 			case strings.HasPrefix(upper, "STARTTLS"):
 				// Accept STARTTLS but the TLS handshake will fail since we
 				// don't actually upgrade. This tests that the client attempts
 				// the upgrade and handles the failure.
-				fmt.Fprintf(conn, "220 Ready to start TLS\r\n")
+				if !writeMockResponse(conn, "220 Ready to start TLS\r\n") {
+					return
+				}
 				// Close after sending the response - the TLS handshake will fail
 				return
 
@@ -344,7 +431,9 @@ func TestBruteSMTPStartTLS(t *testing.T) {
 				if len(parts) == 3 {
 					encoded = parts[2]
 				} else {
-					fmt.Fprintf(conn, "334 \r\n")
+					if !writeMockResponse(conn, "334 \r\n") {
+						return
+					}
 					enc, err := r.ReadString('\n')
 					if err != nil {
 						return
@@ -354,17 +443,25 @@ func TestBruteSMTPStartTLS(t *testing.T) {
 				decoded, _ := base64.StdEncoding.DecodeString(encoded)
 				parts2 := strings.SplitN(string(decoded), "\x00", 3)
 				if len(parts2) == 3 && parts2[1] == "tlsuser" && parts2[2] == "tlspass" {
-					fmt.Fprintf(conn, "235 2.7.0 Authentication successful\r\n")
+					if !writeMockResponse(conn, "235 2.7.0 Authentication successful\r\n") {
+						return
+					}
 				} else {
-					fmt.Fprintf(conn, "535 5.7.8 Authentication credentials invalid\r\n")
+					if !writeMockResponse(conn, "535 5.7.8 Authentication credentials invalid\r\n") {
+						return
+					}
 				}
 
 			case strings.HasPrefix(upper, "QUIT"):
-				fmt.Fprintf(conn, "221 Bye\r\n")
+				if !writeMockResponse(conn, "221 Bye\r\n") {
+					return
+				}
 				return
 
 			default:
-				fmt.Fprintf(conn, "502 Command not implemented\r\n")
+				if !writeMockResponse(conn, "502 Command not implemented\r\n") {
+					return
+				}
 			}
 		}
 	})
@@ -392,12 +489,14 @@ func TestBruteSMTPStartTLS(t *testing.T) {
 //  2. Server replies 334 <challenge>
 //  3. Client sends <authenticate>, server replies 235/535
 func handleSMTPNTLMAuth(conn net.Conn, _, _ string) {
-	defer conn.Close()
+	defer closeMockConn(conn)
 	_ = conn.SetDeadline(time.Now().Add(5 * time.Second))
 
 	r := bufio.NewReader(conn)
 
-	fmt.Fprintf(conn, "220 mock.smtp.server ESMTP\r\n")
+	if !writeMockResponse(conn, "220 mock.smtp.server ESMTP\r\n") {
+		return
+	}
 
 	for {
 		line, err := r.ReadString('\n')
@@ -409,21 +508,29 @@ func handleSMTPNTLMAuth(conn net.Conn, _, _ string) {
 
 		switch {
 		case strings.HasPrefix(upper, "EHLO"):
-			fmt.Fprintf(conn, "250-mock.smtp.server\r\n")
-			fmt.Fprintf(conn, "250 AUTH NTLM\r\n")
+			if !writeMockResponse(conn, "250-mock.smtp.server\r\n") {
+				return
+			}
+			if !writeMockResponse(conn, "250 AUTH NTLM\r\n") {
+				return
+			}
 
 		case strings.HasPrefix(upper, "AUTH NTLM"):
 			// Step 1: client sends negotiate message
 			parts := strings.SplitN(line, " ", 3)
 			if len(parts) < 3 {
-				fmt.Fprintf(conn, "501 Syntax error\r\n")
+				if !writeMockResponse(conn, "501 Syntax error\r\n") {
+					return
+				}
 				continue
 			}
 
 			// Decode negotiate to validate it's real NTLM
 			negBytes, err := base64.StdEncoding.DecodeString(parts[2])
 			if err != nil || len(negBytes) < 7 || string(negBytes[:7]) != "NTLMSSP" {
-				fmt.Fprintf(conn, "535 Invalid NTLM negotiate\r\n")
+				if !writeMockResponse(conn, "535 Invalid NTLM negotiate\r\n") {
+					return
+				}
 				continue
 			}
 
@@ -443,7 +550,9 @@ func handleSMTPNTLMAuth(conn net.Conn, _, _ string) {
 				0x38, 0, 0, 0, // Target info offset
 				6, 1, 0, 0, 0, 0, 0, 15, // Version
 			}
-			fmt.Fprintf(conn, "334 %s\r\n", base64.StdEncoding.EncodeToString(challenge))
+			if !writeMockResponse(conn, "334 %s\r\n", base64.StdEncoding.EncodeToString(challenge)) {
+				return
+			}
 
 			// Step 3: read authenticate message
 			authLine, err := r.ReadString('\n')
@@ -453,7 +562,9 @@ func handleSMTPNTLMAuth(conn net.Conn, _, _ string) {
 			authLine = strings.TrimRight(authLine, "\r\n")
 			authBytes, err := base64.StdEncoding.DecodeString(authLine)
 			if err != nil || len(authBytes) < 7 || string(authBytes[:7]) != "NTLMSSP" {
-				fmt.Fprintf(conn, "535 Invalid NTLM authenticate\r\n")
+				if !writeMockResponse(conn, "535 Invalid NTLM authenticate\r\n") {
+					return
+				}
 				continue
 			}
 
@@ -464,17 +575,25 @@ func handleSMTPNTLMAuth(conn net.Conn, _, _ string) {
 			if len(authBytes) > 11 && authBytes[8] == 3 {
 				// Accept if the test used the expected credentials
 				// In real NTLM this would verify the response hash
-				fmt.Fprintf(conn, "235 2.7.0 Authentication successful\r\n")
+				if !writeMockResponse(conn, "235 2.7.0 Authentication successful\r\n") {
+					return
+				}
 			} else {
-				fmt.Fprintf(conn, "535 5.7.8 Authentication credentials invalid\r\n")
+				if !writeMockResponse(conn, "535 5.7.8 Authentication credentials invalid\r\n") {
+					return
+				}
 			}
 
 		case strings.HasPrefix(upper, "QUIT"):
-			fmt.Fprintf(conn, "221 Bye\r\n")
+			if !writeMockResponse(conn, "221 Bye\r\n") {
+				return
+			}
 			return
 
 		default:
-			fmt.Fprintf(conn, "502 Command not implemented\r\n")
+			if !writeMockResponse(conn, "502 Command not implemented\r\n") {
+				return
+			}
 		}
 	}
 }

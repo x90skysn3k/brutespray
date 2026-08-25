@@ -34,7 +34,7 @@ func BruteRedis(host string, port int, user, password string, timeout time.Durat
 	}
 
 	rdb := redis.NewClient(opts)
-	defer rdb.Close()
+	defer func() { _ = rdb.Close() }()
 
 	_, err := rdb.Ping(ctx).Result()
 	if err != nil {

@@ -19,7 +19,7 @@ func TestSNMPCommunitiesTiersIncreasing(t *testing.T) {
 	if err != nil {
 		t.Fatalf("full: %v", err)
 	}
-	if !(len(def) > 0 && len(def) < len(ext) && len(ext) < len(full)) {
+	if len(def) <= 0 || len(def) >= len(ext) || len(ext) >= len(full) {
 		t.Fatalf("tier sizes should strictly increase: default=%d extended=%d full=%d",
 			len(def), len(ext), len(full))
 	}
