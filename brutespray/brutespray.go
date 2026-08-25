@@ -98,6 +98,11 @@ func Execute() {
 		}
 	}
 
+	if cfg.PrintHosts {
+		PrintHostTable(cfg.Hosts)
+		return
+	}
+
 	totalHosts := len(cfg.Hosts)
 
 	configureCircuitBreaker(cfg)
@@ -320,10 +325,6 @@ func executeLegacy(cfg *Config, cm *modules.ConnectionManager, totalHosts int, e
 	// Register signal handler BEFORE launching the goroutine that reads from it
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-
-	if cfg.PrintHosts {
-		PrintHostTable(cfg.Hosts)
-	}
 
 	if cfg.SocksProxy != "" {
 		modules.PrintfColored(pterm.FgLightYellow, "Socks5 Proxy: %s\n", cfg.SocksProxy)

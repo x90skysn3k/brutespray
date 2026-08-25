@@ -1,6 +1,6 @@
 # Brutespray
 
-![Version](https://img.shields.io/badge/Version-2.7.1-red) [![goreleaser](https://github.com/x90skysn3k/brutespray/actions/workflows/release.yml/badge.svg)](https://github.com/x90skysn3k/brutespray/actions/workflows/release.yml) [![Go Report Card](https://goreportcard.com/badge/github.com/x90skysn3k/brutespray/v2)](https://goreportcard.com/report/github.com/x90skysn3k/brutespray/v2) [![GitHub stars](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fapi.github.com%2Frepos%2Fx90skysn3k%2Fbrutespray&query=%24.stargazers_count&label=Stars&logo=github)](https://github.com/x90skysn3k/brutespray/stargazers)
+![Version](https://img.shields.io/badge/Version-2.7.2-red) [![goreleaser](https://github.com/x90skysn3k/brutespray/actions/workflows/release.yml/badge.svg)](https://github.com/x90skysn3k/brutespray/actions/workflows/release.yml) [![Go Report Card](https://goreportcard.com/badge/github.com/x90skysn3k/brutespray/v2)](https://goreportcard.com/report/github.com/x90skysn3k/brutespray/v2) [![GitHub stars](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fapi.github.com%2Frepos%2Fx90skysn3k%2Fbrutespray&query=%24.stargazers_count&label=Stars&logo=github)](https://github.com/x90skysn3k/brutespray/stargazers)
 
 Created by: Shane Young/@x90sky && Jacob Robles/@shellfail
 
