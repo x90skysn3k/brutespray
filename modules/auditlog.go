@@ -2,6 +2,7 @@ package modules
 
 import (
 	"bufio"
+	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -27,15 +28,19 @@ type AuditLog struct {
 	encoder  *json.Encoder
 	sequence int64
 	prevHash string
+	key      []byte
 }
 
-// NewAuditLog creates a new owner-readable audit log file.
-func NewAuditLog(path string) (*AuditLog, error) {
+// NewAuditLog creates a new owner-readable audit log protected by HMAC-SHA256.
+func NewAuditLog(path string, key []byte) (*AuditLog, error) {
+	if len(key) == 0 {
+		return nil, fmt.Errorf("audit HMAC key is required")
+	}
 	file, err := os.OpenFile(path, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o600)
 	if err != nil {
 		return nil, fmt.Errorf("opening audit log: %w", err)
 	}
-	return &AuditLog{file: file, encoder: json.NewEncoder(file)}, nil
+	return &AuditLog{file: file, encoder: json.NewEncoder(file), key: append([]byte(nil), key...)}, nil
 }
 
 // Write appends one event with sequence, timestamp, and hash fields filled.
@@ -49,7 +54,7 @@ func (l *AuditLog) Write(event AuditEvent) error {
 		event.Timestamp = time.Now().UTC()
 	}
 	event.PrevHash = l.prevHash
-	event.Hash = hashAuditEvent(event)
+	event.Hash = hashAuditEvent(event, l.key)
 	if err := l.encoder.Encode(event); err != nil {
 		return fmt.Errorf("writing audit event: %w", err)
 	}
@@ -63,13 +68,20 @@ func (l *AuditLog) Close() error {
 		return nil
 	}
 	err := l.file.Close()
+	for i := range l.key {
+		l.key[i] = 0
+	}
+	l.key = nil
 	l.file = nil
 	l.encoder = nil
 	return err
 }
 
-// VerifyAuditLog verifies every event hash and previous-hash pointer.
-func VerifyAuditLog(path string) error {
+// VerifyAuditLog verifies every event HMAC and previous-HMAC pointer.
+func VerifyAuditLog(path string, key []byte) error {
+	if len(key) == 0 {
+		return fmt.Errorf("audit HMAC key is required")
+	}
 	file, err := os.Open(path)
 	if err != nil {
 		return fmt.Errorf("opening audit log: %w", err)
@@ -90,7 +102,7 @@ func VerifyAuditLog(path string) error {
 		if event.PrevHash != prev {
 			return fmt.Errorf("event %d previous hash mismatch", sequence)
 		}
-		want := hashAuditEvent(event)
+		want := hashAuditEvent(event, key)
 		if event.Hash != want {
 			return fmt.Errorf("event %d hash mismatch", sequence)
 		}
@@ -102,9 +114,10 @@ func VerifyAuditLog(path string) error {
 	return nil
 }
 
-func hashAuditEvent(event AuditEvent) string {
+func hashAuditEvent(event AuditEvent, key []byte) string {
 	event.Hash = ""
 	data, _ := json.Marshal(event)
-	sum := sha256.Sum256(data)
-	return hex.EncodeToString(sum[:])
+	mac := hmac.New(sha256.New, key)
+	_, _ = mac.Write(data)
+	return hex.EncodeToString(mac.Sum(nil))
 }

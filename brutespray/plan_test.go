@@ -109,6 +109,73 @@ func TestBuildExecutionPlanHashIgnoresHostInputOrder(t *testing.T) {
 	}
 }
 
+func TestBuildExecutionPlanHashBindsCredentialContents(t *testing.T) {
+	passwords := filepath.Join(t.TempDir(), "passwords.txt")
+	if err := os.WriteFile(passwords, []byte("first-secret\n"), 0o600); err != nil {
+		t.Fatalf("write first password list: %v", err)
+	}
+	cfg := &Config{
+		Hosts:     []modules.Host{{Service: "ftp", Host: "10.0.0.1", Port: 21}},
+		User:      "root",
+		Password:  passwords,
+		NoBadKeys: true,
+	}
+	manifest := EngagementManifest{Evidence: ManifestEvidence{HMACKey: "plan-key"}}
+
+	first, err := BuildExecutionPlan(cfg, manifest)
+	if err != nil {
+		t.Fatalf("BuildExecutionPlan(first): %v", err)
+	}
+	if err := os.WriteFile(passwords, []byte("other-secret\n"), 0o600); err != nil {
+		t.Fatalf("replace password list: %v", err)
+	}
+	second, err := BuildExecutionPlan(cfg, manifest)
+	if err != nil {
+		t.Fatalf("BuildExecutionPlan(second): %v", err)
+	}
+	if first.TotalAttempts != second.TotalAttempts {
+		t.Fatalf("attempt counts differ: %d != %d", first.TotalAttempts, second.TotalAttempts)
+	}
+	if first.Hash == second.Hash {
+		t.Fatalf("plan hash did not bind credential contents: %s", first.Hash)
+	}
+}
+
+func TestBuildExecutionPlanAcknowledgementRequiresHMACKey(t *testing.T) {
+	cfg := &Config{
+		Hosts:          []modules.Host{{Service: "ftp", Host: "10.0.0.1", Port: 21}},
+		User:           "root",
+		Password:       "secret",
+		RequirePlanAck: "acknowledged-hash",
+	}
+
+	if _, err := BuildExecutionPlan(cfg, EngagementManifest{}); err == nil {
+		t.Fatal("expected plan acknowledgment without evidence.hmac_key to fail")
+	}
+}
+
+func TestBuildExecutionPlanCredentialHMACBindsSSHBadKeys(t *testing.T) {
+	cfg := &Config{
+		Hosts:     []modules.Host{{Service: "ssh", Host: "10.0.0.1", Port: 22}},
+		User:      "root",
+		Password:  "secret",
+		NoBadKeys: true,
+	}
+	manifest := EngagementManifest{Evidence: ManifestEvidence{HMACKey: "plan-key"}}
+	withoutBadKeys, err := BuildExecutionPlan(cfg, manifest)
+	if err != nil {
+		t.Fatalf("BuildExecutionPlan(without bad keys): %v", err)
+	}
+	cfg.NoBadKeys = false
+	withBadKeys, err := BuildExecutionPlan(cfg, manifest)
+	if err != nil {
+		t.Fatalf("BuildExecutionPlan(with bad keys): %v", err)
+	}
+	if withoutBadKeys.Targets[0].CredentialHMAC == withBadKeys.Targets[0].CredentialHMAC {
+		t.Fatal("credential HMAC did not bind SSH bad-key identities")
+	}
+}
+
 func TestBuildExecutionPlanCountsFilesInlineAndExtras(t *testing.T) {
 	dir := t.TempDir()
 	users := filepath.Join(dir, "users.txt")
@@ -161,12 +228,50 @@ func TestEstimateAttemptsForRedisCountsInlineCredentialAndExplicitPassword(t *te
 		Creds:    "ignored:redis-inline-secret",
 		Password: "base-secret",
 	}
-	got, err := estimateAttemptsForTarget(cfg, modules.Host{Service: "redis", Host: "10.0.0.1", Port: 6379})
+	got, _, err := estimateAttemptsForTarget(cfg, modules.Host{Service: "redis", Host: "10.0.0.1", Port: 6379}, nil)
 	if err != nil {
 		t.Fatalf("estimateAttemptsForTarget: %v", err)
 	}
 	if got != 2 {
 		t.Fatalf("attempts = %d, want 2", got)
+	}
+}
+
+func TestEstimateAttemptsForInfluxDBTokenModeIgnoresUsers(t *testing.T) {
+	users := filepath.Join(t.TempDir(), "users.txt")
+	if err := os.WriteFile(users, []byte("admin\noperator\n"), 0o600); err != nil {
+		t.Fatalf("write users: %v", err)
+	}
+	cfg := &Config{
+		User:         users,
+		Password:     "influx-token",
+		ModuleParams: map[string]string{"mode": "v2"},
+	}
+	got, _, err := estimateAttemptsForTarget(cfg, modules.Host{Service: "influxdb", Host: "10.0.0.1", Port: 8086}, nil)
+	if err != nil {
+		t.Fatalf("estimateAttemptsForTarget: %v", err)
+	}
+	if got != 1 {
+		t.Fatalf("attempts = %d, want one token attempt", got)
+	}
+}
+
+func TestEstimateAttemptsForInfluxDBV1KeepsUserPasswordPairs(t *testing.T) {
+	users := filepath.Join(t.TempDir(), "users.txt")
+	if err := os.WriteFile(users, []byte("admin\noperator\n"), 0o600); err != nil {
+		t.Fatalf("write users: %v", err)
+	}
+	cfg := &Config{
+		User:         users,
+		Password:     "influx-password",
+		ModuleParams: map[string]string{"mode": "v1"},
+	}
+	got, _, err := estimateAttemptsForTarget(cfg, modules.Host{Service: "influxdb", Host: "10.0.0.1", Port: 8086}, nil)
+	if err != nil {
+		t.Fatalf("estimateAttemptsForTarget: %v", err)
+	}
+	if got != 2 {
+		t.Fatalf("attempts = %d, want two user/password attempts", got)
 	}
 }
 
@@ -185,6 +290,12 @@ func TestParseConfigTotalCombinationsCountsInlineCredsWithoutCombo(t *testing.T)
 			os.Args = append(os.Args, "-s", "redis", "-H", "redis://127.0.0.1:6379", "-p", "base-secret")
 		case "ftp":
 			os.Args = append(os.Args, "-s", "ftp", "-H", "ftp://127.0.0.1:21", "-u", "admin", "-p", "base-secret")
+		case "influx-v2":
+			users := filepath.Join(t.TempDir(), "influx-users.txt")
+			if err := os.WriteFile(users, []byte("admin\noperator\n"), 0o600); err != nil {
+				t.Fatalf("write influx users: %v", err)
+			}
+			os.Args = append(os.Args, "-s", "influxdb", "-H", "influxdb://127.0.0.1:8086", "-u", users, "-p", "base-secret", "-m", "mode:v2")
 		case "combo":
 			os.Args = append(os.Args, "-s", "ftp", "-H", "ftp://127.0.0.1:21", "-C", "admin:base-secret")
 		default:
@@ -203,7 +314,7 @@ func TestParseConfigTotalCombinationsCountsInlineCredsWithoutCombo(t *testing.T)
 		return
 	}
 
-	for _, mode := range []string{"redis", "ftp", "combo"} {
+	for _, mode := range []string{"redis", "ftp", "influx-v2", "combo"} {
 		t.Run(mode, func(t *testing.T) {
 			cmd := exec.Command(os.Args[0], "-test.run=^TestParseConfigTotalCombinationsCountsInlineCredsWithoutCombo$", "-test.v")
 			cmd.Env = append(os.Environ(), "BRUTESPRAY_PARSECONFIG_TOTALS_HELPER="+mode)

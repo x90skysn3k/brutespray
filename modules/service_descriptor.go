@@ -1,5 +1,7 @@
 package modules
 
+import "strings"
+
 // CredentialMode describes the credential material a service consumes.
 type CredentialMode string
 
@@ -165,4 +167,18 @@ func DescriptorForService(service string) (ServiceDescriptor, bool) {
 func IsPasswordOnlyService(service string) bool {
 	descriptor, ok := DescriptorForService(service)
 	return ok && descriptor.CredentialMode == CredentialPasswordOnly
+}
+
+// IsSingleSecretService reports whether one secret should be attempted without
+// multiplying it across usernames for the effective module mode.
+func IsSingleSecretService(service string, params map[string]string) bool {
+	descriptor, ok := DescriptorForService(service)
+	if !ok {
+		return false
+	}
+	mode := descriptor.CredentialMode
+	if descriptor.Name == "influxdb" && strings.EqualFold(strings.TrimSpace(params["mode"]), "v1") {
+		mode = CredentialUserPassword
+	}
+	return mode == CredentialPasswordOnly || mode == CredentialToken
 }
