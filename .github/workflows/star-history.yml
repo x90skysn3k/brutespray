@@ -1,0 +1,35 @@
+name: Star History
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  watch:
+    types: [started]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: star-history
+  cancel-in-progress: true
+
+jobs:
+  star-history:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: narayann7/star-history-action@a68d8f9d67ca20d55b682a264e69152dcf326e9c # v1.0.5
+        with:
+          repos: ${{ github.repository }}
+          output-dir: assets/star-history
+          token: ${{ github.token }}
+          type: Date
+          themes: light,dark
+          width: "800"
+          update-readme: "true"
+          readme: README.md
+          readme-format: picture
+          commit: "true"
+          commit-message: "chore: update star history [skip ci]"
