@@ -1,6 +1,6 @@
 # Brutespray
 
-![Version](https://img.shields.io/badge/Version-2.7.1-red)[![goreleaser](https://github.com/x90skysn3k/brutespray/actions/workflows/release.yml/badge.svg)](https://github.com/x90skysn3k/brutespray/actions/workflows/release.yml)[![Go Report Card](https://goreportcard.com/badge/github.com/x90skysn3k/brutespray/v2)](https://goreportcard.com/report/github.com/x90skysn3k/brutespray/v2)
+![Version](https://img.shields.io/badge/Version-2.7.1-red) [![goreleaser](https://github.com/x90skysn3k/brutespray/actions/workflows/release.yml/badge.svg)](https://github.com/x90skysn3k/brutespray/actions/workflows/release.yml) [![Go Report Card](https://goreportcard.com/badge/github.com/x90skysn3k/brutespray/v2)](https://goreportcard.com/report/github.com/x90skysn3k/brutespray/v2) [![GitHub stars](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fapi.github.com%2Frepos%2Fx90skysn3k%2Fbrutespray&query=%24.stargazers_count&label=Stars&logo=github)](https://github.com/x90skysn3k/brutespray/stargazers)
 
 Created by: Shane Young/@x90sky && Jacob Robles/@shellfail
 
@@ -101,4 +101,11 @@ Print discovered services from a scan file with `-P -q`:
 
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=x90skysn3k/brutespray&type=Date)](https://star-history.com/#x90skysn3k/brutespray&Date)
+<!-- star-history:start -->
+<a href="https://github.com/x90skysn3k/brutespray/stargazers">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/star-history/star-history-dark.svg">
+    <img alt="Brutespray GitHub star history" src="assets/star-history/star-history-light.svg">
+  </picture>
+</a>
+<!-- star-history:end -->
