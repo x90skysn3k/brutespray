@@ -5,6 +5,10 @@ on:
     - cron: "17 3 * * *"
   watch:
     types: [started]
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/star-history.yml
   workflow_dispatch:
 
 permissions:
@@ -19,8 +23,24 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
 
-      - uses: narayann7/star-history-action@a68d8f9d67ca20d55b682a264e69152dcf326e9c # v1.0.5
+      # Main requires pull requests. Keep generated assets on an automation
+      # branch so scheduled refreshes never try to bypass that protection.
+      - name: Check out chart branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git ls-remote --exit-code --heads origin star-history >/dev/null; then
+            git fetch origin refs/heads/star-history:refs/remotes/origin/star-history
+            git switch --force-create star-history origin/star-history
+          else
+            git switch --create star-history
+            git push --set-upstream origin star-history
+          fi
+
+      - uses: narayann7/star-history-action@12543ab7352b91fb7c5eb0c4fbb39772baa0c168 # v1.0.6
         with:
           repos: ${{ github.repository }}
           output-dir: assets/star-history
@@ -28,8 +48,6 @@ jobs:
           type: Date
           themes: light,dark
           width: "800"
-          update-readme: "true"
-          readme: README.md
-          readme-format: picture
+          update-readme: "false"
           commit: "true"
           commit-message: "chore: update star history [skip ci]"
