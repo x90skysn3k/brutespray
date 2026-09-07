@@ -26,7 +26,7 @@ require (
 	github.com/sijms/go-ora/v2 v2.9.0
 	github.com/x90skysn3k/grdp v1.0.4
 	go.mongodb.org/mongo-driver v1.17.9
-	golang.org/x/crypto v0.55.0
+	golang.org/x/crypto v0.56.0
 	golang.org/x/net v0.58.0
 	golang.org/x/term v0.45.0
 	gopkg.in/yaml.v3 v3.0.1
