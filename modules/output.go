@@ -434,6 +434,7 @@ type AttemptResult struct {
 	Banner           string `json:"banner,omitempty"`
 	Status           string `json:"status"`
 	StatusCode       string `json:"status_code,omitempty"`
+	FailureReason    string `json:"failure_reason,omitempty"`
 	Confidence       string `json:"confidence,omitempty"`
 	ProofType        string `json:"proof_type,omitempty"`
 	ProofDetail      string `json:"proof_detail,omitempty"`
@@ -465,6 +466,7 @@ func printResultWithProof(service string, host string, port int, user string, pa
 	if len(banner) > 0 {
 		bannerStr = banner[0]
 	}
+	failureReason := attemptFailureReason(statusCode, result, con_result)
 
 	var status string
 	switch {
@@ -479,10 +481,16 @@ func printResultWithProof(service string, host string, port int, user string, pa
 	case !result && con_result:
 		status = "FAILED"
 		msg = formatCredentialMsg(service, host, port, user, pass, status, "")
+		if failureReason != "" {
+			msg += fmt.Sprintf(" (%s)", failureReason)
+		}
 		color = pterm.FgLightRed
 	case !result && !con_result:
 		status = getConResultString(con_result, retrying, delayTime)
 		msg = formatCredentialMsg(service, host, port, user, pass, status, "")
+		if failureReason != "" {
+			msg += fmt.Sprintf(" (%s)", failureReason)
+		}
 		color = pterm.FgRed
 	}
 
@@ -515,6 +523,7 @@ func printResultWithProof(service string, host string, port int, user string, pa
 				Banner:           bannerStr,
 				Status:           status,
 				StatusCode:       statusCode,
+				FailureReason:    failureReason,
 				Confidence:       confidence,
 				ProofType:        proofType,
 				ProofDetail:      proofDetail,

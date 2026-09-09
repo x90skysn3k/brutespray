@@ -89,9 +89,22 @@ JSON attempt records may include:
 |---|---|
 | `secret_redacted` | `true` when the password was not printed directly |
 | `secret_hmac_sha256` | HMAC-SHA256 digest when evidence mode is `hash` |
+| `failure_reason` | Human-readable explanation for a failed attempt; omitted on success |
 | `confidence` | `confirmed`, `probable`, or `inconclusive` |
 | `proof_type` | Evidence source such as `auth_protocol_success`, `preauth_probe`, `badkey_match`, `http_matcher`, or `wrapper_exit` |
 | `proof_detail` | Short module/detail string for reports |
+
+Failed text output also includes the readable reason while preserving the stable status code in machine-readable output:
+
+```text
+[ssh] 10.0.0.5:22 - User 'root' - Pass '...' - FAILED (Authentication rejected by target)
+```
+
+```json
+{"service":"ssh","host":"10.0.0.5","port":22,"success":false,"connected":true,"status":"FAILED","status_code":"auth_failure","failure_reason":"Authentication rejected by target"}
+```
+
+Failure reasons are derived from BruteSpray's stable attempt status codes rather than raw protocol errors, so normal output does not expose internal error strings or credential material.
 
 ## Audit log verification
 
