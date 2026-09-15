@@ -330,6 +330,7 @@ type researchLLMConfig struct {
 	Provider string
 	Model    string
 	BaseURL  string
+	APIKey   string
 }
 
 type openAIChatCompletionRequest struct {
@@ -528,6 +529,7 @@ func researchLLMConfigFromEnv() researchLLMConfig {
 		Provider: provider,
 		Model:    model,
 		BaseURL:  strings.TrimRight(baseURL, "/"),
+		APIKey:   strings.TrimSpace(os.Getenv("WORDLIST_RESEARCH_API_KEY")),
 	}
 }
 
@@ -640,7 +642,7 @@ func queryResearchLLM(cfg researchLLMConfig, prompt string) (string, error) {
 	case "ollama":
 		return queryOllama(cfg.BaseURL, cfg.Model, prompt)
 	case "openai":
-		return queryOpenAICompatible(cfg.BaseURL, cfg.Model, prompt)
+		return queryOpenAICompatible(cfg.BaseURL, cfg.Model, prompt, cfg.APIKey)
 	default:
 		return "", fmt.Errorf("unknown wordlist research provider %q", cfg.Provider)
 	}
@@ -679,7 +681,7 @@ func queryOllama(baseURL, model, prompt string) (string, error) {
 	return result.Response, nil
 }
 
-func queryOpenAICompatible(baseURL, model, prompt string) (string, error) {
+func queryOpenAICompatible(baseURL, model, prompt, apiKey string) (string, error) {
 	reqBody, _ := json.Marshal(openAIChatCompletionRequest{
 		Model: model,
 		Messages: []openAIChatMessage{
@@ -688,8 +690,17 @@ func queryOpenAICompatible(baseURL, model, prompt string) (string, error) {
 		Stream: false,
 	})
 
+	req, err := http.NewRequest(http.MethodPost, strings.TrimRight(baseURL, "/")+"/v1/chat/completions", bytes.NewReader(reqBody))
+	if err != nil {
+		return "", fmt.Errorf("openai-compatible request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if apiKey != "" {
+		req.Header.Set("Authorization", "Bearer "+apiKey)
+	}
+
 	client := &http.Client{Timeout: 5 * time.Minute}
-	resp, err := client.Post(strings.TrimRight(baseURL, "/")+"/v1/chat/completions", "application/json", bytes.NewReader(reqBody))
+	resp, err := client.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("openai-compatible request: %w", err)
 	}

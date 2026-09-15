@@ -4,19 +4,6 @@ on:
   schedule:
     - cron: '0 6 1 * *'
   workflow_dispatch:
-    inputs:
-      research-provider:
-        description: 'LLM provider for default credential research (ollama or openai)'
-        required: false
-        default: 'openai'
-      research-model:
-        description: 'LLM model for default credential research'
-        required: false
-        default: 'qwen3-35b'
-      research-url:
-        description: 'LLM API base URL on the self-hosted runner'
-        required: false
-        default: 'http://ai.tiden.local:8080'
 
 permissions:
   contents: write
@@ -35,9 +22,9 @@ jobs:
     runs-on: self-hosted
     timeout-minutes: 120
     env:
-      WORDLIST_RESEARCH_PROVIDER: ${{ github.event.inputs['research-provider'] || 'openai' }}
-      WORDLIST_RESEARCH_MODEL: ${{ github.event.inputs['research-model'] || 'qwen3-35b' }}
-      WORDLIST_RESEARCH_URL: ${{ github.event.inputs['research-url'] || 'http://ai.tiden.local:8080' }}
+      WORDLIST_RESEARCH_PROVIDER: openai
+      WORDLIST_RESEARCH_MODEL: qwen3.8-27b
+      WORDLIST_RESEARCH_URL: https://ai.tiden.io
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -51,6 +38,7 @@ jobs:
       - name: Preflight wordlist research dependencies
         env:
           BRAVE_API_KEY: ${{ secrets.BRAVE_API_KEY }}
+          WORDLIST_RESEARCH_API_KEY: ${{ secrets.WORDLIST_RESEARCH_API_KEY }}
         run: |
           set -euo pipefail
           case "${WORDLIST_RESEARCH_PROVIDER}" in
@@ -58,7 +46,11 @@ jobs:
               curl --fail --silent --show-error "${WORDLIST_RESEARCH_URL}/api/tags" >/dev/null
               ;;
             openai)
-              curl --fail --silent --show-error "${WORDLIST_RESEARCH_URL}/v1/models" >/dev/null
+              if [[ -z "${WORDLIST_RESEARCH_API_KEY}" ]]; then
+                echo "::error::WORDLIST_RESEARCH_API_KEY secret is not configured"
+                exit 1
+              fi
+              curl --fail --silent --show-error -H "Authorization: Bearer ${WORDLIST_RESEARCH_API_KEY}" "${WORDLIST_RESEARCH_URL}/v1/models" >/dev/null
               ;;
             *)
               echo "::error::Unsupported WORDLIST_RESEARCH_PROVIDER: ${WORDLIST_RESEARCH_PROVIDER}"
@@ -80,6 +72,7 @@ jobs:
           go run . wordlist research
         env:
           BRAVE_API_KEY: ${{ secrets.BRAVE_API_KEY }}
+          WORDLIST_RESEARCH_API_KEY: ${{ secrets.WORDLIST_RESEARCH_API_KEY }}
 
       - name: Merge candidates into wordlists
         run: |

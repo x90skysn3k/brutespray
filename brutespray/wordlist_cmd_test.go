@@ -252,6 +252,7 @@ func TestResearchLLMConfigPrefersGenericEnv(t *testing.T) {
 	t.Setenv("WORDLIST_RESEARCH_PROVIDER", "openai")
 	t.Setenv("WORDLIST_RESEARCH_MODEL", "served-model")
 	t.Setenv("WORDLIST_RESEARCH_URL", "http://ai.tiden.local:8000/")
+	t.Setenv("WORDLIST_RESEARCH_API_KEY", "test-key")
 
 	cfg := researchLLMConfigFromEnv()
 
@@ -263,6 +264,9 @@ func TestResearchLLMConfigPrefersGenericEnv(t *testing.T) {
 	}
 	if cfg.BaseURL != "http://ai.tiden.local:8000" {
 		t.Fatalf("BaseURL = %q, want trimmed generic URL", cfg.BaseURL)
+	}
+	if cfg.APIKey != "test-key" {
+		t.Fatalf("APIKey = %q, want test-key", cfg.APIKey)
 	}
 }
 
@@ -312,16 +316,33 @@ func TestQueryOpenAICompatiblePostsChatCompletions(t *testing.T) {
 		if req.Messages[0].Role != "user" || req.Messages[0].Content != "prompt text" {
 			t.Fatalf("message = %+v, want user prompt", req.Messages[0])
 		}
+		if got := r.Header.Get("Authorization"); got != "" {
+			t.Fatalf("Authorization = %q, want empty without key", got)
+		}
 		_, _ = io.WriteString(w, `{"choices":[{"message":{"content":"[{\"product\":\"Camera\"}]"}}]}`)
 	}))
 	defer server.Close()
 
-	got, err := queryOpenAICompatible(server.URL+"/", "served-model", "prompt text")
+	got, err := queryOpenAICompatible(server.URL+"/", "served-model", "prompt text", "")
 	if err != nil {
 		t.Fatalf("queryOpenAICompatible: %v", err)
 	}
 	if got != `[{"product":"Camera"}]` {
 		t.Fatalf("response = %q, want JSON array", got)
+	}
+}
+
+func TestQueryOpenAICompatibleSendsBearerKey(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.Header.Get("Authorization"); got != "Bearer secret-key" {
+			t.Fatalf("Authorization = %q, want Bearer secret-key", got)
+		}
+		_, _ = io.WriteString(w, `{"choices":[{"message":{"content":"ok"}}]}`)
+	}))
+	defer server.Close()
+
+	if _, err := queryOpenAICompatible(server.URL, "served-model", "prompt text", "secret-key"); err != nil {
+		t.Fatalf("queryOpenAICompatible: %v", err)
 	}
 }
 
@@ -341,6 +362,7 @@ func clearResearchEnv(t *testing.T) {
 		"WORDLIST_RESEARCH_PROVIDER",
 		"WORDLIST_RESEARCH_MODEL",
 		"WORDLIST_RESEARCH_URL",
+		"WORDLIST_RESEARCH_API_KEY",
 		"OLLAMA_MODEL",
 		"OLLAMA_URL",
 	} {
