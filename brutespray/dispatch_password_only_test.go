@@ -68,7 +68,7 @@ func TestProcessHostQueuesRedisPasswordWithoutUsers(t *testing.T) {
 	workerPool.noStats = true
 	host := modules.Host{Service: "redis", Host: "127.0.0.1", Port: 1}
 
-	workerPool.ProcessHost(host, "redis", "", "", wantPassword, version, time.Millisecond, 1, t.TempDir(), cm, "", brute.ModuleParams{}, false)
+	workerPool.ProcessHost(host, "redis", "", "", wantPassword, version, time.Second, 1, t.TempDir(), cm, "", brute.ModuleParams{}, false)
 
 	attempts := sink.attemptResults()
 	if len(attempts) != 1 {
@@ -114,7 +114,7 @@ func TestProcessHostQueuesRedisInlinePasswordBeforeExplicitPassword(t *testing.T
 	workerPool.inlineCreds = "ignored:redis-inline-secret"
 	host := modules.Host{Service: "redis", Host: "127.0.0.1", Port: 1}
 
-	workerPool.ProcessHost(host, "redis", "", "", "base-secret", version, time.Millisecond, 1, t.TempDir(), cm, "", brute.ModuleParams{}, false)
+	workerPool.ProcessHost(host, "redis", "", "", "base-secret", version, time.Second, 1, t.TempDir(), cm, "", brute.ModuleParams{}, false)
 
 	attempts := sink.attemptResults()
 	if len(attempts) != 2 {
@@ -167,7 +167,7 @@ func TestProcessHostQueuesInfluxDBV2TokenOnce(t *testing.T) {
 	workerPool.noStats = true
 	host := modules.Host{Service: "influxdb", Host: "127.0.0.1", Port: 1}
 
-	workerPool.ProcessHost(host, "influxdb", "", users, wantToken, version, time.Millisecond, 1, t.TempDir(), cm, "", brute.ModuleParams{"mode": "v2"}, false)
+	workerPool.ProcessHost(host, "influxdb", "", users, wantToken, version, time.Second, 1, t.TempDir(), cm, "", brute.ModuleParams{"mode": "v2"}, false)
 
 	attempts := sink.attemptResults()
 	if len(attempts) != 1 {
