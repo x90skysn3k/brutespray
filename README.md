@@ -103,7 +103,7 @@ Print discovered services from a scan file with `-P -q`:
 
 <!-- star-history:start -->
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="assets/star-history/star-history-dark.svg">
-  <img alt="Star history" src="assets/star-history/star-history-light.svg">
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/x90skysn3k/brutespray/star-history/assets/star-history/star-history-dark.svg">
+  <img alt="Star history" src="https://raw.githubusercontent.com/x90skysn3k/brutespray/star-history/assets/star-history/star-history-light.svg">
 </picture>
 <!-- star-history:end -->
