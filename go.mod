@@ -15,7 +15,7 @@ require (
 	github.com/go-redis/redis/v8 v8.11.5
 	github.com/go-sql-driver/mysql v1.10.1
 	github.com/gocql/gocql v1.7.0
-	github.com/gosnmp/gosnmp v1.44.0
+	github.com/gosnmp/gosnmp v1.45.0
 	github.com/hirochachacha/go-smb2 v1.1.0
 	github.com/jlaffaye/ftp v0.2.4
 	github.com/lib/pq v1.12.3
