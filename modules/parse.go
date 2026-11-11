@@ -156,8 +156,14 @@ func ParseGNMAP(filename string) (map[Host]int, error) {
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		line := scanner.Text()
+		if strings.HasPrefix(strings.TrimSpace(line), "#") {
+			continue
+		}
 		for _, name := range supported {
-			matches := regexp.MustCompile(fmt.Sprintf(`([0-9][0-9]*)/open/[a-z][a-z]*//%s`, name))
+			// The name must end at a field separator: without the
+			// boundary, "http" also matches "https", "ftp" also matches
+			// "ftps"/"ftp-ssl", etc., producing bogus extra hosts.
+			matches := regexp.MustCompile(fmt.Sprintf(`([0-9][0-9]*)/open/[a-z][a-z]*//%s(?:[^a-z0-9+.-]|$)`, regexp.QuoteMeta(name)))
 			portMatches := matches.FindStringSubmatch(line)
 			if len(portMatches) == 0 {
 				continue
@@ -253,12 +259,17 @@ func ParseXML(filename string) (map[Host]int, error) {
 		}
 		for _, port := range host.Ports {
 			if port.PortState.State == "open" {
+				p, err := strconv.Atoi(port.PortId)
+				if err != nil || p <= 0 {
+					continue
+				}
 				name := port.Service.Name
+				if name == "" {
+					// masscan -oX emits ports without <service> elements;
+					// fall back to the well-known-port mapping.
+					name = defaultServiceForPort(p)
+				}
 				if contains(supported, name) {
-					p, err := strconv.Atoi(port.PortId)
-					if err != nil || p <= 0 {
-						continue
-					}
 					mappedService := MapService(name)
 					h := Host{Service: mappedService, Host: ip, Port: p}
 					hosts[h] = 1
@@ -366,8 +377,8 @@ func ParseList(filename string) (map[Host]int, error) {
 	hosts := make(map[Host]int)
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
-		line := scanner.Text()
-		if strings.TrimSpace(line) == "" {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}
 		parts := strings.Split(line, ":")

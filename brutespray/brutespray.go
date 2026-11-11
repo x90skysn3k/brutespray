@@ -1,6 +1,7 @@
 package brutespray
 
 import (
+	"flag"
 	"fmt"
 	"os"
 	"os/signal"
@@ -58,12 +59,16 @@ func Execute() {
 	// triggering an empty-stream error.
 	if cfg.File == "" && len(cfg.HostArgs) == 0 && len(cfg.Hosts) == 0 && !term.IsTerminal(int(os.Stdin.Fd())) {
 		hosts, err := modules.ParseStream(os.Stdin)
-		if err == nil && len(hosts) > 0 {
-			cfg.Hosts = append(cfg.Hosts, hosts...)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "Failed to parse targets from stdin:", err)
+			os.Exit(2)
 		}
-		// Silently no-op on empty/unrecognized stdin: the operator may have
-		// run brutespray with no targets at all (which the existing flow
-		// already handles by printing the help banner).
+		if len(hosts) == 0 {
+			fmt.Fprintln(os.Stderr, "No targets found on stdin")
+			flag.Usage()
+			os.Exit(2)
+		}
+		cfg.Hosts = append(cfg.Hosts, hosts...)
 	}
 
 	if cfg.DryRun || cfg.RequirePlanAck != "" || cfg.EngagementFile != "" {
