@@ -1,8 +1,8 @@
 package modules
 
 import (
-	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 )
@@ -23,7 +23,13 @@ func IsFile(fileName string) bool {
 	return false
 }
 
-// detectFileFormat reads the first lines of a file to determine its format.
+// maxDetectBytes bounds how much of a file detectFileFormat inspects.
+const maxDetectBytes = 1 << 20
+
+// detectFileFormat reads the leading lines of a file to determine its
+// format. Blank lines and generic full-line comments ("#...") are skipped,
+// except where a comment header itself identifies the scanner format
+// ("# Nmap"/"# Masscan" grepable output, "#masscan" list output).
 func detectFileFormat(filename string) (string, error) {
 	file, err := os.Open(filename)
 	if err != nil {
@@ -31,45 +37,83 @@ func detectFileFormat(filename string) (string, error) {
 	}
 	defer func() { _ = file.Close() }()
 
-	scanner := bufio.NewScanner(file)
-	if !scanner.Scan() {
-		return "", scanner.Err()
+	head, err := io.ReadAll(io.LimitReader(file, maxDetectBytes))
+	if err != nil {
+		return "", err
 	}
-	line := scanner.Text()
+	if strings.TrimSpace(string(head)) == "" {
+		return "", fmt.Errorf("file is empty")
+	}
 
-	if len(line) == 0 {
-		return "list", nil
+	header := ""
+	first := ""
+	var probe []string
+	for _, raw := range strings.Split(string(head), "\n") {
+		line := strings.TrimSpace(raw)
+		if line == "" {
+			continue
+		}
+		if strings.HasPrefix(line, "# Nmap") || strings.HasPrefix(line, "# Masscan") {
+			header = "gnmap"
+			continue
+		}
+		if strings.HasPrefix(line, "#masscan") {
+			header = "masscan-list"
+			continue
+		}
+		if strings.HasPrefix(line, "#") {
+			continue
+		}
+		if first == "" {
+			first = line
+		}
+		probe = append(probe, line)
+		if len(probe) >= 64 {
+			break
+		}
 	}
-	if line[0] == '{' {
+
+	switch {
+	case strings.HasPrefix(first, "["):
+		return "masscan-json", nil
+	case strings.HasPrefix(first, "{") && strings.Contains(first, `"ports"`):
+		// newline-delimited masscan records (e.g. `jq -c '.[]' scan.json`)
+		return "masscan-json", nil
+	case strings.HasPrefix(first, "{"):
 		return "json", nil
 	}
-	if strings.HasPrefix(line, "# Nmap") {
-		if !scanner.Scan() {
-			return "", scanner.Err()
-		}
-		nextLine := scanner.Text()
-		if len(nextLine) > 1 && !strings.HasPrefix(nextLine[1:], "Nmap") {
-			return "gnmap", nil
-		}
-		return "", fmt.Errorf("file is not a supported format")
+
+	if header != "" {
+		return header, nil
 	}
-	if strings.HasPrefix(line, "<NexposeReport ") {
-		return "xml_nexpose", nil
-	}
-	if strings.Contains(line, "<?xml ") {
-		if !scanner.Scan() {
-			return "", scanner.Err()
+
+	if strings.HasPrefix(first, "<") {
+		for _, line := range probe {
+			if strings.Contains(line, "nmaprun") {
+				return "xml", nil
+			}
+			if strings.Contains(line, "NessusClientData") {
+				return "xml_nessus", nil
+			}
+			if strings.Contains(line, "<NexposeReport") {
+				return "xml_nexpose", nil
+			}
 		}
-		line = scanner.Text()
-		if strings.Contains(line, "nmaprun") {
-			return "xml", nil
+		if strings.HasPrefix(first, "<?xml") {
+			return "", fmt.Errorf("file is not a supported format")
 		}
-		if strings.HasPrefix(line, "<NessusClientData") {
-			return "xml_nessus", nil
-		}
-		return "", fmt.Errorf("file is not a supported format")
 	}
 	return "list", nil
+}
+
+// hostSliceToMap converts a parsed host slice into the deduplicated map
+// shape ParseFile and its per-format parsers return.
+func hostSliceToMap(hosts []Host) map[Host]int {
+	m := make(map[Host]int, len(hosts))
+	for _, h := range hosts {
+		m[h] = 1
+	}
+	return m
 }
 
 // ParseFile detects the format of the input file and parses it.
@@ -84,6 +128,10 @@ func ParseFile(filename string) (map[Host]int, error) {
 		return ParseGNMAP(filename)
 	case "json":
 		return ParseJSON(filename)
+	case "masscan-json":
+		return ParseMasscanJSONFile(filename)
+	case "masscan-list":
+		return ParseMasscanListFile(filename)
 	case "xml":
 		return ParseXML(filename)
 	case "xml_nexpose":

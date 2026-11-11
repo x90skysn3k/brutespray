@@ -646,7 +646,10 @@ func ParseConfig() *Config {
 		}
 	}
 
-	if len(cfg.HostArgs) == 0 && cfg.File == "" {
+	// Piped stdin counts as a target source (Execute ingests it via
+	// modules.ParseStream); only exit with usage when no source at all is
+	// present, i.e. stdin is an interactive terminal.
+	if len(cfg.HostArgs) == 0 && cfg.File == "" && term.IsTerminal(int(os.Stdin.Fd())) {
 		flag.Usage()
 		os.Exit(2)
 	}
