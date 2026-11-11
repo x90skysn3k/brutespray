@@ -16,20 +16,30 @@ var (
 	hostPortRE = regexp.MustCompile(`^[^\s:]+:\d+$`)
 )
 
-// DetectStreamFormat peeks at the first non-blank line of a stream and
-// returns one of: "naabu", "nerva-uri", "nerva-json", "masscan-json",
-// "fingerprintx-json". The caller must pass a reader that has not yet
-// been consumed (this function does NOT rewind).
+// DetectStreamFormat peeks at the first non-blank, non-comment line of a
+// stream and returns one of: "naabu", "nerva-uri", "nerva-json",
+// "masscan-json", "masscan-list", "fingerprintx-json". The caller must
+// pass a reader that has not yet been consumed (this function does NOT
+// rewind).
 func DetectStreamFormat(r io.Reader) (string, error) {
 	br := bufio.NewReader(r)
 	peek, _ := br.Peek(4096)
 	var line []byte
 	for _, raw := range bytes.Split(peek, []byte("\n")) {
 		t := bytes.TrimSpace(raw)
-		if len(t) > 0 {
-			line = t
-			break
+		if len(t) == 0 {
+			continue
 		}
+		// masscan -oL list output is identified by its header comment;
+		// other comment lines are skipped when picking the probe line.
+		if bytes.HasPrefix(t, []byte("#masscan")) {
+			return "masscan-list", nil
+		}
+		if bytes.HasPrefix(t, []byte("#")) {
+			continue
+		}
+		line = t
+		break
 	}
 	if len(line) == 0 {
 		return "", fmt.Errorf("empty stream")
@@ -82,6 +92,8 @@ func ParseStream(r io.Reader) ([]Host, error) {
 		return parseNervaJSON(buf)
 	case "masscan-json":
 		return ParseMasscanJSON(bytes.NewReader(buf))
+	case "masscan-list":
+		return ParseMasscanList(bytes.NewReader(buf))
 	case "fingerprintx-json":
 		return parseFingerprintXJSON(buf)
 	}

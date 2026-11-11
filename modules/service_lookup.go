@@ -24,12 +24,25 @@ func SupportedServiceNames() []string {
 // defaultServiceForPort returns brutespray's canonical service name for a
 // well-known port, or "" when the port has no default mapping. Used by
 // stream parsers (masscan JSON, naabu line) that supply only host:port and
-// need to fill in the service.
+// need to fill in the service. When several services share a default port
+// (e.g. http/http-form on 80), the stable descriptor with the shortest
+// canonical name wins so parsing stays deterministic.
 func defaultServiceForPort(port int) string {
-	for name, descriptor := range ServiceDescriptors() {
+	descriptors := ServiceDescriptors()
+	var matches []string
+	for name, descriptor := range descriptors {
 		if descriptor.DefaultPort == port {
-			return name
+			matches = append(matches, name)
 		}
+	}
+	if len(matches) > 0 {
+		sort.Strings(matches)
+		for _, name := range matches {
+			if descriptors[name].Stability == ServiceStable {
+				return name
+			}
+		}
+		return matches[0]
 	}
 
 	// Alternate common ports that intentionally do not replace descriptor

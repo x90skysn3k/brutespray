@@ -39,7 +39,6 @@ jobs:
             git switch --create star-history
             git push --set-upstream origin star-history
           fi
-
       - uses: narayann7/star-history-action@12543ab7352b91fb7c5eb0c4fbb39772baa0c168 # v1.0.6
         with:
           repos: ${{ github.repository }}

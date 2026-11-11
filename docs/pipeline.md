@@ -10,6 +10,7 @@ Supported input formats:
 - **Nerva JSON** — newline-delimited JSON objects with `ip`/`port`/`protocol`
 - **fingerprintx JSON** — newline-delimited JSON objects with `host`/`port`/`service`
 - **masscan JSON** — masscan `-oJ` array of host records
+- **masscan list** — masscan `-oL` lines (`open tcp 443 203.0.113.10 …`)
 
 ## naabu → brutespray
 

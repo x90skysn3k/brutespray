@@ -4,7 +4,7 @@
 
 | Flag | Description | Example |
 |------|-------------|---------|
-| `-f` | Input file (Nmap, Nessus, Nexpose, JSON, lists) | `-f nmap.gnmap` |
+| `-f` | Input file (Nmap, Masscan, Nessus, Nexpose, JSON, lists) | `-f nmap.gnmap` |
 | `-H` | Target as service://host:port (CIDR and bracketed IPv6 supported, repeatable) | `-H ssh://10.1.1.0/24:22` |
 | `-u` | Username or user list | `-u admin` or `-u users.txt` |
 | `-p` | Password or password list | `-p password` or `-p pass.txt` |
@@ -181,6 +181,23 @@ nmap -sV -oA scan_results 10.0.0.0/24
 
 Both GNMAP (`.gnmap`) and XML (`.xml`) formats are supported.
 
+### Masscan
+
+All four text output formats are detected from file contents:
+
+```bash
+masscan -p22,443 10.0.0.0/8 -oJ scan.json   # JSON array (-oJ file)
+masscan -p22,443 10.0.0.0/8 -oG scan.gnmap  # grepable
+masscan -p22,443 10.0.0.0/8 -oX scan.xml    # nmap-style XML
+masscan -p22,443 10.0.0.0/8 -oL scan.txt    # list
+brutespray -f scan.json -u admin -p password
+```
+
+Masscan output carries no service names, so services are inferred from
+the port via Brutespray's well-known-port map; ports with no mapping are
+dropped. Newline-delimited masscan JSON (e.g. `jq -c '.[]' scan.json`)
+is also accepted.
+
 ### Nessus
 
 Export your scan as a `.nessus` file from the Nessus web interface.
@@ -205,6 +222,9 @@ ssh:127.0.0.1:22
 ftp:192.168.1.1:21
 mysql:10.0.0.5:3306
 ```
+
+Blank lines and `#` comment lines are ignored in plain lists and in
+nmap/masscan grepable files.
 
 ### Combo Wordlist
 

@@ -1,0 +1,9 @@
+[
+{   "ip": "203.0.113.10",   "timestamp": "1786719570", "ports": [ {"port": 443, "proto": "tcp", "status": "open", "reason": "syn-ack", "ttl": 58} ] }
+,
+{   "ip": "203.0.113.10",   "timestamp": "1786719570", "ports": [ {"port": 80, "proto": "tcp", "status": "closed", "reason": "rst", "ttl": 58} ] }
+,
+{   "ip": "10.0.0.5",   "timestamp": "1786719571", "ports": [ {"port": 22, "proto": "tcp", "status": "open", "reason": "syn-ack", "ttl": 64} ] }
+,
+{   "ip": "10.0.0.6",   "timestamp": "1786719572", "ports": [ {"port": 11111, "proto": "tcp", "status": "open", "reason": "syn-ack", "ttl": 64} ] }
+]
