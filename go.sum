@@ -141,8 +141,8 @@ github.com/gorilla/securecookie v1.1.1 h1:miw7JPhV+b/lAHSXz4qd/nN9jRiAFV5FwjeKyC
 github.com/gorilla/securecookie v1.1.1/go.mod h1:ra0sb63/xPlUeL+yeDciTfxMRAA+MP+HVt/4epWDjd4=
 github.com/gorilla/sessions v1.2.1 h1:DHd3rPN5lE3Ts3D8rKkQ8x/0kqfeNmBAaiSi+o7FsgI=
 github.com/gorilla/sessions v1.2.1/go.mod h1:dk2InVEVJ0sfLlnXv9EAgkf6ecYs/i80K/zI+bUmuGM=
-github.com/gosnmp/gosnmp v1.44.0 h1:6SUNAJWjSu/j05rm+M1G39NoPW8jvShiFqYf6XNnM+k=
-github.com/gosnmp/gosnmp v1.44.0/go.mod h1:30xQDXCVXXehh/xwRd62+JwIizwc3HZaBi4F/Hv5/0o=
+github.com/gosnmp/gosnmp v1.45.0 h1:dc3Y/F7qhY8v+Eeb+3Hq+AnSBxQ8mGbwoHEPgWZRkxI=
+github.com/gosnmp/gosnmp v1.45.0/go.mod h1:LWPVcDKeRsiioQGeITGTQha4mdlx9lgmRmXz6zGINQ4=
 github.com/hailocab/go-hostpool v0.0.0-20160125115350-e80d13ce29ed h1:5upAirOpQc1Q53c0bnx2ufif5kANL7bfZWcc6VJWJd8=
 github.com/hailocab/go-hostpool v0.0.0-20160125115350-e80d13ce29ed/go.mod h1:tMWxXQ9wFIaZeTI9F+hmhFiGpFmhOHzyShyFUhRm0H4=
 github.com/hashicorp/go-cleanhttp v0.5.2 h1:035FKYIWjmULyFRBKPs8TBQoi0x6d9G4xc9neXJWAZQ=
