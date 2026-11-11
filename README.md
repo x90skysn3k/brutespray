@@ -70,7 +70,7 @@ See [all examples](docs/examples.md) for more usage patterns.
 | Embedded SSH bad-keys (CVE-tagged) | ✅ | ❌ | ❌ | ❌ | ✅ |
 | Pipeline stdin (naabu / fingerprintx / masscan) | ✅ | ❌ | ❌ | ❌ | ✅ |
 | Pre-auth RDP recon (NLA / sticky-keys) | ✅ | ❌ | ❌ | ❌ | ✅ |
-| Nmap gnmap + XML / Nessus / Nexpose import | ✅ | ⚠️ | ❌ | ❌ | ⚠️ (nmap only) |
+| Nmap/Masscan gnmap + XML / Nessus / Nexpose import | ✅ | ⚠️ | ❌ | ❌ | ⚠️ (nmap only) |
 | Per-module params (`-m KEY:VAL`) | ✅ | ❌ | ❌ | ❌ | partial |
 | Service count | 41 | 50+ | 34 | 14 | 23 |
 
