@@ -23,13 +23,6 @@ func requireHost(t *testing.T, hosts map[Host]int, h Host) {
 	}
 }
 
-func requireNoHost(t *testing.T, hosts map[Host]int, h Host) {
-	t.Helper()
-	if _, ok := hosts[h]; ok {
-		t.Errorf("unexpected host %+v in %v", h, hosts)
-	}
-}
-
 func TestParseFileMasscanOJ(t *testing.T) {
 	hosts := mustParseFile(t, "testdata/masscan_oj.json")
 
