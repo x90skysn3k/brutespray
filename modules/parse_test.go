@@ -1,6 +1,7 @@
 package modules
 
 import (
+	"os"
 	"testing"
 )
 
@@ -81,6 +82,43 @@ func TestParseList(t *testing.T) {
 		if _, ok := hosts[h]; !ok {
 			t.Errorf("ParseList: missing host %+v", h)
 		}
+	}
+}
+
+func TestParseListServiceNames(t *testing.T) {
+	cases := []struct {
+		line string
+		want Host
+	}{
+		{"rdp:10.0.0.1:3389", Host{Service: "rdp", Host: "10.0.0.1", Port: 3389}},
+		{"ms-wbt-server:10.0.0.1:3389", Host{Service: "rdp", Host: "10.0.0.1", Port: 3389}},
+		{"mssql:10.0.0.2:1433", Host{Service: "mssql", Host: "10.0.0.2", Port: 1433}},
+		{"ms-sql-s:10.0.0.2:1433", Host{Service: "mssql", Host: "10.0.0.2", Port: 1433}},
+		{"smbnt:10.0.0.3:445", Host{Service: "smbnt", Host: "10.0.0.3", Port: 445}},
+	}
+	for _, tc := range cases {
+		dir := t.TempDir()
+		path := dir + "/targets.list"
+		if err := os.WriteFile(path, []byte(tc.line+"\n"), 0o600); err != nil {
+			t.Fatalf("write fixture: %v", err)
+		}
+		hosts, err := ParseList(path)
+		if err != nil {
+			t.Errorf("ParseList(%q): %v", tc.line, err)
+			continue
+		}
+		if _, ok := hosts[tc.want]; !ok {
+			t.Errorf("ParseList(%q): missing host %+v, got %v", tc.line, tc.want, hosts)
+		}
+	}
+
+	dir := t.TempDir()
+	path := dir + "/bad.list"
+	if err := os.WriteFile(path, []byte("bogus-svc:10.0.0.1:1234\n"), 0o600); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+	if _, err := ParseList(path); err == nil {
+		t.Error("ParseList: expected error for unsupported service, got nil")
 	}
 }
 
