@@ -367,7 +367,6 @@ func ParseNessus(filename string) (map[Host]int, error) {
 	return hosts, nil
 }
 func ParseList(filename string) (map[Host]int, error) {
-	supportedServices := supportedScanServices
 	file, err := os.Open(filename)
 	if err != nil {
 		return nil, err
@@ -385,26 +384,22 @@ func ParseList(filename string) (map[Host]int, error) {
 		if len(parts) < 3 {
 			return nil, fmt.Errorf("invalid list line: %q (expected service:ip:port)", line)
 		}
-		service := MapService(parts[0])
+		// Accept both raw scanner service names (ms-wbt-server, ms-sql-s)
+		// and canonical brutespray module names (rdp, mssql), matching the
+		// grammar -H targets use. DescriptorForService resolves scanner
+		// aliases through NAME_MAP, so the check is against the same
+		// service set as Host.Parse.
+		desc, ok := DescriptorForService(parts[0])
+		if !ok {
+			return nil, fmt.Errorf("unsupported service: %s", parts[0])
+		}
 		ip := parts[1]
 		port, err := strconv.Atoi(parts[2])
 		if err != nil {
 			return nil, fmt.Errorf("invalid port in line %q: %v", line, err)
 		}
-		h := Host{Service: service, Host: ip, Port: port}
+		h := Host{Service: desc.Name, Host: ip, Port: port}
 		hosts[h] = 1
-
-		var found bool
-		for _, services := range supportedServices {
-			if service == services {
-				found = true
-				break
-			}
-		}
-
-		if !found {
-			return nil, fmt.Errorf("unsupported service: %s", h.Service)
-		}
 	}
 
 	if err := scanner.Err(); err != nil {
