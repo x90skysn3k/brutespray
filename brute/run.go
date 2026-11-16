@@ -3,6 +3,8 @@ package brute
 import (
 	"fmt"
 	"math/rand"
+	"net"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -275,7 +277,7 @@ func RunBrute(h modules.Host, u string, p string, timeout time.Duration, maxRetr
 	startTime := time.Now()
 	metrics := modules.GetGlobalMetrics()
 
-	hostKey := fmt.Sprintf("%s:%d", h.Host, h.Port)
+	hostKey := net.JoinHostPort(h.Host, strconv.Itoa(h.Port))
 	cb := GetCircuitBreaker()
 
 	// Check circuit breaker before attempting

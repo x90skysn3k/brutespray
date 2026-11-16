@@ -2,8 +2,10 @@ package brute
 
 import (
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"net"
+	"net/textproto"
 	"strings"
 	"time"
 
@@ -105,10 +107,7 @@ func BruteFTP(host string, port int, user, password string, timeout time.Duratio
 				_ = result.client.Quit()
 			}
 			if result.err != nil {
-				if strings.Contains(result.err.Error(), "530") {
-					return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, SkipUser: true, Error: result.err}
-				}
-				return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: result.err}
+				return ftpAttemptResult(result.err)
 			}
 			return &BruteResult{AuthSuccess: true, ConnectionSuccess: true}
 		default:
@@ -121,14 +120,30 @@ func BruteFTP(host string, port int, user, password string, timeout time.Duratio
 			_ = result.client.Quit()
 		}
 		if result.err != nil {
-			// FTP 530 = user doesn't exist → skip remaining passwords for this user
-			if strings.Contains(result.err.Error(), "530") {
-				return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, SkipUser: true, Error: result.err}
-			}
-			return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: result.err}
+			return ftpAttemptResult(result.err)
 		}
 		return &BruteResult{AuthSuccess: true, ConnectionSuccess: true}
 	}
+}
+
+// ftpAttemptResult classifies an FTP attempt error. The library reports
+// protocol-level server replies as *textproto.Error carrying an FTP status
+// code — the server spoke FTP, so the connection succeeded and the failure
+// is an auth failure. Bare transport errors (server closed before/without
+// banner, reset, TLS failure) are connection failures: the circuit breaker
+// must count them. Misclassifying them as auth failures let unreachable FTP
+// hosts bypass -skip-policy / -max-conn-fails (issue #366 follow-up).
+func ftpAttemptResult(err error) *BruteResult {
+	var protoErr *textproto.Error
+	if errors.As(err, &protoErr) {
+		// 530 = not logged in / user unknown → skip remaining passwords for this user
+		return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, SkipUser: protoErr.Code == ftp.StatusNotLoggedIn, Error: err}
+	}
+	if strings.Contains(err.Error(), "530") {
+		// USER rejected with 530: library returns the bare reply text
+		return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, SkipUser: true, Error: err}
+	}
+	return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
 }
 
 func init() {
