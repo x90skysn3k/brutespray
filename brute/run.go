@@ -96,8 +96,10 @@ func (r *BruteResult) EnsureProof(service string) {
 	}
 }
 
-// CircuitBreaker tracks consecutive connection failures per host and trips
-// (skips further attempts) after a threshold is reached.
+// CircuitBreaker tracks connection failures per host since the last
+// successful authentication and trips (skips further attempts) after a
+// threshold is reached. Connection successes with rejected credentials do
+// NOT clear the counter; only an authentication success does.
 type CircuitBreaker struct {
 	mu               sync.RWMutex
 	consecutiveFails map[string]*int64 // host:port -> consecutive failure count
@@ -106,9 +108,9 @@ type CircuitBreaker struct {
 	disabled         bool              // when true, never trips
 }
 
-// DefaultCircuitBreakerThreshold is the number of consecutive connection
-// failures before a host is considered unreachable and further attempts are
-// skipped.
+// DefaultCircuitBreakerThreshold is the number of connection failures since
+// the last successful authentication before a host is considered
+// uncooperative and further attempts are skipped.
 const DefaultCircuitBreakerThreshold = 5
 
 var globalCircuitBreaker = &CircuitBreaker{
@@ -180,7 +182,8 @@ func (cb *CircuitBreaker) RecordFailure(hostKey string) bool {
 	return false
 }
 
-// RecordSuccess resets the consecutive failure counter for a host.
+// RecordSuccess clears the failure counter for a host after a successful
+// authentication.
 func (cb *CircuitBreaker) RecordSuccess(hostKey string) {
 	cb.mu.Lock()
 	if counter, ok := cb.consecutiveFails[hostKey]; ok {
@@ -333,13 +336,19 @@ func RunBrute(h modules.Host, u string, p string, timeout time.Duration, maxRetr
 		con_result := modResult.ConnectionSuccess
 
 		if con_result {
-			// Connection succeeded — reset circuit breaker and record attempt
-			cb.RecordSuccess(hostKey)
+			// Connection succeeded — record attempt. The breaker is NOT
+			// cleared here: a reachable host that rejects credentials
+			// (e.g. RDP ErrKindAuth) returns ConnectionSuccess=true, so
+			// resetting on connection success let interleaved auth
+			// failures indefinitely defer the skip policy on live-but-
+			// uncooperative hosts (issue #366). Only a successful
+			// authentication clears the connection-failure counter.
 			metrics.RecordAttempt(result, time.Since(startTime))
 			modules.RecordAttempt(result)
 
 			if result {
-				// Authentication succeeded
+				// Authentication succeeded — host is healthy; reset breaker
+				cb.RecordSuccess(hostKey)
 				modules.RecordSuccess(service, h.Host, h.Port, u, p, time.Since(startTime), modResult.Banner)
 				if modResult.KeyMatch != nil {
 					modules.PrintBadKeyResult(service, h.Host, h.Port, u,
