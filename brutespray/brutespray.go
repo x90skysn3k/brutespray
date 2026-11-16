@@ -33,7 +33,11 @@ func configureCircuitBreaker(cfg *Config) {
 
 	cb := brute.GetCircuitBreaker()
 	cb.SetThreshold(int64(threshold))
-	cb.SetDisabled(policy == "off" || (policy == "auto" && !cfg.SprayMode))
+	// auto = spray mode only, but an explicit -max-conn-fails implies the
+	// operator wants skipping active: the flag would otherwise silently do
+	// nothing outside spray mode (issue #366).
+	enabledForThreshold := cfg.MaxConnFails >= 1
+	cb.SetDisabled(policy == "off" || (policy == "auto" && !cfg.SprayMode && !enabledForThreshold))
 }
 
 func configureBudgetScheduler(wp *WorkerPool, manifest EngagementManifest) error {

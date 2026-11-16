@@ -125,3 +125,33 @@ func TestBruteFTPConnectionFailure(t *testing.T) {
 		t.Fatal("expected connection failure")
 	}
 }
+
+// A server that accepts TCP then closes without an FTP banner is a transport
+// failure, not an auth failure. The circuit breaker must count it; reporting
+// ConnectionSuccess=true here let FTP hosts bypass the skip policy.
+func TestBruteFTPBannerDropIsConnectionFailure(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer func() { _ = listener.Close() }()
+	go func() {
+		for {
+			conn, err := listener.Accept()
+			if err != nil {
+				return
+			}
+			_ = conn.Close()
+		}
+	}()
+
+	cm, _ := modules.NewConnectionManager("", 2*time.Second, "")
+	result := BruteFTP("127.0.0.1", listener.Addr().(*net.TCPAddr).Port, "user", "pass", 2*time.Second, cm, ModuleParams{})
+
+	if result.ConnectionSuccess {
+		t.Fatalf("expected connection failure for pre-banner close, got auth=%v err=%v", result.AuthSuccess, result.Error)
+	}
+	if result.AuthSuccess {
+		t.Fatal("unexpected auth success")
+	}
+}

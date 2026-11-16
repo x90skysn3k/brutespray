@@ -1,8 +1,9 @@
 package brutespray
 
 import (
-	"fmt"
 	"math/rand"
+	"net"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -486,10 +487,17 @@ func (hwp *HostWorkerPool) applyAdaptiveBackoff(cred Credential) bool {
 	if fails <= 0 {
 		return false
 	}
+	hostKey := net.JoinHostPort(cred.Host.Host, strconv.Itoa(cred.Host.Port))
+	// Once the circuit breaker has tripped, attempts short-circuit without
+	// touching the network; sleeping 30s per queued credential just stalls
+	// the host instead of finishing it (issue #366: looked like "still
+	// bruting" long after the skip).
+	if brute.GetCircuitBreaker().IsTripped(hostKey) {
+		return false
+	}
 	backoff := time.Duration(1<<uint(fails)) * time.Second
 	backoff = min(backoff, 30*time.Second)
 	if fails >= 3 {
-		hostKey := fmt.Sprintf("%s:%d", cred.Host.Host, cred.Host.Port)
 		if modules.TUIMode {
 			modules.TUIError("[*] %s — backing off %v (%d consecutive connection failures)\n", hostKey, backoff, fails)
 		} else {
@@ -666,7 +674,7 @@ func (hwp *HostWorkerPool) DrainMissedQueue() []Credential {
 
 // AddJob adds a credential to the appropriate host's job queue
 func (wp *WorkerPool) AddJob(cred Credential) {
-	hostKey := fmt.Sprintf("%s:%d", cred.Host.Host, cred.Host.Port)
+	hostKey := net.JoinHostPort(cred.Host.Host, strconv.Itoa(cred.Host.Port))
 
 	wp.hostPoolsMutex.RLock()
 	hostPool, exists := wp.hostPools[hostKey]
@@ -686,7 +694,7 @@ func (wp *WorkerPool) AddJob(cred Credential) {
 
 // getOrCreateHostPool gets or creates a host-specific worker pool
 func (wp *WorkerPool) getOrCreateHostPool(host modules.Host) *HostWorkerPool {
-	hostKey := fmt.Sprintf("%s:%d", host.Host, host.Port)
+	hostKey := net.JoinHostPort(host.Host, strconv.Itoa(host.Port))
 
 	wp.hostPoolsMutex.RLock()
 	hostPool, exists := wp.hostPools[hostKey]
