@@ -19,7 +19,7 @@ var masterServiceList = brute.Services()
 
 var BetaServiceList = []string{"asterisk", "nntp", "oracle", "xmpp", "ldap", "ldaps", "winrm", "ftps", "smtp-vrfy", "rexec", "rlogin", "rsh", "wrapper", "http-form", "https-form", "http-template", "svn", "socks5-auth", "neo4j", "cassandra"}
 
-var version = "2.7.5"
+var version = "2.7.6"
 var NoColorMode bool
 
 func init() {
@@ -142,8 +142,8 @@ var helpGroups = []flagGroup{
 			{"-no-badkeys", "", "Skip SSH bad-keys pre-pass for SSH targets"},
 			{"-badkeys-only", "", "Run SSH bad-keys pre-pass only; skip password attempts"},
 			{"-no-rdp-scan", "", "Skip pre-auth RDP recon (NLA fingerprint, sticky-keys probe)"},
-			{"-skip-policy", "auto|off|conservative|aggressive", "Connection-failure skip policy"},
-			{"-max-conn-fails", "n", "Consecutive connection failures before skipping (0 = policy default)"},
+			{"-skip-policy", "policy", "Stop trying unreachable hosts: auto (spray mode only), off, conservative (5 failures), aggressive (3)"},
+			{"-max-conn-fails", "n", "Failures per host before it is skipped; counter resets on a valid credential (0 = policy default)"},
 			{"-schedule", "auto|host-major|spray|pairwise", "Credential queue order; exact output order also needs -t 1 -T 1"},
 			{"-debug-audit", "", "Write redacted per-attempt diagnostics to JSONL"},
 			{"-debug-file", "file", "Debug audit JSONL path (default: brutespray-debug.jsonl)"},
@@ -360,8 +360,8 @@ func ParseConfig() *Config {
 	passwordGen := flag.String("x", "", "Generate passwords: MIN:MAX:CHARSET (a=lower, A=upper, 1=digits, !=symbols). Example: -x 4:4:1")
 	outputFormat := flag.String("output-format", "text", "Output format: text (default) or json (JSONL per-attempt)")
 	proxyList := flag.String("proxy-list", "", "File containing proxy list (one socks5://host:port per line) for rotation")
-	skipPolicy := flag.String("skip-policy", "auto", "Connection-failure skip policy: auto, off, conservative, aggressive")
-	maxConnFails := flag.Int("max-conn-fails", 0, "Consecutive connection failures before skip policy trips (0 = policy default)")
+	skipPolicy := flag.String("skip-policy", "auto", "Stop trying unreachable hosts: auto (spray mode only), off, conservative (5 failures), aggressive (3)")
+	maxConnFails := flag.Int("max-conn-fails", 0, "Connection failures per host before it is skipped; counter resets on a valid credential (0 = policy default)")
 	scheduleMode := flag.String("schedule", "auto", "Credential queue schedule: auto, host-major, spray, pairwise (deterministic execution also needs -t 1 -T 1)")
 	debugAudit := flag.Bool("debug-audit", false, "Write redacted per-attempt diagnostics to JSONL")
 	debugFile := flag.String("debug-file", "", "Debug audit JSONL path (default: brutespray-debug.jsonl)")

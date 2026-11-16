@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -119,6 +120,118 @@ func TestCalculateBackoffCap(t *testing.T) {
 	d := calculateBackoff(100)
 	if d > 7*time.Second {
 		t.Errorf("calculateBackoff(100) = %v, exceeds cap", d)
+	}
+}
+
+// breakerTestService registers a service that replays the given results in
+// attempt order (last result repeats when exhausted) and sets the breaker
+// threshold for hostKey. Returns a cleanup func.
+func breakerTestService(t *testing.T, service, hostKey string, threshold int64, results ...BruteFunc) func() {
+	t.Helper()
+	var mu sync.Mutex
+	next := 0
+	Register(service, func(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager, params ModuleParams) *BruteResult {
+		mu.Lock()
+		idx := next
+		if idx >= len(results) {
+			idx = len(results) - 1
+		}
+		next++
+		mu.Unlock()
+		return results[idx](host, port, user, password, timeout, cm, params)
+	})
+	cb := GetCircuitBreaker()
+	origThreshold := cb.threshold
+	cb.SetThreshold(threshold)
+	cb.Reset(hostKey)
+	return func() {
+		cb.Reset(hostKey)
+		cb.SetThreshold(origThreshold)
+	}
+}
+
+var (
+	// RDP-style: reachable host, credentials rejected (ErrKindAuth maps here).
+	breakerAuthFail = BruteFunc(func(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager, params ModuleParams) *BruteResult {
+		return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: errors.New("credentials rejected")}
+	})
+	breakerConnFail = BruteFunc(func(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager, params ModuleParams) *BruteResult {
+		return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: errors.New("connection refused")}
+	})
+	breakerAuthOK = BruteFunc(func(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager, params ModuleParams) *BruteResult {
+		return &BruteResult{AuthSuccess: true, ConnectionSuccess: true}
+	})
+)
+
+// Issue #366: RDP auth failures return ConnectionSuccess=true. They must not
+// reset the breaker counter, so interleaved auth failures cannot indefinitely
+// defer the skip threshold.
+func TestRunBruteBreakerTripsThroughAuthFailures(t *testing.T) {
+	const hostKey = "127.0.0.1:65010"
+	cleanup := breakerTestService(t, "breaker-auth-fail-test", hostKey, 3,
+		breakerAuthFail, breakerConnFail, breakerAuthFail, breakerConnFail, breakerConnFail)
+	defer cleanup()
+	defer func(orig bool) { modules.TUIMode = orig }(modules.TUIMode)
+	modules.TUIMode = true
+
+	cm, err := modules.NewConnectionManager("", time.Second)
+	if err != nil {
+		t.Fatalf("NewConnectionManager: %v", err)
+	}
+	host := modules.Host{Host: "127.0.0.1", Port: 65010, Service: "breaker-auth-fail-test"}
+	attempt := func() BruteResult {
+		return RunBrute(host, "user", "pass", time.Second, 1, t.TempDir(), "", "", "", cm, nil)
+	}
+
+	// auth-fail, conn-fail(1), auth-fail, conn-fail(2)
+	attempt()
+	attempt()
+	attempt()
+	attempt()
+	if GetCircuitBreaker().IsTripped(hostKey) {
+		t.Fatal("breaker tripped too early after 2 connection failures with threshold 3")
+	}
+	// conn-fail(3) → trip despite the interleaved auth failures.
+	attempt()
+	if !GetCircuitBreaker().IsTripped(hostKey) {
+		t.Fatal("breaker must trip on the 3rd connection failure despite interleaved auth failures")
+	}
+
+	// Subsequent attempts are skipped without invoking the module.
+	if got := attempt(); got.Status != StatusSkippedService {
+		t.Fatalf("status after trip = %q, want %q", got.Status, StatusSkippedService)
+	}
+}
+
+func TestRunBruteBreakerResetsOnAuthSuccess(t *testing.T) {
+	const hostKey = "127.0.0.1:65011"
+	cleanup := breakerTestService(t, "breaker-auth-success-test", hostKey, 3,
+		breakerConnFail, breakerConnFail, breakerAuthOK, breakerConnFail, breakerConnFail)
+	defer cleanup()
+	defer func(orig bool) { modules.TUIMode = orig }(modules.TUIMode)
+	modules.TUIMode = true
+
+	cm, err := modules.NewConnectionManager("", time.Second)
+	if err != nil {
+		t.Fatalf("NewConnectionManager: %v", err)
+	}
+	host := modules.Host{Host: "127.0.0.1", Port: 65011, Service: "breaker-auth-success-test"}
+	attempt := func() BruteResult {
+		return RunBrute(host, "user", "pass", time.Second, 1, t.TempDir(), "", "", "", cm, nil)
+	}
+
+	// Two connection failures → counter 2 (threshold 3).
+	attempt()
+	attempt()
+	// Auth success must clear the counter.
+	if got := attempt(); !got.AuthSuccess {
+		t.Fatalf("expected auth success, got status %q", got.Status)
+	}
+	// Two more connection failures must NOT trip post-reset.
+	attempt()
+	attempt()
+	if GetCircuitBreaker().IsTripped(hostKey) {
+		t.Fatal("breaker must not trip after auth success reset + 2 connection failures")
 	}
 }
 

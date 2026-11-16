@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"net"
 	"strings"
 	"time"
 
@@ -261,7 +262,7 @@ func BruteTelnet(host string, port int, user, password string, timeout time.Dura
 
 		// Check success indicators
 		if strings.Contains(output, "uid=") || strings.Contains(output, "# ") || strings.Contains(output, "$ ") || strings.Contains(output, "/ #") {
-			return &BruteResult{AuthSuccess: true, ConnectionSuccess: true, Banner: bannerText}
+			return telnetShellResult(reader, connection, host, port, bannerText, short)
 		}
 
 		// Check for trailing shell prompt characters (>, %) indicating a shell
@@ -269,7 +270,7 @@ func BruteTelnet(host string, port int, user, password string, timeout time.Dura
 		if len(trimmed) > 0 {
 			last := trimmed[len(trimmed)-1]
 			if last == '>' || last == '%' {
-				return &BruteResult{AuthSuccess: true, ConnectionSuccess: true, Banner: bannerText}
+				return telnetShellResult(reader, connection, host, port, bannerText, short)
 			}
 		}
 
@@ -280,6 +281,50 @@ func BruteTelnet(host string, port int, user, password string, timeout time.Dura
 
 		return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Banner: bannerText}
 	})
+}
+
+// telnetSecondScreen probes an apparent telnet shell with a bare newline and
+// reports whether the device answers with a login or password prompt. Certain
+// embedded devices (DVRs, IP cams, managed switches) accept the outer login
+// with any or no password and drop the session onto a decoy shell whose every
+// command re-issues a second authentication screen (issue #366 comment). Such
+// a "success" grants nothing and must not be recorded as a valid credential.
+func telnetSecondScreen(reader *bufio.Reader, conn net.Conn, probeTimeout time.Duration) bool {
+	// The per-step deadline set for the previous read may be spent or close
+	// to expiry; the probe needs its own window or its reply never arrives.
+	_ = conn.SetDeadline(time.Now().Add(probeTimeout))
+	if _, err := fmt.Fprintf(conn, "\r\n"); err != nil {
+		return false
+	}
+	probe, _ := readSomeTelnet(reader, conn, 1024)
+	lower := strings.ToLower(probe)
+	if matchesPrompt(lower, loginPrompts, loginPromptsExclude) {
+		return true
+	}
+	for _, pp := range passwordPrompts {
+		if strings.Contains(lower, pp) {
+			return true
+		}
+	}
+	return false
+}
+
+// telnetShellResult converts an apparent shell into a BruteResult. If the
+// device is a second-login-screen decoy, the attempt is downgraded to an auth
+// failure and a WARN finding is emitted so the operator still sees the
+// open-login exposure without a bogus credential success.
+func telnetShellResult(reader *bufio.Reader, conn net.Conn, host string, port int, bannerText string, probeTimeout time.Duration) *BruteResult {
+	if telnetSecondScreen(reader, conn, probeTimeout) {
+		modules.WriteFinding("WARN", "telnet-second-screen", "telnet", host, port,
+			"Login accepted without real authentication but session re-prompts for login/password (decoy shell, no usable access)", "")
+		return &BruteResult{
+			AuthSuccess:       false,
+			ConnectionSuccess: true,
+			Banner:            bannerText,
+			Error:             fmt.Errorf("decoy shell: second login screen detected"),
+		}
+	}
+	return &BruteResult{AuthSuccess: true, ConnectionSuccess: true, Banner: bannerText}
 }
 
 // readUntilTelnet reads bytes until one of the tokens is found or maxBytes is reached.

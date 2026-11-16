@@ -19,7 +19,7 @@ brutespray -f nmap.gnmap -u userlist.txt -p passlist.txt -spray -spray-delay 15m
 3. Try `password2` against all users on all hosts
 4. Repeat until all passwords are exhausted
 
-The circuit breaker is automatically enabled in spray mode to skip hosts that become unreachable after 5 consecutive connection failures.
+By default the circuit breaker is enabled in spray mode: after 5 connection failures a host is skipped for the remaining credentials. The counter resets when a credential is accepted, so a live host that only rejects bad passwords does not postpone the skip. Tune with `-skip-policy` (auto/off/conservative/aggressive) or set an exact limit with `-max-conn-fails n`.
 
 ## Engagement Manifests and Dry Runs
 
@@ -165,7 +165,17 @@ The worker pool monitors per-host performance and adjusts thread counts:
 
 ### Circuit Breaker
 
-In spray mode, the circuit breaker tracks consecutive connection failures per host. After 5 failures, the host is skipped for remaining credentials. Resets on successful connection.
+The circuit breaker stops BruteSpray from spraying a host that is not answering. It counts connection failures per host; once the limit is hit, the host is skipped for the remaining credentials.
+
+| Flag | Effect |
+| --- | --- |
+| `-skip-policy auto` | Default. Enabled in spray mode only, limit 5 failures |
+| `-skip-policy off` | Never skip a host |
+| `-skip-policy conservative` | Enabled always, limit 5 failures |
+| `-skip-policy aggressive` | Enabled always, limit 3 failures |
+| `-max-conn-fails n` | Override the limit with your own number |
+
+The counter resets when a credential is accepted. A rejected credential on a reachable host (e.g. RDP answering with an auth failure) is not a connection failure and does not reset the counter. Before the fix for issue #366, auth failures cleared the counter, so a live RDP host with mixed connection errors could never trip the skip.
 
 ### Adaptive Backoff
 
