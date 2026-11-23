@@ -567,10 +567,15 @@ func (hwp *HostWorkerPool) processCredential(cred Credential, timeout time.Durat
 		atomic.StoreInt64(&hwp.consecutiveConnFails, 0)
 	} else {
 		atomic.AddInt64(&hwp.consecutiveConnFails, 1)
-		// Record missed credential for retry pass
-		hwp.missedMu.Lock()
-		hwp.missedQueue = append(hwp.missedQueue, cred)
-		hwp.missedMu.Unlock()
+		// Record missed credential for retry pass — but never credentials
+		// the circuit breaker skipped locally: those never touched the
+		// network, and replaying them re-hammers a host the operator
+		// already gave up on (issue #366 retry storm).
+		if result.Status != brute.StatusSkippedService {
+			hwp.missedMu.Lock()
+			hwp.missedQueue = append(hwp.missedQueue, cred)
+			hwp.missedMu.Unlock()
+		}
 	}
 
 	// Stop-on-success: signal host pool to stop processing remaining credentials

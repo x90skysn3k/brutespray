@@ -1,6 +1,7 @@
 package brute
 
 import (
+	cryptorand "crypto/rand"
 	"fmt"
 	"math/rand"
 	"net"
@@ -32,7 +33,16 @@ const (
 	StatusSkippedService     AttemptStatus = "skipped_service"
 	StatusModulePanic        AttemptStatus = "module_panic_recovered"
 	StatusModuleTimeout      AttemptStatus = "module_timeout"
+	StatusAnyPassword        AttemptStatus = "any_password"
 )
+
+// ConfirmAnyPassword controls the hit-confirmation probe: after a module
+// reports an authentication success, RunBrute re-plays the attempt with a
+// random password. Servers that accept the random password too are
+// accepts-any-password devices (embedded junk); the "hit" is demoted to a
+// WARN finding instead of a credential success. Set false via
+// -no-confirm-hits. Password-auth only; key/badkey/wrapper attempts skip it.
+var ConfirmAnyPassword = true
 
 func classifyAttemptStatus(result *BruteResult) AttemptStatus {
 	if result == nil {
@@ -45,6 +55,9 @@ func classifyAttemptStatus(result *BruteResult) AttemptStatus {
 		return StatusAuthSuccess
 	}
 	if result.ConnectionSuccess {
+		if result.Status == StatusAnyPassword {
+			return StatusAnyPassword
+		}
 		return StatusAuthFailure
 	}
 	return StatusConnectionFailure
@@ -96,6 +109,42 @@ func (r *BruteResult) EnsureProof(service string) {
 	if r.Detail == "" && service != "" {
 		r.Detail = service + " module result"
 	}
+}
+
+// confirmProbeApplicable decides whether an apparent auth success is worth a
+// random-password re-check. Skipped for modules where the password is not a
+// plain secret: SSH key auth, the bad-keys marker, and the wrapper module
+// (re-running an operator command with junk input could have side effects).
+func confirmProbeApplicable(service, user, password string, params ModuleParams) bool {
+	if service == "wrapper" || service == "smtpvrfy" {
+		return false
+	}
+	if strings.HasPrefix(password, badKeyMarker) {
+		return false
+	}
+	if kp, ok := params["key"]; ok && kp != "" && kp != "false" {
+		return false
+	}
+	return true
+}
+
+// randomProbePassword builds a high-entropy password that no real default or
+// wordlist entry would match.
+func randomProbePassword() string {
+	const charset = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789!@#$%"
+	b := make([]byte, 20)
+	if _, err := cryptorand.Read(b); err != nil {
+		// crypto/rand cannot realistically fail here; fall back to a
+		// static impossible-looking probe value rather than skipping
+		// confirmation entirely.
+		return "xZ9!confirm-probe-unlikely-password"
+	}
+	out := make([]byte, 0, len(b)+4)
+	out = append(out, "xZ9!"...)
+	for _, v := range b {
+		out = append(out, charset[int(v)%len(charset)])
+	}
+	return string(out)
 }
 
 // CircuitBreaker tracks connection failures per host since the last
@@ -331,6 +380,34 @@ func RunBrute(h modules.Host, u string, p string, timeout time.Duration, maxRetr
 		}
 
 		modResult = runModuleWithBoundary(fn, service, h.Host, h.Port, effectiveUser, p, timeout, cm, effectiveParams)
+
+		// Hit confirmation (issue #366): accepts-any-password servers
+		// produce bogus hits that also reset the circuit breaker on every
+		// "success". Re-verify with a random password; a second success
+		// means the device opens for anything.
+		if modResult != nil && modResult.AuthSuccess && modResult.ConnectionSuccess &&
+			ConfirmAnyPassword && confirmProbeApplicable(service, effectiveUser, p, effectiveParams) {
+			probePassword := randomProbePassword()
+			probe := runModuleWithBoundary(fn, service, h.Host, h.Port, effectiveUser, probePassword, timeout, cm, effectiveParams)
+			if probe != nil && probe.AuthSuccess && probe.ConnectionSuccess {
+				modResult.AuthSuccess = false
+				modResult.Status = StatusAnyPassword
+				modResult.Finding = &Finding{
+					Severity: "WARN",
+					Code:     "any-password",
+					Message:  fmt.Sprintf("Server accepted credential %q and a random password; it likely authenticates any credential (not a usable hit)", p),
+					Proof: Proof{
+						Confidence: ConfidenceConfirmed,
+						ProofType:  ProofAuthProtocolSuccess,
+						Detail:     "confirmation probe: random password also accepted",
+					},
+				}
+				modules.WriteFindingWithProof("WARN", "any-password", service, h.Host, h.Port,
+					modResult.Finding.Message, "", string(ConfidenceConfirmed), string(ProofAuthProtocolSuccess),
+					"confirmation probe: random password also accepted")
+			}
+		}
+
 		modResult.Status = classifyAttemptStatus(modResult)
 		modResult.EnsureProof(service)
 
