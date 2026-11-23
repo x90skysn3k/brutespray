@@ -77,6 +77,11 @@ func TestHostWorkerPoolStopOnSuccess(t *testing.T) {
 	sink := noopEventSink{}
 	cm, _ := modules.NewConnectionManager("", 1*time.Second, "")
 	setMockResult(&brute.BruteResult{AuthSuccess: true, ConnectionSuccess: true})
+	// The mock accepts every password, which is exactly what the
+	// any-password confirmation probe demotes. This test targets
+	// stop-on-success semantics, so turn the probe off.
+	defer func(orig bool) { brute.ConfirmAnyPassword = orig }(brute.ConfirmAnyPassword)
+	brute.ConfirmAnyPassword = false
 
 	hwp := NewHostWorkerPool(host, 1, sink, true, 0) // stopOnSuccess=true
 	hwp.Start(1*time.Second, 1, "", cm, "", true)
