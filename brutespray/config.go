@@ -142,6 +142,7 @@ var helpGroups = []flagGroup{
 			{"-no-badkeys", "", "Skip SSH bad-keys pre-pass for SSH targets"},
 			{"-badkeys-only", "", "Run SSH bad-keys pre-pass only; skip password attempts"},
 			{"-no-rdp-scan", "", "Skip pre-auth RDP recon (NLA fingerprint, sticky-keys probe)"},
+			{"-no-confirm-hits", "", "Skip hit confirmation (do not re-check hits with a random password)"},
 			{"-skip-policy", "policy", "Stop trying unreachable hosts: auto (spray mode only), off, conservative (5 failures), aggressive (3)"},
 			{"-max-conn-fails", "n", "Failures per host before it is skipped; counter resets on a valid credential (0 = policy default)"},
 			{"-schedule", "auto|host-major|spray|pairwise", "Credential queue order; exact output order also needs -t 1 -T 1"},
@@ -254,6 +255,7 @@ type Config struct {
 	BadKeysOnly       bool
 	NoBadKeys         bool
 	NoRDPScan         bool
+	NoConfirmHits     bool
 	PasswordGenSpec   string
 	PasswordGen       *modules.PasswordGenerator
 	OutputFormat      string
@@ -343,6 +345,7 @@ func ParseConfig() *Config {
 	noBadKeys := flag.Bool("no-badkeys", false, "Skip SSH bad-keys pre-pass for SSH targets")
 	badKeysOnly := flag.Bool("badkeys-only", false, "Run SSH bad-keys pre-pass only; skip password attempts")
 	noRDPScan := flag.Bool("no-rdp-scan", false, "Skip pre-auth RDP recon (NLA fingerprint, sticky-keys probe)")
+	noConfirmHits := flag.Bool("no-confirm-hits", false, "Skip hit confirmation: do not re-check apparent hits with a random password")
 	rateLimit := flag.Float64("rate", 0, "Per-host rate limit in attempts/second; fractional values supported (e.g. 0.1 = 1 attempt every 10s; 0 = unlimited)")
 	attemptDelay := flag.Duration("delay", 0, "Per-host delay between attempts (e.g. 10s); alias for -rate, mutually exclusive")
 	sprayMode := flag.Bool("spray", false, "Spray mode: try each password across all users before next password (avoids lockouts)")
@@ -514,6 +517,7 @@ func ParseConfig() *Config {
 	cfg.NoBadKeys = *noBadKeys
 	cfg.BadKeysOnly = *badKeysOnly
 	cfg.NoRDPScan = *noRDPScan
+	cfg.NoConfirmHits = *noConfirmHits
 	cfg.RateLimit = *rateLimit
 	if *attemptDelay > 0 {
 		if cfg.RateLimit > 0 {

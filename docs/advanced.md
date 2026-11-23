@@ -177,6 +177,14 @@ The circuit breaker stops BruteSpray from spraying a host that is not answering.
 
 The counter resets when a credential is accepted. A rejected credential on a reachable host (e.g. RDP answering with an auth failure) is not a connection failure and does not reset the counter. Before the fix for issue #366, auth failures cleared the counter, so a live RDP host with mixed connection errors could never trip the skip.
 
+### Hit Confirmation (Any-Password Detection)
+
+Some devices (DVRs, IP cameras, managed switches) authenticate any password. They produce hits that mean nothing. After every apparent success, BruteSpray re-checks the credential with a random password. If the random password is accepted too, the hit is demoted: no success file entry, and a `WARN any-password` finding is written instead.
+
+Disable the re-check with `-no-confirm-hits`. The probe is skipped automatically where the password is not a plain secret: SSH key auth, SSH bad-key attempts, and the wrapper module.
+
+After a host is skipped by the circuit breaker, the missed-credential retry pass is also skipped for that host. BruteSpray does not re-hammer a host the skip policy already gave up on.
+
 ### Adaptive Backoff
 
 When a host has consecutive connection failures, workers apply exponential backoff: 2s, 4s, 8s, 16s, capped at 30s. This prevents hammering unreachable hosts.
