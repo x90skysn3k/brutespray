@@ -275,8 +275,8 @@ github.com/stretchr/testify v1.12.1/go.mod h1:MDEgiDPPsNp5cuIrHPPCyornHKgEVbtFUm
 github.com/tidwall/transform v0.0.0-20201103190739-32f242e2dbde h1:AMNpJRc7P+GTwVbl8DkK2I9I8BBUzNiHuH/tlxrpan0=
 github.com/tidwall/transform v0.0.0-20201103190739-32f242e2dbde/go.mod h1:MvrEmduDUz4ST5pGZ7CABCnOU5f3ZiOAZzT6b1A6nX8=
 github.com/twitchyliquid64/golang-asm v0.0.0-20190126203739-365674df15fc/go.mod h1:NoCfSFWosfqMqmmD7hApkirIK9ozpHjxRnRxs1l413A=
-github.com/x90skysn3k/grdp v1.0.6 h1:/LhC6g50Uzo/hoL2Ed1uqDgva15PD9YcFOQLRVjj1CU=
-github.com/x90skysn3k/grdp v1.0.6/go.mod h1:H/Klzfgyv7SAj3wtrAAxlfBlUXW+Ck0YZ92wetZTPcA=
+github.com/x90skysn3k/grdp v1.0.7 h1:CAiT85GYM8pa+ChZVk9JUuNPyhOufpR1pGdnrwcbxgY=
+github.com/x90skysn3k/grdp v1.0.7/go.mod h1:H/Klzfgyv7SAj3wtrAAxlfBlUXW+Ck0YZ92wetZTPcA=
 github.com/xdg-go/pbkdf2 v1.0.0 h1:Su7DPu48wXMwC3bs7MCNG+z4FhcyEuz5dlvchbq0B0c=
 github.com/xdg-go/pbkdf2 v1.0.0/go.mod h1:jrpuAogTd400dnrH08LKmI/xc1MbPOebTwRqcT5RDeI=
 github.com/xdg-go/scram v1.2.0 h1:bYKF2AEwG5rqd1BumT4gAnvwU/M9nBp2pTSxeZw7Wvs=
