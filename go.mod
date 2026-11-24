@@ -24,7 +24,7 @@ require (
 	github.com/neo4j/neo4j-go-driver/v5 v5.28.4
 	github.com/pterm/pterm v0.12.83
 	github.com/sijms/go-ora/v2 v2.9.0
-	github.com/x90skysn3k/grdp v1.0.5
+	github.com/x90skysn3k/grdp v1.0.6
 	go.mongodb.org/mongo-driver v1.17.10
 	golang.org/x/crypto v0.57.0
 	golang.org/x/net v0.60.0
