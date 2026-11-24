@@ -32,3 +32,4 @@ wordlist/xmpp/
 go.work
 go.work.sum
 docs/superpowers/
+AGENTS.md

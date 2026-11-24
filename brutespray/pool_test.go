@@ -249,3 +249,58 @@ func TestHostWorkerPoolPauseResume(t *testing.T) {
 	close(hwp.jobQueue)
 	hwp.wg.Wait()
 }
+
+// Issue #366 (PR #374): the adaptive pre-dial backoff must apply ONLY when
+// the circuit breaker is disabled. With the breaker enabled, failure-budget
+// admission (AdmitDial) is the pacing — the sleep would stack on top and
+// make the skip threshold unreachable (~3 min for 10 failures at fails>=5).
+// With `-skip-policy off` (breaker disabled) the legacy wait must survive
+// and stay cancelable via the host stop channel.
+func TestApplyAdaptiveBackoffOnlyWhenBreakerDisabled(t *testing.T) {
+	enabledHost := modules.Host{Host: "127.0.0.1", Port: 9996, Service: "test-pool-service"}
+	disabledHost := modules.Host{Host: "127.0.0.1", Port: 9997, Service: "test-pool-service"}
+	cb := brute.GetCircuitBreaker()
+	origDisabled := cb.IsDisabled()
+	defer func() { cb.SetDisabled(origDisabled) }()
+
+	newPool := func(host modules.Host, fails int64) *HostWorkerPool {
+		hwp := NewHostWorkerPool(host, 1, noopEventSink{}, false, 0)
+		atomic.StoreInt64(&hwp.consecutiveConnFails, fails)
+		return hwp
+	}
+
+	// Enabled breaker: budget admission paces; the sleep must be skipped.
+	cb.SetDisabled(false)
+	hwp := newPool(enabledHost, 9) // legacy backoff would sleep 30s
+	start := time.Now()
+	if stopped := hwp.applyAdaptiveBackoff(Credential{Host: enabledHost}); stopped {
+		t.Fatal("enabled breaker must not report stop")
+	}
+	if elapsed := time.Since(start); elapsed > 500*time.Millisecond {
+		t.Fatalf("enabled breaker bypassed sleep expectation: applyAdaptiveBackoff waited %v", elapsed)
+	}
+
+	// Disabled breaker (skip-policy off): legacy wait applies. fails=1 →
+	// legacy sleep is 2s, so this branch is bounded and still proves the
+	// wait survives (a bypass would return in <500ms like the case above).
+	cb.SetDisabled(true)
+	hwp = newPool(disabledHost, 1)
+	start = time.Now()
+	if stopped := hwp.applyAdaptiveBackoff(Credential{Host: disabledHost}); stopped {
+		t.Fatal("backoff must complete, not report stop, when nothing cancels it")
+	}
+	if elapsed := time.Since(start); elapsed < 1*time.Second {
+		t.Fatalf("disabled breaker must still wait (legacy backoff), waited only %v", elapsed)
+	}
+
+	// ...and stays cancelable via stopChan.
+	close(hwp.stopChan)
+	atomic.StoreInt64(&hwp.consecutiveConnFails, 9) // would sleep 30s uncancelled
+	start = time.Now()
+	if stopped := hwp.applyAdaptiveBackoff(Credential{Host: disabledHost}); !stopped {
+		t.Fatal("backoff must report stop when stopChan is closed")
+	}
+	if elapsed := time.Since(start); elapsed > 500*time.Millisecond {
+		t.Fatalf("cancelled backoff took %v, must return promptly", elapsed)
+	}
+}

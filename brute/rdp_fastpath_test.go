@@ -74,3 +74,67 @@ func TestRDPFastPathAfterNegotiation(t *testing.T) {
 	}
 	t.Logf("survived FastPath push: auth=%v conn=%v err=%v", res.AuthSuccess, res.ConnectionSuccess, res.Error)
 }
+
+// TestRDPGarbageShortLengthNoPanic reproduces the v2.7.7 field report on
+// x90skysn3k/brutespray#366: a live "RDP" host answered the X.224 request
+// with garbage (0x00 0x01). grdp v1.0.5 routed it to the fastpath branch,
+// computed lastShortLength-2 = -1, and make([]byte, -1) panicked with
+// "makeslice: len out of range" INSIDE grdp's reader goroutine — outside
+// any recover boundary, killing the whole scan. Fixed in grdp v1.0.6
+// (x90skysn3k/grdp#4); this test keeps the hostile responder in CI so the
+// exact end-to-end path stays covered: BruteRDP must return a connection
+// failure, and reaching the assertion means no process panic occurred.
+func TestRDPGarbageShortLengthNoPanic(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+	port := ln.Addr().(*net.TCPAddr).Port
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		conn, err := ln.Accept()
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		_ = conn.SetDeadline(time.Now().Add(5 * time.Second))
+
+		// Drain the X.224 Connection Request like a real (broken) server.
+		hdr := make([]byte, 4)
+		if _, err := io.ReadFull(conn, hdr); err != nil {
+			t.Log("read req hdr:", err)
+			return
+		}
+		if bodyLen := int(binary.BigEndian.Uint16(hdr[2:4])) - 4; bodyLen > 0 {
+			if _, err := io.ReadFull(conn, make([]byte, bodyLen)); err != nil {
+				t.Log("read req body:", err)
+				return
+			}
+		}
+
+		// The reporter's exact malformed reply: fastpath action byte plus a
+		// short length of 1 (< the 3-byte minimum).
+		if _, err := conn.Write([]byte{0x00, 0x01}); err != nil {
+			t.Log("write malformed reply:", err)
+			return
+		}
+		time.Sleep(2 * time.Second) // let the client read it
+	}()
+
+	cm, err := modules.NewConnectionManager("", 5*time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res := BruteRDP("127.0.0.1", port, "user", "pass", 4*time.Second, cm, ModuleParams{})
+	if res == nil {
+		t.Fatal("nil result")
+	}
+	if res.ConnectionSuccess {
+		t.Fatalf("malformed frame must not look like a connected attempt: %+v", res)
+	}
+	t.Logf("survived malformed short-length reply: auth=%v conn=%v err=%v", res.AuthSuccess, res.ConnectionSuccess, res.Error)
+	<-done
+}
