@@ -40,7 +40,7 @@ func (v *ServiceView) AddAttempt(msg AttemptResultMsg, scheme *ColorScheme) {
 	}
 	v.attemptCounts[svc]++
 
-	style, status := scheme.AttemptStyle(msg.Success, msg.Connected, msg.Retrying)
+	style, status := scheme.AttemptStyle(msg.Success, msg.Connected, msg.Retrying, msg.Status)
 
 	hostPort := fmt.Sprintf("%s:%d", msg.Host, msg.Port)
 	creds := fmt.Sprintf("%s:%s", msg.User, msg.Password)

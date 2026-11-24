@@ -8,7 +8,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/x90skysn3k/brutespray/v2/modules"
@@ -151,12 +150,22 @@ func randomProbePassword() string {
 // successful authentication and trips (skips further attempts) after a
 // threshold is reached. Connection successes with rejected credentials do
 // NOT clear the counter; only an authentication success does.
+//
+// The breaker also enforces the failure budget BEFORE dialing (issue #366,
+// report 2026-11-23): a counter checked only after each dial completed let
+// every in-flight worker dial a dead host past the threshold, so
+// -max-conn-fails 10 with -t 30 still produced dozens of connection errors.
+// A dial must reserve one budget slot first (AdmitDial/CompleteDial); the
+// budget is failures+in-flight, so at most threshold real connection
+// failures can occur between trips regardless of thread count.
 type CircuitBreaker struct {
-	mu               sync.RWMutex
-	consecutiveFails map[string]*int64 // host:port -> consecutive failure count
-	tripped          map[string]bool   // host:port -> tripped
-	threshold        int64             // consecutive failures before tripping
-	disabled         bool              // when true, never trips
+	mu               sync.Mutex
+	consecutiveFails map[string]int64 // host:port -> consecutive failure count
+	inFlight         map[string]int64 // host:port -> reserved (unfinished) dials
+	tripped          map[string]bool  // host:port -> tripped
+	threshold        int64            // consecutive failures before tripping
+	disabled         bool             // when true, never trips
+	wake             chan struct{}    // close-to-broadcast generation channel; replaced on every state change
 }
 
 // DefaultCircuitBreakerThreshold is the number of connection failures since
@@ -165,9 +174,11 @@ type CircuitBreaker struct {
 const DefaultCircuitBreakerThreshold = 5
 
 var globalCircuitBreaker = &CircuitBreaker{
-	consecutiveFails: make(map[string]*int64),
+	consecutiveFails: make(map[string]int64),
+	inFlight:         make(map[string]int64),
 	tripped:          make(map[string]bool),
 	threshold:        DefaultCircuitBreakerThreshold,
+	wake:             make(chan struct{}, 1),
 }
 
 // GetCircuitBreaker returns the global circuit breaker instance.
@@ -179,6 +190,7 @@ func GetCircuitBreaker() *CircuitBreaker {
 func (cb *CircuitBreaker) SetDisabled(disabled bool) {
 	cb.mu.Lock()
 	cb.disabled = disabled
+	cb.broadcastLocked()
 	cb.mu.Unlock()
 }
 
@@ -190,46 +202,134 @@ func (cb *CircuitBreaker) SetThreshold(threshold int64) {
 	}
 	cb.mu.Lock()
 	cb.threshold = threshold
+	cb.broadcastLocked()
 	cb.mu.Unlock()
+}
+
+// IsDisabled reports whether the breaker is switched off (never trips).
+// Callers use it to decide whether budget gating or a slower standalone
+// pacing mechanism should apply.
+func (cb *CircuitBreaker) IsDisabled() bool {
+	cb.mu.Lock()
+	defer cb.mu.Unlock()
+	return cb.disabled
+}
+
+// GetThreshold returns the current trip threshold. Pairs with
+// SetThreshold for save/restore around tests and tuning code.
+func (cb *CircuitBreaker) GetThreshold() int64 {
+	cb.mu.Lock()
+	defer cb.mu.Unlock()
+	return cb.threshold
 }
 
 // IsTripped returns true if the host has been marked unreachable.
 // Always returns false when the circuit breaker is disabled.
 func (cb *CircuitBreaker) IsTripped(hostKey string) bool {
-	cb.mu.RLock()
-	defer cb.mu.RUnlock()
+	cb.mu.Lock()
+	defer cb.mu.Unlock()
 	if cb.disabled {
 		return false
 	}
 	return cb.tripped[hostKey]
 }
 
+// broadcastLocked wakes ALL waiters blocked in AdmitDial: closing the
+// current generation channel releases every waiter parked on it, and the
+// fresh channel collects the next generation. A single-token channel would
+// collapse several completions into one wake and strand the other waiters
+// (issue #366 dial budget). Callers hold cb.mu.
+func (cb *CircuitBreaker) broadcastLocked() {
+	if cb.wake != nil {
+		close(cb.wake)
+	}
+	cb.wake = make(chan struct{})
+}
+
+// AdmitDial reserves one dial slot for hostKey against the failure budget
+// (recorded failures + reserved-but-unfinished dials must stay under the
+// threshold). It blocks while the budget is temporarily full and returns:
+//
+//   - tripped=true  — the breaker tripped; the caller must skip the attempt
+//     and every remaining credential for this host (permanent until Reset).
+//   - stopped=true  — stop was closed while waiting; give up this attempt
+//     without classifying it as skipped.
+//   - otherwise     — a slot is reserved; the caller MUST call CompleteDial
+//     with the dial's connection outcome.
+//
+// A temporarily-full budget is never reported as skipped: healthy hosts
+// cycle their slots as in-flight dials complete. When the breaker is
+// disabled, admission is unconditional.
+func (cb *CircuitBreaker) AdmitDial(hostKey string, stop <-chan struct{}) (tripped, stopped, admitted bool) {
+	for {
+		cb.mu.Lock()
+		switch {
+		case cb.disabled:
+			cb.mu.Unlock()
+			return false, false, true
+		case cb.tripped[hostKey]:
+			cb.mu.Unlock()
+			return true, false, false
+		case cb.consecutiveFails[hostKey]+cb.inFlight[hostKey] < cb.threshold:
+			cb.inFlight[hostKey]++
+			cb.mu.Unlock()
+			return false, false, true
+		}
+		if cb.wake == nil { // lazily initialize for zero-value breakers
+			cb.wake = make(chan struct{})
+		}
+		// Capture the generation under the lock: a broadcast before the
+		// select below is already visible as a closed channel.
+		wake := cb.wake
+		cb.mu.Unlock()
+		select {
+		case <-wake:
+		case <-stop:
+			return false, true, false
+		}
+	}
+}
+
+// CompleteDial finishes a dial admitted by AdmitDial atomically with the
+// outcome bookkeeping: it releases the in-flight slot and, on a connection
+// failure, records the failure (tripping the breaker at the threshold)
+// BEFORE any waiter is woken. A waiting worker therefore never sees a free
+// slot whose failure was not yet counted, which would let the budget drift
+// past the threshold. Returns true if this failure just tripped the breaker.
+func (cb *CircuitBreaker) CompleteDial(hostKey string, connectionSucceeded bool) (justTripped bool) {
+	cb.mu.Lock()
+	defer cb.mu.Unlock()
+	if cb.inFlight[hostKey] > 0 {
+		cb.inFlight[hostKey]--
+	}
+	if !connectionSucceeded && !cb.disabled {
+		cb.consecutiveFails[hostKey]++
+		if cb.consecutiveFails[hostKey] >= cb.threshold && !cb.tripped[hostKey] {
+			cb.tripped[hostKey] = true
+			justTripped = true
+		}
+	}
+	cb.broadcastLocked()
+	return justTripped
+}
+
 // RecordFailure increments the consecutive failure counter for a host and
 // trips the breaker if the threshold is reached. Returns true if tripped.
+// Direct callers that did not reserve a slot through AdmitDial use this for
+// compatibility; the trip check runs under the same lock as dial bookkeeping.
 func (cb *CircuitBreaker) RecordFailure(hostKey string) bool {
 	cb.mu.Lock()
+	defer cb.mu.Unlock()
 	if cb.disabled {
-		cb.mu.Unlock()
 		return false
 	}
-	counter, ok := cb.consecutiveFails[hostKey]
-	if !ok {
-		var c int64
-		counter = &c
-		cb.consecutiveFails[hostKey] = counter
+	cb.consecutiveFails[hostKey]++
+	if cb.consecutiveFails[hostKey] >= cb.threshold && !cb.tripped[hostKey] {
+		cb.tripped[hostKey] = true
+		cb.broadcastLocked()
+		return true // just tripped
 	}
-	cb.mu.Unlock()
-
-	newVal := atomic.AddInt64(counter, 1)
-	if newVal >= cb.threshold {
-		cb.mu.Lock()
-		if !cb.tripped[hostKey] {
-			cb.tripped[hostKey] = true
-			cb.mu.Unlock()
-			return true // just tripped
-		}
-		cb.mu.Unlock()
-	}
+	cb.broadcastLocked()
 	return false
 }
 
@@ -237,10 +337,9 @@ func (cb *CircuitBreaker) RecordFailure(hostKey string) bool {
 // authentication.
 func (cb *CircuitBreaker) RecordSuccess(hostKey string) {
 	cb.mu.Lock()
-	if counter, ok := cb.consecutiveFails[hostKey]; ok {
-		atomic.StoreInt64(counter, 0)
-	}
-	cb.mu.Unlock()
+	defer cb.mu.Unlock()
+	cb.consecutiveFails[hostKey] = 0
+	cb.broadcastLocked()
 }
 
 func runModuleWithBoundary(fn BruteFunc, service string, host string, port int, user string, password string, timeout time.Duration, cm *modules.ConnectionManager, params ModuleParams) *BruteResult {
@@ -289,7 +388,9 @@ func runModuleWithBoundary(fn BruteFunc, service string, host string, port int, 
 func (cb *CircuitBreaker) Reset(hostKey string) {
 	cb.mu.Lock()
 	delete(cb.consecutiveFails, hostKey)
+	delete(cb.inFlight, hostKey)
 	delete(cb.tripped, hostKey)
+	cb.broadcastLocked()
 	cb.mu.Unlock()
 }
 
@@ -379,7 +480,28 @@ func RunBrute(h modules.Host, u string, p string, timeout time.Duration, maxRetr
 			return BruteResult{AuthSuccess: false, ConnectionSuccess: false, Status: StatusUnsupportedService}
 		}
 
+		// Reserve a dial slot against the failure budget BEFORE touching the
+		// network (issue #366). With -t far above -max-conn-fails, every
+		// in-flight worker used to complete one full dial before anyone
+		// observed the counter, so a dead host with threshold 10 and 30
+		// threads logged 30+ connection errors. Temporary saturation waits
+		// here; only a real trip classifies the attempt as skipped.
+		tripped, _, _ := cb.AdmitDial(hostKey, nil)
+		if tripped {
+			metrics.RecordAttempt(false, time.Since(startTime))
+			modules.RecordAttempt(false)
+			return BruteResult{AuthSuccess: false, ConnectionSuccess: false, Status: StatusSkippedService}
+		}
+
 		modResult = runModuleWithBoundary(fn, service, h.Host, h.Port, effectiveUser, p, timeout, cm, effectiveParams)
+
+		// Complete the reservation atomically with its outcome; the
+		// connection-failure count and trip happen here, before any waiter
+		// can claim the freed slot.
+		justTripped := cb.CompleteDial(hostKey, modResult != nil && modResult.ConnectionSuccess)
+		if justTripped {
+			modules.PrintfColored(0, "[!] Circuit breaker tripped for %s — skipping remaining credentials\n", hostKey)
+		}
 
 		// Hit confirmation (issue #366): accepts-any-password servers
 		// produce bogus hits that also reset the circuit breaker on every
@@ -443,10 +565,9 @@ func RunBrute(h modules.Host, u string, p string, timeout time.Duration, maxRetr
 			// Connection failed: increment the consecutive failure counter
 			retries++
 
-			// Record in circuit breaker — may trip
-			if justTripped := cb.RecordFailure(hostKey); justTripped {
-				modules.PrintfColored(0, "[!] Circuit breaker tripped for %s — skipping remaining credentials\n", hostKey)
-			}
+			// The breaker failure was already recorded by CompleteDial —
+			// counting it again here would double-count against the
+			// threshold now that admission consumes the same budget.
 
 			willRetry := retries < maxRetries && !cb.IsTripped(hostKey)
 
