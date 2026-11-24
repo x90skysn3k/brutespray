@@ -115,6 +115,7 @@ func Execute() {
 	totalHosts := len(cfg.Hosts)
 
 	configureCircuitBreaker(cfg)
+	brute.ConfirmAnyPassword = !cfg.NoConfirmHits
 	if err := modules.ConfigureDebugAudit(cfg.DebugAudit, cfg.DebugFile); err != nil {
 		fmt.Printf("Error creating debug audit log: %v\n", err)
 		os.Exit(1)

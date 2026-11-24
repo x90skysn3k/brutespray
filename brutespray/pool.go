@@ -482,17 +482,32 @@ func (hwp *HostWorkerPool) worker(timeout time.Duration, retry int, output strin
 // applyAdaptiveBackoff waits with exponential backoff when a host has
 // consecutive connection failures. Returns true if the host pool was stopped
 // during the wait (caller should return).
+//
+// When the circuit breaker is ENABLED the failure-budget admission in
+// brute.CircuitBreaker.AdmitDial is the pacing: it admits at most
+// `threshold` real failures before tripping and queues the rest. Adding the
+// old pre-dial sleep on top double-paces the same host and made the skip
+// threshold itself unreachable in reasonable time — a single-thread run
+// against a dead host slept 2+4+8+16+30s between dials and needed ~3
+// minutes to log 10 connection errors (issue #366: "it dosnt stop bruting
+// after 10 or 20 conn error"). With the breaker enabled the sleep is
+// therefore skipped. With `-skip-policy off` (breaker disabled, never
+// trips, no budget) the legacy backoff still applies unchanged.
 func (hwp *HostWorkerPool) applyAdaptiveBackoff(cred Credential) bool {
 	fails := atomic.LoadInt64(&hwp.consecutiveConnFails)
 	if fails <= 0 {
 		return false
 	}
 	hostKey := net.JoinHostPort(cred.Host.Host, strconv.Itoa(cred.Host.Port))
+	cb := brute.GetCircuitBreaker()
 	// Once the circuit breaker has tripped, attempts short-circuit without
 	// touching the network; sleeping 30s per queued credential just stalls
 	// the host instead of finishing it (issue #366: looked like "still
 	// bruting" long after the skip).
-	if brute.GetCircuitBreaker().IsTripped(hostKey) {
+	if cb.IsTripped(hostKey) {
+		return false
+	}
+	if !cb.IsDisabled() {
 		return false
 	}
 	backoff := time.Duration(1<<uint(fails)) * time.Second
@@ -515,6 +530,24 @@ func (hwp *HostWorkerPool) applyAdaptiveBackoff(cred Credential) bool {
 func (hwp *HostWorkerPool) processCredential(cred Credential, timeout time.Duration, retry int, output string, cm *modules.ConnectionManager, domain string, noStats bool) {
 	// Skip users that the service confirmed don't exist (e.g. FTP 530)
 	if _, skipped := hwp.skipUsers.Load(cred.User); skipped {
+		return
+	}
+
+	// Issue #366 (report 2026-11-23): once the breaker tripped, the skip
+	// policy declared this host done. Drain the remaining queued
+	// credentials WITHOUT a per-credential event or network attempt — they
+	// never touch the wire, and emitting each one made a skipped host look
+	// like it was "still bruting" in the TUI (the (169)/(230) counters in
+	// the operator's screenshot were mostly these phantom rows).
+	hostKey := net.JoinHostPort(cred.Host.Host, strconv.Itoa(cred.Host.Port))
+	if brute.GetCircuitBreaker().IsTripped(hostKey) {
+		if hwp.checkpoint != nil && !cred.Retry {
+			hwp.checkpoint.RecordAttemptForHost(cred.Host.Host, cred.Host.Port, cred.Service)
+		}
+		// Count the credential in the progress tracker without an attempt
+		// row, so legacy mode's "N/M combinations tested" still completes.
+		// The TUI ignores ProgressEvent; only LegacyEventSink consumes it.
+		hwp.eventSink.Send(tui.ProgressEvent{Retry: cred.Retry})
 		return
 	}
 
@@ -552,7 +585,7 @@ func (hwp *HostWorkerPool) processCredential(cred Credential, timeout time.Durat
 	// Record statistics (if enabled) — only count connection errors, not auth failures
 	duration := time.Since(startTime)
 	if !noStats {
-		if !result.ConnectionSuccess {
+		if !result.ConnectionSuccess && result.Status != brute.StatusSkippedService {
 			modules.RecordConnectionError(cred.Host.Host)
 		}
 	}
@@ -567,10 +600,15 @@ func (hwp *HostWorkerPool) processCredential(cred Credential, timeout time.Durat
 		atomic.StoreInt64(&hwp.consecutiveConnFails, 0)
 	} else {
 		atomic.AddInt64(&hwp.consecutiveConnFails, 1)
-		// Record missed credential for retry pass
-		hwp.missedMu.Lock()
-		hwp.missedQueue = append(hwp.missedQueue, cred)
-		hwp.missedMu.Unlock()
+		// Record missed credential for retry pass — but never credentials
+		// the circuit breaker skipped locally: those never touched the
+		// network, and replaying them re-hammers a host the operator
+		// already gave up on (issue #366 retry storm).
+		if result.Status != brute.StatusSkippedService {
+			hwp.missedMu.Lock()
+			hwp.missedQueue = append(hwp.missedQueue, cred)
+			hwp.missedMu.Unlock()
+		}
 	}
 
 	// Stop-on-success: signal host pool to stop processing remaining credentials

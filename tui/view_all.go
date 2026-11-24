@@ -36,7 +36,7 @@ func (v *AllView) AddAttempts(msgs []AttemptResultMsg, scheme *ColorScheme) {
 	}
 
 	for _, msg := range msgs {
-		style, status := scheme.AttemptStyle(msg.Success, msg.Connected, msg.Retrying)
+		style, status := scheme.AttemptStyle(msg.Success, msg.Connected, msg.Retrying, msg.Status)
 
 		hostPort := fmt.Sprintf("%s:%d", msg.Host, msg.Port)
 		creds := fmt.Sprintf("%s:%s", msg.User, msg.Password)

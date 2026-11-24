@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -15,7 +16,7 @@ import (
 
 func TestCircuitBreakerTripsAfterThreshold(t *testing.T) {
 	cb := &CircuitBreaker{
-		consecutiveFails: make(map[string]*int64),
+		consecutiveFails: make(map[string]int64),
 		tripped:          make(map[string]bool),
 		threshold:        3,
 	}
@@ -39,7 +40,7 @@ func TestCircuitBreakerTripsAfterThreshold(t *testing.T) {
 
 func TestCircuitBreakerResetOnSuccess(t *testing.T) {
 	cb := &CircuitBreaker{
-		consecutiveFails: make(map[string]*int64),
+		consecutiveFails: make(map[string]int64),
 		tripped:          make(map[string]bool),
 		threshold:        3,
 	}
@@ -60,7 +61,7 @@ func TestCircuitBreakerResetOnSuccess(t *testing.T) {
 
 func TestCircuitBreakerIsolatesHosts(t *testing.T) {
 	cb := &CircuitBreaker{
-		consecutiveFails: make(map[string]*int64),
+		consecutiveFails: make(map[string]int64),
 		tripped:          make(map[string]bool),
 		threshold:        2,
 	}
@@ -78,7 +79,7 @@ func TestCircuitBreakerIsolatesHosts(t *testing.T) {
 
 func TestCircuitBreakerReset(t *testing.T) {
 	cb := &CircuitBreaker{
-		consecutiveFails: make(map[string]*int64),
+		consecutiveFails: make(map[string]int64),
 		tripped:          make(map[string]bool),
 		threshold:        2,
 	}
@@ -158,8 +159,14 @@ var (
 	breakerConnFail = BruteFunc(func(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager, params ModuleParams) *BruteResult {
 		return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: errors.New("connection refused")}
 	})
+	// Password-aware: accepts only "pass". The any-password confirmation
+	// probe inside RunBrute replays hits with a random password; an
+	// always-accept mock would be demoted to any_password.
 	breakerAuthOK = BruteFunc(func(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager, params ModuleParams) *BruteResult {
-		return &BruteResult{AuthSuccess: true, ConnectionSuccess: true}
+		if password == "pass" {
+			return &BruteResult{AuthSuccess: true, ConnectionSuccess: true}
+		}
+		return &BruteResult{AuthSuccess: false, ConnectionSuccess: true}
 	})
 )
 
@@ -200,6 +207,104 @@ func TestRunBruteBreakerTripsThroughAuthFailures(t *testing.T) {
 	// Subsequent attempts are skipped without invoking the module.
 	if got := attempt(); got.Status != StatusSkippedService {
 		t.Fatalf("status after trip = %q, want %q", got.Status, StatusSkippedService)
+	}
+}
+
+// Issue #366 comment: servers that authenticate ANY password produce bogus
+// hits. The confirmation probe re-checks each hit with a random password;
+// when that is accepted too the result is demoted to StatusAnyPassword with
+// a finding, not a credential success.
+func TestRunBruteConfirmationProbeDemotesAnyPasswordHit(t *testing.T) {
+	service := "confirm-any-password-test"
+	acceptsAll := BruteFunc(func(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager, params ModuleParams) *BruteResult {
+		return &BruteResult{AuthSuccess: true, ConnectionSuccess: true}
+	})
+	Register(service, acceptsAll)
+	hostKey := "127.0.0.1:65012"
+	cb := GetCircuitBreaker()
+	cb.Reset(hostKey)
+	defer cb.Reset(hostKey)
+	defer func(orig bool) { ConfirmAnyPassword = orig }(ConfirmAnyPassword)
+	ConfirmAnyPassword = true
+	defer func(orig bool) { modules.TUIMode = orig }(modules.TUIMode)
+	modules.TUIMode = true
+
+	var findings []string
+	origSink := modules.FindingSink
+	modules.FindingSink = func(severity, code, svc, target, message, cve string) {
+		findings = append(findings, code)
+	}
+	defer func() { modules.FindingSink = origSink }()
+
+	cm, err := modules.NewConnectionManager("", time.Second)
+	if err != nil {
+		t.Fatalf("NewConnectionManager: %v", err)
+	}
+	host := modules.Host{Host: "127.0.0.1", Port: 65012, Service: service}
+	got := RunBrute(host, "user", "pass", time.Second, 1, t.TempDir(), "", "", "", cm, nil)
+
+	if got.Status != StatusAnyPassword {
+		t.Fatalf("status = %q, want %q", got.Status, StatusAnyPassword)
+	}
+	if got.AuthSuccess {
+		t.Fatal("any-password hit must not report AuthSuccess")
+	}
+	if got.Finding == nil || got.Finding.Code != "any-password" {
+		t.Fatalf("expected any-password finding, got %+v", got.Finding)
+	}
+	if len(findings) != 1 || findings[0] != "any-password" {
+		t.Fatalf("expected one emitted any-password finding, got %v", findings)
+	}
+}
+
+func TestRunBruteConfirmationProbeKeepsRealHit(t *testing.T) {
+	service := "confirm-real-hit-test"
+	Register(service, breakerAuthOK) // accepts only "pass"
+	const hostKey = "127.0.0.1:65013"
+	cb := GetCircuitBreaker()
+	cb.Reset(hostKey)
+	defer cb.Reset(hostKey)
+	defer func(orig bool) { ConfirmAnyPassword = orig }(ConfirmAnyPassword)
+	ConfirmAnyPassword = true
+	defer func(orig bool) { modules.TUIMode = orig }(modules.TUIMode)
+	modules.TUIMode = true
+
+	cm, err := modules.NewConnectionManager("", time.Second)
+	if err != nil {
+		t.Fatalf("NewConnectionManager: %v", err)
+	}
+	host := modules.Host{Host: "127.0.0.1", Port: 65013, Service: service}
+	got := RunBrute(host, "user", "pass", time.Second, 1, t.TempDir(), "", "", "", cm, nil)
+
+	if got.Status != StatusAuthSuccess || !got.AuthSuccess {
+		t.Fatalf("real hit must remain auth_success, got status=%q auth=%v", got.Status, got.AuthSuccess)
+	}
+}
+
+func TestRunBruteConfirmationProbeDisabled(t *testing.T) {
+	service := "confirm-disabled-test"
+	acceptsAll := BruteFunc(func(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager, params ModuleParams) *BruteResult {
+		return &BruteResult{AuthSuccess: true, ConnectionSuccess: true}
+	})
+	Register(service, acceptsAll)
+	hostKey := "127.0.0.1:65014"
+	cb := GetCircuitBreaker()
+	cb.Reset(hostKey)
+	defer cb.Reset(hostKey)
+	defer func(orig bool) { ConfirmAnyPassword = orig }(ConfirmAnyPassword)
+	ConfirmAnyPassword = false
+	defer func(orig bool) { modules.TUIMode = orig }(modules.TUIMode)
+	modules.TUIMode = true
+
+	cm, err := modules.NewConnectionManager("", time.Second)
+	if err != nil {
+		t.Fatalf("NewConnectionManager: %v", err)
+	}
+	host := modules.Host{Host: "127.0.0.1", Port: 65014, Service: service}
+	got := RunBrute(host, "user", "pass", time.Second, 1, t.TempDir(), "", "", "", cm, nil)
+
+	if got.Status != StatusAuthSuccess {
+		t.Fatalf("with confirmation disabled, status = %q, want auth_success", got.Status)
 	}
 }
 
@@ -248,10 +353,12 @@ func TestRunBruteSetsAttemptStatus(t *testing.T) {
 		wantStatus AttemptStatus
 	}{
 		{
-			name:       "auth success",
-			service:    "status-success-test",
-			result:     &BruteResult{AuthSuccess: true, ConnectionSuccess: true},
-			wantStatus: StatusAuthSuccess,
+			name:    "auth success",
+			service: "status-success-test",
+			result:  &BruteResult{AuthSuccess: true, ConnectionSuccess: true},
+			// The module always reports success, so the confirmation
+			// probe (random password also "accepted") demotes the hit.
+			wantStatus: StatusAnyPassword,
 		},
 		{
 			name:       "auth failure",
@@ -393,5 +500,81 @@ func TestRunBruteJSONOutputIncludesStatusCode(t *testing.T) {
 	}
 	if attempt.StatusCode != string(StatusConnectionFailure) {
 		t.Fatalf("status_code = %q, want %q", attempt.StatusCode, StatusConnectionFailure)
+	}
+}
+
+// Issue #366 (report 2026-11-23): with -max-conn-fails 10 and per-host
+// threads far above 10, a dead host still showed hundreds of CONN ERR rows.
+// The breaker only checked its counter *after* a dial completed, so every
+// in-flight worker dialed past the threshold before anyone tripped. With
+// retries each worker can dial multiple times, so the overshoot scales with
+// concurrency, not just worker count. Real module invocations must stay
+// bounded by the configured threshold.
+func TestRunBruteConcurrentDialsBoundedByThreshold(t *testing.T) {
+	const (
+		service   = "breaker-concurrent-dial-test"
+		hostKey   = "127.0.0.1:65011"
+		threshold = int64(10)
+		workers   = 30
+	)
+	var calls atomic.Int64
+	Register(service, func(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager, params ModuleParams) *BruteResult {
+		calls.Add(1)
+		// Hold the dial open so workers genuinely overlap; without an
+		// admission gate they would all complete their first dial before
+		// any trip could be observed.
+		time.Sleep(20 * time.Millisecond)
+		return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: errors.New("connection refused")}
+	})
+	cb := GetCircuitBreaker()
+	origThreshold := cb.threshold
+	origDisabled := cb.IsDisabled()
+	cb.SetThreshold(threshold)
+	cb.SetDisabled(false) // budget gate must be active regardless of suite order
+	cb.Reset(hostKey)
+	defer func() {
+		cb.Reset(hostKey)
+		cb.SetThreshold(origThreshold)
+		cb.SetDisabled(origDisabled)
+	}()
+	defer func(orig bool) { modules.TUIMode = orig }(modules.TUIMode)
+	modules.TUIMode = true
+
+	cm, err := modules.NewConnectionManager("", 200*time.Millisecond)
+	if err != nil {
+		t.Fatalf("NewConnectionManager: %v", err)
+	}
+	host := modules.Host{Host: "127.0.0.1", Port: 65011, Service: service}
+
+	var wg sync.WaitGroup
+	results := make([]BruteResult, workers)
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			results[i] = RunBrute(host, "user", "pass", 200*time.Millisecond, 1, t.TempDir(), "", "", "", cm, nil)
+		}(i)
+	}
+	wg.Wait()
+
+	if got := calls.Load(); got > threshold {
+		t.Fatalf("real module invocations = %d, must be <= configured threshold %d (breaker must gate before dialing, not after)", got, threshold)
+	}
+	if !cb.IsTripped(hostKey) {
+		t.Fatal("breaker must be tripped after threshold connection failures")
+	}
+	realErr := 0
+	for _, r := range results {
+		if r.Status == StatusSkippedService {
+			continue
+		}
+		if r.Status == StatusConnectionFailure {
+			realErr++
+			continue
+		}
+		t.Fatalf("unexpected status %q", r.Status)
+	}
+	if int64(realErr) != calls.Load() {
+		t.Fatalf("conn-error results = %d, real dials = %d: every CONN ERR must correspond to a real dial", realErr, calls.Load())
 	}
 }

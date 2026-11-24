@@ -3,7 +3,9 @@ package brutespray
 import (
 	"context"
 	"fmt"
+	"net"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -451,8 +453,15 @@ func (wp *WorkerPool) ProcessHost(host modules.Host, service string, combo strin
 		return
 	}
 
-	// Missed credential recovery: retry credentials that failed due to connection errors
+	// Missed credential recovery: retry credentials that failed due to connection errors.
+	// Skipped entirely when the circuit breaker tripped: the operator's skip
+	// policy declared this host done, and a retry pass would re-hammer it
+	// (issue #366: "it just keeps the server busy at a pointless host").
 	missed := hostPool.DrainMissedQueue()
+	if len(missed) > 0 && brute.GetCircuitBreaker().IsTripped(net.JoinHostPort(host.Host, strconv.Itoa(host.Port))) {
+		modules.PrintfColored(pterm.FgLightYellow, "[*] Skipping retry pass for %s:%d (circuit breaker tripped)\n", host.Host, host.Port)
+		missed = nil
+	}
 	if len(missed) > 0 {
 		modules.PrintfColored(pterm.FgLightYellow, "[*] Retrying %d missed credentials for %s:%d\n", len(missed), host.Host, host.Port)
 

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/x90skysn3k/brutespray/v2/brute"
 )
 
 // Column width constants for aligned TUI output.
@@ -75,10 +76,16 @@ func (cs *ColorScheme) CycleColor() lipgloss.Color {
 	return c
 }
 
-// AttemptStyle returns the appropriate style and status label for an attempt result.
-// Colors: SUCCESS = green, FAILED = amber/yellow, CONN ERR / RETRY = red
-func (cs *ColorScheme) AttemptStyle(success, connected, retrying bool) (lipgloss.Style, string) {
+// AttemptStyle returns the appropriate style and status label for an attempt
+// result. Colors: SUCCESS = green, FAILED = amber/yellow, CONN ERR / RETRY = red.
+// status is the classified AttemptStatus; post-trip skipped attempts must not
+// render as red CONN ERR (issue #366: the TUI kept printing CONN ERR rows for
+// credentials that never touched the network after the host was already
+// skipped, which looked like "still bruting").
+func (cs *ColorScheme) AttemptStyle(success, connected, retrying bool, status string) (lipgloss.Style, string) {
 	switch {
+	case status == string(brute.StatusSkippedService):
+		return lipgloss.NewStyle().Foreground(cs.Muted), "SKIPPED"
 	case success && connected:
 		return lipgloss.NewStyle().Foreground(cs.Success).Bold(true), "SUCCESS"
 	case !success && connected:
