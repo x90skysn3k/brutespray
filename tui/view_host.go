@@ -40,7 +40,7 @@ func (v *HostView) AddAttempt(msg AttemptResultMsg, scheme *ColorScheme) {
 	}
 	v.attemptCounts[hostKey]++
 
-	style, status := scheme.AttemptStyle(msg.Success, msg.Connected, msg.Retrying)
+	style, status := scheme.AttemptStyle(msg.Success, msg.Connected, msg.Retrying, msg.Status)
 
 	creds := fmt.Sprintf("%s:%s", msg.User, msg.Password)
 	if msg.User == "" {

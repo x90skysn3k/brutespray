@@ -29,6 +29,11 @@ func (l *LegacyEventSink) Send(msg interface{}) {
 			defer func() { _ = recover() }()
 			l.progressCh <- ProgressEvent{Retry: m.Retrying}
 		}()
+	case ProgressEvent:
+		func() {
+			defer func() { _ = recover() }()
+			l.progressCh <- m
+		}()
 	}
 }
 

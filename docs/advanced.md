@@ -177,6 +177,8 @@ The circuit breaker stops BruteSpray from spraying a host that is not answering.
 
 The counter resets when a credential is accepted. A rejected credential on a reachable host (e.g. RDP answering with an auth failure) is not a connection failure and does not reset the counter. Before the fix for issue #366, auth failures cleared the counter, so a live RDP host with mixed connection errors could never trip the skip.
 
+The limit is enforced before dialing, not after. Each attempt reserves one slot in a per-host failure budget (recorded failures + in-flight attempts), so `-max-conn-fails 10` means at most 10 real connection errors even when `-t` is far higher. Before this fix, every worker completed its in-flight dial before anyone checked the counter, so `-max-conn-fails 10 -t 30` still hammered a dead host with 30+ errors (issue #366). Once the host is skipped, remaining queued credentials finish silently — the TUI shows `SKIPPED`, not more `CONN ERR` rows, and they do not count toward the connection-error totals.
+
 ### Hit Confirmation (Any-Password Detection)
 
 Some devices (DVRs, IP cameras, managed switches) authenticate any password. They produce hits that mean nothing. After every apparent success, BruteSpray re-checks the credential with a random password. If the random password is accepted too, the hit is demoted: no success file entry, and a `WARN any-password` finding is written instead.
@@ -188,6 +190,8 @@ After a host is skipped by the circuit breaker, the missed-credential retry pass
 ### Adaptive Backoff
 
 When a host has consecutive connection failures, workers apply exponential backoff: 2s, 4s, 8s, 16s, capped at 30s. This prevents hammering unreachable hosts.
+
+With the circuit breaker enabled (any `-skip-policy` except `off`, or any `-max-conn-fails`), the failure budget replaces this pacing: admission to the next attempt waits for a budget slot instead of sleeping a fixed schedule, so a dead host reaches the skip limit in seconds, not minutes. The backoff above still applies under `-skip-policy off`, where nothing trips and skips nothing.
 
 ### Connection Pooling
 
