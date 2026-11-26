@@ -28,7 +28,7 @@ body:
     attributes:
       label: Brutespray Version
       description: The `Brutespray vX.Y.Z` line printed in the startup banner (or the release artifact you downloaded)
-      placeholder: e.g. v2.7.0
+      placeholder: e.g. vX.Y.Z
     validations:
       required: true
   - type: textarea
