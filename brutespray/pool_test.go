@@ -304,3 +304,54 @@ func TestApplyAdaptiveBackoffOnlyWhenBreakerDisabled(t *testing.T) {
 		t.Fatalf("cancelled backoff took %v, must return promptly", elapsed)
 	}
 }
+
+// Issue #378 lifecycle race: completed host pools stayed eligible for the
+// 2-second dynamic scaler, which could wg.Add workers onto a pool whose
+// jobQueue was already closed and whose wg.Wait was already running
+// (WaitGroup misuse / phantom activity after a host finished). The
+// terminal flag — set under the same mutex as every wg.Add — must make
+// Start/scaleTo inert, and ResetForRetry must atomically hand the pool a
+// fresh queue so no tick can spawn onto the closed one.
+func TestScalerCannotReviveTerminalPool(t *testing.T) {
+	host := modules.Host{Host: "127.0.0.1", Port: 9997, Service: "test-pool-service"}
+	sink := noopEventSink{}
+	cm, _ := modules.NewConnectionManager("", 1*time.Second)
+	setMockResult(&brute.BruteResult{AuthSuccess: false, ConnectionSuccess: true})
+
+	hwp := NewHostWorkerPool(host, 1, sink, false, 0)
+	hwp.Start(1*time.Second, 1, "", cm, "", true)
+	for range 2 {
+		hwp.jobQueue <- Credential{Host: host, User: "u", Password: "p", Service: "test-pool-service"}
+	}
+	hwp.markTerminal()
+	close(hwp.jobQueue)
+	hwp.wg.Wait()
+
+	// Post-completion scaler ticks must be inert.
+	hwp.scaleTo(8, 1*time.Second, 1, "", cm, "", true)
+	hwp.Start(1*time.Second, 1, "", cm, "", true)
+	if n := atomic.LoadInt32(&hwp.currentWorkers); n != 0 {
+		t.Fatalf("currentWorkers = %d after terminal, want 0 (scaler revived a completed pool)", n)
+	}
+	hwp.wg.Wait() // must return immediately: no phantom Adds
+
+	// ResetForRetry installs the fresh queue atomically with clearing the
+	// terminal flag, so the pool is immediately usable for a retry pass.
+	hwp.ResetForRetry()
+	hwp.Start(1*time.Second, 1, "", cm, "", true)
+	select {
+	case hwp.jobQueue <- Credential{Host: host, User: "u", Password: "p2", Service: "test-pool-service"}:
+	default:
+		t.Fatal("job queue after ResetForRetry not usable")
+	}
+	hwp.markTerminal()
+	close(hwp.jobQueue)
+	hwp.wg.Wait()
+
+	hwp.mutex.RLock()
+	attempts := hwp.totalAttempts
+	hwp.mutex.RUnlock()
+	if attempts != 3 {
+		t.Fatalf("total attempts = %d, want 3 (2 main pass + 1 retry)", attempts)
+	}
+}

@@ -16,16 +16,33 @@ import (
 type captureDispatchEventSink struct {
 	mu       sync.Mutex
 	attempts []tui.AttemptResultMsg
+	// Lifecycle counters for host-started/completed events (issue #378:
+	// duplicate targets must not emit a second phantom lifecycle).
+	started   int
+	completed int
 }
 
 func (s *captureDispatchEventSink) Send(msg interface{}) {
-	attempt, ok := msg.(tui.AttemptResultMsg)
-	if !ok {
-		return
+	switch m := msg.(type) {
+	case tui.AttemptResultMsg:
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		s.attempts = append(s.attempts, m)
+	case tui.HostStartedMsg:
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		s.started++
+	case tui.HostCompletedMsg:
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		s.completed++
 	}
+}
+
+func (s *captureDispatchEventSink) lifecycle() (started, completed int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.attempts = append(s.attempts, attempt)
+	return s.started, s.completed
 }
 
 func (s *captureDispatchEventSink) Close() {}

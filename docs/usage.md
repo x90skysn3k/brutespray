@@ -22,6 +22,7 @@
 | `-rate` | Per-host rate limit (attempts/sec, 0 = unlimited) | `-rate 10` |
 | `-spray` | Password spray mode (avoids lockouts) | `-spray` |
 | `-spray-delay` | Delay between spray rounds (default: 30m) | `-spray-delay 15m` |
+| `-schedule` | Credential queue order: auto, host-major, spray, pairwise, round-robin | `-schedule round-robin` |
 | `-stop-on-success` | Stop testing host after first valid credential | `-stop-on-success` |
 | `-resume` | Resume from checkpoint file | `-resume brutespray-checkpoint.json` |
 | `-checkpoint` | Checkpoint file path (default: brutespray-checkpoint.json) | `-checkpoint myrun.json` |

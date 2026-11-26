@@ -45,6 +45,29 @@ const badKeyMarker = "::badkey::"
 // sshKeyCache caches key file contents to avoid re-reading on every attempt.
 var sshKeyCache sync.Map
 
+// sshAuthRejected reports whether an error from ssh.NewClientConn is the
+// server engaging the credential and rejecting it (a real auth failure) as
+// opposed to the connection itself failing — MaxStartups drops under high
+// concurrency, EOF/reset mid-handshake, KEX failures. Issue #218: every
+// NewClientConn error used to be reported as ConnectionSuccess=true, so a
+// transient sshd drop of the attempt carrying the VALID password was
+// logged as a wrong password, never entered the missed-credential retry
+// queue, and never counted against the connection-failure skip policy.
+// Only genuine auth rejections keep ConnectionSuccess=true.
+//
+// Client-side auth exhaustion surfaces from x/crypto as
+// "ssh: unable to authenticate, attempted methods ..." (client_auth.go),
+// typically wrapped by the handshake as
+// "ssh: handshake failed: ssh: unable to authenticate ...". There is no
+// typed sentinel for it (*ssh.ServerAuthError is server-side only), so the
+// sentinel string is the contract.
+func sshAuthRejected(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(err.Error(), "unable to authenticate")
+}
+
 func BruteSSH(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager, params ModuleParams) *BruteResult {
 	// Bad-keys pre-pass: when the magic password marker "::badkey::" is in play,
 	// the caller is asking us to attempt a single embedded bad-key. The dispatcher
@@ -186,7 +209,7 @@ func BruteSSH(host string, port int, user, password string, timeout time.Duratio
 		case result := <-done:
 			_ = conn.Close()
 			if result.err != nil {
-				return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: result.err, Banner: result.banner}
+				return &BruteResult{AuthSuccess: false, ConnectionSuccess: sshAuthRejected(result.err), Error: result.err, Banner: result.banner}
 			}
 			_ = result.client.Close()
 			return &BruteResult{AuthSuccess: true, ConnectionSuccess: true, Banner: result.banner}
@@ -197,7 +220,7 @@ func BruteSSH(host string, port int, user, password string, timeout time.Duratio
 	case result := <-done:
 		_ = conn.Close()
 		if result.err != nil {
-			return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: result.err, Banner: result.banner}
+			return &BruteResult{AuthSuccess: false, ConnectionSuccess: sshAuthRejected(result.err), Error: result.err, Banner: result.banner}
 		}
 		_ = result.client.Close()
 		return &BruteResult{AuthSuccess: true, ConnectionSuccess: true, Banner: result.banner}
@@ -230,7 +253,7 @@ func attemptBadKey(host string, port int, user string, e badkeys.Entry,
 	c, chans, reqs, err := ssh.NewClientConn(conn, net.JoinHostPort(host, strconv.Itoa(port)), cfg)
 	if err != nil {
 		_ = conn.Close()
-		if strings.Contains(err.Error(), "unable to authenticate") {
+		if sshAuthRejected(err) {
 			return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: err}
 		}
 		return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
