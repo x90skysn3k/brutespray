@@ -4,6 +4,8 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/pem"
+	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -169,5 +171,109 @@ func TestBruteSSHKeyCache(t *testing.T) {
 	// Should NOT have a "reading SSH key" error since it's cached
 	if result.Error != nil && strings.Contains(result.Error.Error(), "reading SSH key") {
 		t.Fatal("expected cache to prevent re-reading deleted file")
+	}
+}
+
+// Issue #218: transient sshd drops (MaxStartups EOF/reset under high
+// concurrency) must be classified as connection failures so the credential
+// enters the missed-credential retry queue; only genuine auth rejection
+// counts as "server answered the credential".
+func TestSSHAuthRejectedClassification(t *testing.T) {
+	cases := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{"password denied (client_auth sentinel)", fmt.Errorf("ssh: unable to authenticate, attempted methods [none password], no supported methods remain"), true},
+		{"handshake-wrapped denial", fmt.Errorf("ssh: handshake failed: %w", fmt.Errorf("ssh: unable to authenticate, attempted methods [none password keyboard-interactive], no supported methods remain")), true},
+		{"maxstartups drop (EOF mid-handshake)", fmt.Errorf("ssh: handshake failed: EOF"), false},
+		{"connection reset", fmt.Errorf("ssh: handshake failed: connection reset by peer"), false},
+		{"kex failure", fmt.Errorf("ssh: handshake failed: ssh: no common algorithm"), false},
+		{"nil", nil, false},
+	}
+	for _, tc := range cases {
+		if got := sshAuthRejected(tc.err); got != tc.want {
+			t.Errorf("%s: sshAuthRejected(%v) = %v, want %v", tc.name, tc.err, got, tc.want)
+		}
+	}
+}
+
+// End-to-end for the same issue: a fake SSH server that completes the TCP
+// accept then closes the connection (MaxStartups drop) must yield
+// ConnectionSuccess=false so RunBrute retries and the missed-credential
+// pass can replay the credential.
+func TestBruteSSHTransientDropIsConnectionFailure(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+	go func() {
+		for {
+			c, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			// Drop without any SSH protocol, like a MaxStartups kill.
+			_ = c.Close()
+		}
+	}()
+
+	cm, _ := modules.NewConnectionManager("", 2*time.Second, "")
+	port := ln.Addr().(*net.TCPAddr).Port
+	result := BruteSSH("127.0.0.1", port, "root", "chocolate", 2*time.Second, cm, ModuleParams{})
+	if result.AuthSuccess {
+		t.Fatal("expected auth failure")
+	}
+	if result.ConnectionSuccess {
+		t.Fatal("dropped handshake must be ConnectionSuccess=false (issue #218: must be retryable)")
+	}
+}
+
+// A real (in-process) SSH server rejecting the password must keep
+// ConnectionSuccess=true: the server engaged the credential, so retrying
+// or tripping the connectivity breaker would be wrong.
+func TestBruteSSHAuthDeniedKeepsConnectionSuccess(t *testing.T) {
+	_, privKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	signer, err := ssh.NewSignerFromKey(privKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	config := &ssh.ServerConfig{
+		PasswordCallback: func(conn ssh.ConnMetadata, password []byte) (*ssh.Permissions, error) {
+			return nil, fmt.Errorf("wrong password")
+		},
+	}
+	config.AddHostKey(signer)
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+	go func() {
+		for {
+			c, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			go func(c net.Conn) {
+				defer c.Close()
+				_, _, _, _ = ssh.NewServerConn(c, config)
+			}(c)
+		}
+	}()
+
+	cm, _ := modules.NewConnectionManager("", 2*time.Second, "")
+	port := ln.Addr().(*net.TCPAddr).Port
+	result := BruteSSH("127.0.0.1", port, "root", "wrongpass", 2*time.Second, cm, ModuleParams{})
+	if result.AuthSuccess {
+		t.Fatal("expected auth failure")
+	}
+	if !result.ConnectionSuccess {
+		t.Fatalf("server-rejected credential must stay ConnectionSuccess=true, got err=%v", result.Error)
 	}
 }

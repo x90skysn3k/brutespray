@@ -111,8 +111,73 @@ func collectPreAuthFindings(ctx context.Context, host modules.Host, timeout time
 	return findings
 }
 
+// queueForHost enqueues one credential on the host pool's job queue,
+// honoring round-robin turn order when a scheduler is installed
+// (-schedule round-robin, issue #150) and the per-host/global stop
+// channels. Returns false when queueing was abandoned (caller returns).
+//
+// Round-robin rule: exactly one credential per host per rotation. A host
+// whose queue buffer is full marks itself stalled while it blocks on the
+// send, so the rotation skips it instead of deadlocking behind a slow or
+// paused host; it rejoins as soon as the send completes.
+func (wp *WorkerPool) queueForHost(hostPool *HostWorkerPool, pk string, cred Credential) bool {
+	if rr := wp.roundRobin; rr != nil {
+		if !rr.waitTurn(pk, hostPool.stopChan, wp.globalStopChan) {
+			return false
+		}
+		// Fast path: queue has room, hand the turn over immediately.
+		select {
+		case hostPool.jobQueue <- cred:
+			rr.advance(pk)
+			return true
+		default:
+		}
+		// Queue full: stall this host while blocked so the rotation can
+		// move on to the other hosts.
+		rr.stall(pk)
+		var ok bool
+		select {
+		case hostPool.jobQueue <- cred:
+			ok = true
+		case <-hostPool.stopChan:
+		case <-wp.globalStopChan:
+		}
+		rr.unstall(pk)
+		if ok {
+			rr.advance(pk)
+		}
+		return ok
+	}
+	select {
+	case hostPool.jobQueue <- cred:
+		return true
+	case <-hostPool.stopChan:
+		return false
+	case <-wp.globalStopChan:
+		return false
+	}
+}
+
 // ProcessHost processes a single host with all its credentials using dedicated host worker pool
 func (wp *WorkerPool) ProcessHost(host modules.Host, service string, combo string, user string, password string, version string, timeout time.Duration, retry int, output string, cm *modules.ConnectionManager, domain string, moduleParams brute.ModuleParams, useUsernameAsPass bool) {
+	// One driver per target, for the whole run (issue #378). cfg.Hosts is
+	// deduplicated at config time, but overlapping sources and scanner
+	// files can still deliver the same target twice; a second ProcessHost
+	// for one target would Start/feed/close the same HostWorkerPool queue
+	// (double close / send-on-closed-channel / duplicate brute force) or,
+	// after completion, emit a phantom HostStartedMsg against a stopped
+	// pool. Duplicates are dropped before any event is emitted.
+	pk := poolKey(host)
+	if _, seen := wp.processedTargets.LoadOrStore(pk, struct{}{}); seen {
+		return
+	}
+	if wp.roundRobin != nil {
+		// Fallback for every abandonment path; the queueing tail calls
+		// leave() right after the last credential so finished hosts stop
+		// gating the rotation immediately (leave is idempotent).
+		defer wp.roundRobin.leave(pk)
+	}
+
 	// Skip hosts already completed in a previous run
 	if wp.checkpoint != nil && wp.checkpoint.IsHostCompleted(host.Host, host.Port, service) {
 		return
@@ -144,6 +209,11 @@ func (wp *WorkerPool) ProcessHost(host modules.Host, service string, combo strin
 
 	// Get or create host-specific worker pool
 	hostPool := wp.getOrCreateHostPool(host)
+	// Any exit from ProcessHost retires the pool: the dynamic scaler must
+	// never Add() a worker onto a queue this call has closed or a pool it
+	// has stopped (issue #378 lifecycle race). ResetForRetry re-arms the
+	// pool for the retry pass below.
+	defer hostPool.markTerminal()
 
 	// Start the host worker pool
 	hostPool.Start(timeout, retry, output, cm, domain, wp.noStats)
@@ -207,11 +277,7 @@ func (wp *WorkerPool) ProcessHost(host modules.Host, service string, combo strin
 				Service:  service,
 				Params:   moduleParams,
 			}
-			select {
-			case hostPool.jobQueue <- cred:
-			case <-hostPool.stopChan:
-				return
-			case <-wp.globalStopChan:
+			if !wp.queueForHost(hostPool, pk, cred) {
 				return
 			}
 		}
@@ -237,14 +303,7 @@ func (wp *WorkerPool) ProcessHost(host modules.Host, service string, combo strin
 					Service:  service,
 					Params:   moduleParams,
 				}
-				select {
-				case hostPool.jobQueue <- cred:
-					return true
-				case <-hostPool.stopChan:
-					return false
-				case <-wp.globalStopChan:
-					return false
-				}
+				return wp.queueForHost(hostPool, pk, cred)
 			}
 
 			if wp.inlineCreds != "" {
@@ -304,14 +363,7 @@ func (wp *WorkerPool) ProcessHost(host modules.Host, service string, combo strin
 					return true
 				}
 				cred := Credential{Host: host, User: u, Password: p, Service: service, Params: moduleParams}
-				select {
-				case hostPool.jobQueue <- cred:
-					return true
-				case <-hostPool.stopChan:
-					return false
-				case <-wp.globalStopChan:
-					return false
-				}
+				return wp.queueForHost(hostPool, pk, cred)
 			}
 
 			// Inline credential pairs from --creds / -c — fire first across ALL services.
@@ -421,16 +473,28 @@ func (wp *WorkerPool) ProcessHost(host modules.Host, service string, combo strin
 		}
 	}
 
-	// Close the job queue to signal no more jobs will be added
+	// Queueing is done: leave the round-robin rotation now so finished
+	// hosts stop gating the remaining hosts (leave is idempotent with the
+	// ProcessHost defer fallback).
+	if wp.roundRobin != nil {
+		wp.roundRobin.leave(pk)
+	}
+
+	// Close the job queue to signal no more jobs will be added.
+	// markTerminal happens BEFORE the close so the dynamic scaler can
+	// never Add() a worker onto the queue we are about to close (the
+	// check-then-Add and the mark share hwp.mutex; issue #378).
 	select {
 	case <-wp.globalStopChan:
 		// If we're stopping, don't close the queue normally, let Stop() handle it
+		hostPool.markTerminal()
 		hostPool.Stop()
 		return
 	case <-hostPool.stopChan:
 		// Host pool already stopped
 		return
 	default:
+		hostPool.markTerminal()
 		close(hostPool.jobQueue)
 	}
 
@@ -465,10 +529,11 @@ func (wp *WorkerPool) ProcessHost(host modules.Host, service string, combo strin
 	if len(missed) > 0 {
 		modules.PrintfColored(pterm.FgLightYellow, "[*] Retrying %d missed credentials for %s:%d\n", len(missed), host.Host, host.Port)
 
-		// Re-create job queue for retry pass and reset stop-on-success state
+		// Re-create job queue for retry pass and reset stop-on-success
+		// state (ResetForRetry installs the fresh queue atomically with
+		// clearing the terminal flag).
 		retryPool := wp.getOrCreateHostPool(host)
 		retryPool.ResetForRetry()
-		retryPool.jobQueue = make(chan Credential, retryPool.workers*10)
 		retryPool.Start(timeout, retry, output, cm, domain, wp.noStats)
 
 	credLoop:
@@ -483,6 +548,7 @@ func (wp *WorkerPool) ProcessHost(host modules.Host, service string, combo strin
 				return
 			}
 		}
+		retryPool.markTerminal()
 		close(retryPool.jobQueue)
 
 		retryDone := make(chan struct{})
