@@ -28,7 +28,7 @@ body:
     attributes:
       label: Brutespray Version
       description: The `Brutespray vX.Y.Z` line printed in the startup banner (or the release artifact you downloaded)
-      placeholder: e.g. v2.7.8
+      placeholder: e.g. v2.7.0
     validations:
       required: true
   - type: textarea
@@ -42,7 +42,7 @@ body:
     id: output
     attributes:
       label: Relevant Output
-      description: Paste the relevant log lines as text (JSONL output with `-o output.txt` helps). Redact real credentials.
+      description: Paste the relevant log lines as text (rerun with `-output-format json` for per-attempt JSONL). Redact real credentials.
       render: shell
   - type: dropdown
     id: os
@@ -61,7 +61,7 @@ body:
     attributes:
       label: Preconditions
       options:
-        - label: I am running the latest release (the banner shows v2.7.8 or newer)
+        - label: I am running the latest release from the releases page
           required: true
         - label: I am authorized to test these targets
           required: true

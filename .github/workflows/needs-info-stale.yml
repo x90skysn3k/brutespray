@@ -19,6 +19,7 @@ on:
 
 permissions:
   issues: write
+  actions: write # actions/stale deletes and re-saves its `_state` resume cache
 
 concurrency:
   group: needs-info-stale
