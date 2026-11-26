@@ -1,0 +1,17 @@
+name: Question
+description: Ask how to use Brutespray
+labels: ["question"]
+body:
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+      description: What are you trying to do? Paste commands and output as text, not screenshots.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Brutespray Version
+      description: The `Brutespray vX.Y.Z` line printed in the startup banner
+      placeholder: e.g. v2.7.8

@@ -1,0 +1,67 @@
+name: Bug Report
+description: Report a bug, crash, or wrong behavior
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        Screenshots alone are not actionable — we cannot quote flags, ports, or
+        error text from an image. Every field below must be **pasted as text**.
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What happened? (text, not a screenshot)
+    validations:
+      required: true
+  - type: textarea
+    id: command
+    attributes:
+      label: Exact Command
+      description: The full command as text, including every flag and the input file/hosts
+      render: shell
+      placeholder: brutespray -f nmap.gnmap -u users.txt -p passes.txt -t 5 -skip-policy aggressive -max-conn-fails 10
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Brutespray Version
+      description: The `Brutespray vX.Y.Z` line printed in the startup banner (or the release artifact you downloaded)
+      placeholder: e.g. v2.7.8
+    validations:
+      required: true
+  - type: textarea
+    id: expected-actual
+    attributes:
+      label: Expected vs Actual
+      description: What did you expect, and what did you see instead? Name the hosts/services involved.
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Relevant Output
+      description: Paste the relevant log lines as text (JSONL output with `-o output.txt` helps). Redact real credentials.
+      render: shell
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating System
+      options:
+        - Kali Linux
+        - Other Linux
+        - macOS
+        - Windows
+        - Docker
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Preconditions
+      options:
+        - label: I am running the latest release (the banner shows v2.7.8 or newer)
+          required: true
+        - label: I am authorized to test these targets
+          required: true

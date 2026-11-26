@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Usage Documentation
+    url: https://github.com/x90skysn3k/brutespray/tree/main/docs
+    about: Installation, usage, services, TUI, pipelines, and wordlist docs

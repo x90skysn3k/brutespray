@@ -1,0 +1,50 @@
+name: Close stalled needs-more-info issues
+
+# Scoped auto-closer, NOT a blanket stale bot: `only-issue-labels` means the
+# action only ever considers issues a maintainer has explicitly labeled
+# `needs more info`. Issues without that label are never marked or commented
+# on, so long-lived valid reports are safe. Flow: 7 idle days after labeling
+# -> marked `stale` with a note; 7 more idle days -> closed. Any new comment
+# clears `stale` and resets the cycle; removing the label opts the issue out.
+
+on:
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: Log what would be marked or closed without changing anything
+        type: boolean
+        default: true
+
+permissions:
+  issues: write
+
+concurrency:
+  group: needs-info-stale
+  cancel-in-progress: false
+
+jobs:
+  needs-info-stale:
+    name: Mark and close stalled needs-more-info issues
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/stale@4391f3da665fdf50b6810c1a66712fb9ba21aa93 # v11.0.0
+        with:
+          only-issue-labels: "needs more info"
+          days-before-issue-stale: 7
+          stale-issue-label: stale
+          days-before-issue-close: 7
+          days-before-pr-stale: -1
+          days-before-pr-close: -1
+          stale-issue-message: >-
+            This issue was labeled `needs more info` and has had no update for
+            7 days. Please add the requested details as text — version from the
+            startup banner, exact command with every flag, expected vs actual,
+            and relevant output. Without another update this issue will be
+            closed in 7 days; comment any time and a maintainer can reopen it.
+          close-issue-message: >-
+            Closed: labeled `needs more info`, then stale, with no further
+            input. If you can still reproduce it, add the requested details as
+            text and comment — a maintainer will reopen it.
+          debug-only: ${{ inputs.dry-run == true }}
