@@ -191,14 +191,15 @@ func (wp *WorkerPool) ProcessHost(host modules.Host, service string, combo strin
 	default:
 	}
 
-	// Acquire host semaphore to limit concurrent hosts
-	sem := wp.hostSem // capture reference so release goes to same channel
-	select {
-	case sem <- struct{}{}:
-	case <-wp.globalStopChan:
+	// Acquire host semaphore to limit concurrent hosts. The limiter is a
+	// stable pointer whose limit can be changed online (TUI settings):
+	// unlike the previous channel swap, release can never strand behind a
+	// replaced object (issue #378).
+	sem := wp.hostSem
+	if !sem.acquire(wp.globalStopChan) {
 		return
 	}
-	defer func() { <-sem }()
+	defer sem.release()
 
 	// Check again after acquiring semaphore
 	select {
