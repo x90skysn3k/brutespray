@@ -88,7 +88,7 @@ type WorkerPool struct {
 	globalStopChan  chan struct{}
 	globalStopOnce  sync.Once
 	hostParallelism int
-	hostSem         chan struct{}
+	hostSem         *hostSlotLimiter
 	// Dynamic thread allocation
 	dynamicAllocation bool
 	minThreadsPerHost int
@@ -174,7 +174,7 @@ func NewWorkerPool(threadsPerHost int, eventSink tui.EventSink, hostParallelism 
 		eventSink:         eventSink,
 		globalStopChan:    make(chan struct{}),
 		hostParallelism:   hostParallelism,
-		hostSem:           make(chan struct{}, hostParallelism),
+		hostSem:           newHostSlotLimiter(hostParallelism),
 		dynamicAllocation: true,
 		minThreadsPerHost: 1,
 		maxThreadsPerHost: threadsPerHost * 2,
@@ -441,29 +441,21 @@ func (wp *WorkerPool) SetThreadsPerHost(n int) {
 }
 
 // SetHostParallelism updates the host parallelism (semaphore size).
+// Raising the limit admits parked hosts immediately; lowering takes
+// effect as current holders release. No channel is replaced, so hosts
+// that captured the limiter before the change release into the same
+// object they acquired from (issue #378).
 func (wp *WorkerPool) SetHostParallelism(n int) {
 	if n < 1 {
 		n = 1
 	}
 	wp.hostPoolsMutex.Lock()
 	wp.hostParallelism = n
-	// Replace the semaphore channel with new capacity
-	newSem := make(chan struct{}, n)
-	// Transfer existing tokens (up to new capacity)
-	for {
-		select {
-		case tok := <-wp.hostSem:
-			select {
-			case newSem <- tok:
-			default:
-				// New capacity is smaller; drop excess tokens
-			}
-		default:
-			goto done
-		}
-	}
-done:
-	wp.hostSem = newSem
+	// Serialize with hostParallelism so concurrent setters can never
+	// leave GetHostParallelism() disagreeing with the live limiter.
+	// Lock order is one-way (pool mutex -> limiter mutex); the limiter
+	// never reaches back into the pool.
+	wp.hostSem.setLimit(n)
 	wp.hostPoolsMutex.Unlock()
 }
 
