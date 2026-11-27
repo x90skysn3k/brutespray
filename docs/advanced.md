@@ -163,6 +163,22 @@ The worker pool monitors per-host performance and adjusts thread counts:
 - Slow responses (>2s) → scales down to half
 - High success rate → modest thread increase
 
+A finished host is retired: once a host's queue is closed, the scaler no
+longer adds workers to its pool.
+
+### Cross-Host Round-Robin (`-schedule round-robin`)
+
+By default each host goroutine enqueues its whole credential list as fast
+as its queue buffer allows, so early hosts in a large run can be hammered
+to completion (or skipped by the circuit breaker) while later hosts see
+nothing. `-schedule round-robin` interleaves queueing across the
+concurrently active hosts: one credential per host per rotation
+(Host#1 Combo#1, Host#2 Combo#1, …, Host#1 Combo#2, …). Hosts blocked on
+`-T` not yet started, hosts whose queues are full, and finished hosts are
+skipped by the rotation, so it never deadlocks; a lone ready host runs at
+full speed. Needs `-T >= 2` to observe; add `-t 1` for deterministic
+per-host order.
+
 ### Circuit Breaker
 
 The circuit breaker stops BruteSpray from spraying a host that is not answering. It counts connection failures per host; once the limit is hit, the host is skipped for the remaining credentials.

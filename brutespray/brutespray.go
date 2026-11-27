@@ -73,6 +73,9 @@ func Execute() {
 			os.Exit(2)
 		}
 		cfg.Hosts = append(cfg.Hosts, hosts...)
+		// Canonical dedup for the stdin feed too (naabu/masscan output can
+		// repeat host:port lines).
+		cfg.Hosts = dedupeHosts(cfg.Hosts)
 	}
 
 	if cfg.DryRun || cfg.RequirePlanAck != "" || cfg.EngagementFile != "" {
@@ -189,6 +192,11 @@ func executeTUI(cfg *Config, cm *modules.ConnectionManager, totalHosts int, enga
 	workerPool.badKeysOnly = cfg.BadKeysOnly
 	workerPool.noRDPScan = cfg.NoRDPScan
 	workerPool.inlineCreds = cfg.Creds
+	if cfg.ScheduleMode == "round-robin" {
+		// Issue #150: interleave credential queueing across hosts.
+		workerPool.roundRobin = newHostTurnScheduler()
+		workerPool.PlanTargets(cfg.Hosts)
+	}
 	if err := configureBudgetScheduler(workerPool, engagementManifest); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(2)
@@ -301,6 +309,11 @@ func executeLegacy(cfg *Config, cm *modules.ConnectionManager, totalHosts int, e
 	workerPool.badKeysOnly = cfg.BadKeysOnly
 	workerPool.noRDPScan = cfg.NoRDPScan
 	workerPool.inlineCreds = cfg.Creds
+	if cfg.ScheduleMode == "round-robin" {
+		// Issue #150: interleave credential queueing across hosts.
+		workerPool.roundRobin = newHostTurnScheduler()
+		workerPool.PlanTargets(cfg.Hosts)
+	}
 	if err := configureBudgetScheduler(workerPool, engagementManifest); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(2)

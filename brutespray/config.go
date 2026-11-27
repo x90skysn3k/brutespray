@@ -19,7 +19,7 @@ var masterServiceList = brute.Services()
 
 var BetaServiceList = []string{"asterisk", "nntp", "oracle", "xmpp", "ldap", "ldaps", "winrm", "ftps", "smtp-vrfy", "rexec", "rlogin", "rsh", "wrapper", "http-form", "https-form", "http-template", "svn", "socks5-auth", "neo4j", "cassandra"}
 
-var version = "2.7.8"
+var version = "2.7.9"
 var NoColorMode bool
 
 func init() {
@@ -145,7 +145,7 @@ var helpGroups = []flagGroup{
 			{"-no-confirm-hits", "", "Skip hit confirmation (do not re-check hits with a random password)"},
 			{"-skip-policy", "policy", "Stop trying unreachable hosts: auto (spray mode only), off, conservative (5 failures), aggressive (3)"},
 			{"-max-conn-fails", "n", "Failures per host before it is skipped; counter resets on a valid credential (0 = policy default)"},
-			{"-schedule", "auto|host-major|spray|pairwise", "Credential queue order; exact output order also needs -t 1 -T 1"},
+			{"-schedule", "auto|host-major|spray|pairwise|round-robin", "Credential queue order; round-robin interleaves one credential per host across concurrently active hosts (needs -T >= 2; add -t 1 for deterministic per-host order)"},
 			{"-debug-audit", "", "Write redacted per-attempt diagnostics to JSONL"},
 			{"-debug-file", "file", "Debug audit JSONL path (default: brutespray-debug.jsonl)"},
 			{"-route-diagnostics", "", "Print selected local route/source address per target"},
@@ -297,9 +297,9 @@ func (cfg *Config) Validate() error {
 		return fmt.Errorf("--max-conn-fails must be >= 0")
 	}
 	switch cfg.ScheduleMode {
-	case "", "auto", "host-major", "spray", "pairwise":
+	case "", "auto", "host-major", "spray", "pairwise", "round-robin":
 	default:
-		return fmt.Errorf("invalid --schedule %q (valid: auto, host-major, spray, pairwise)", cfg.ScheduleMode)
+		return fmt.Errorf("invalid --schedule %q (valid: auto, host-major, spray, pairwise, round-robin)", cfg.ScheduleMode)
 	}
 	// Validate service types exist when user specified specific services
 	if cfg.ServiceType != "all" {
@@ -311,6 +311,22 @@ func (cfg *Config) Validate() error {
 	}
 
 	return nil
+}
+
+// dedupeHosts collapses exact duplicate targets (same Service, Host, Port)
+// while preserving first-seen order. Same host:port with different services
+// stays distinct.
+func dedupeHosts(hosts []modules.Host) []modules.Host {
+	seen := make(map[modules.Host]struct{}, len(hosts))
+	out := make([]modules.Host, 0, len(hosts))
+	for _, h := range hosts {
+		if _, dup := seen[h]; dup {
+			continue
+		}
+		seen[h] = struct{}{}
+		out = append(out, h)
+	}
+	return out
 }
 
 // ParseConfig parses CLI flags, loads config file, and validates inputs.
@@ -365,7 +381,7 @@ func ParseConfig() *Config {
 	proxyList := flag.String("proxy-list", "", "File containing proxy list (one socks5://host:port per line) for rotation")
 	skipPolicy := flag.String("skip-policy", "auto", "Stop trying unreachable hosts: auto (spray mode only), off, conservative (5 failures), aggressive (3)")
 	maxConnFails := flag.Int("max-conn-fails", 0, "Connection failures per host before it is skipped; counter resets on a valid credential (0 = policy default)")
-	scheduleMode := flag.String("schedule", "auto", "Credential queue schedule: auto, host-major, spray, pairwise (deterministic execution also needs -t 1 -T 1)")
+	scheduleMode := flag.String("schedule", "auto", "Credential queue schedule: auto, host-major, spray, pairwise, round-robin (round-robin interleaves one credential per host across concurrently active hosts; needs -T >= 2 to observe, add -t 1 for per-host deterministic order)")
 	debugAudit := flag.Bool("debug-audit", false, "Write redacted per-attempt diagnostics to JSONL")
 	debugFile := flag.String("debug-file", "", "Debug audit JSONL path (default: brutespray-debug.jsonl)")
 	routeDiagnostics := flag.Bool("route-diagnostics", false, "Print selected local route/source address per target")
@@ -689,6 +705,14 @@ func ParseConfig() *Config {
 			cfg.Hosts = append(cfg.Hosts, parsed...)
 		}
 	}
+
+	// Issue #378: duplicate targets (same service://host:port from repeated
+	// -H args, overlapping -f/-H inputs, or a scanner file listing the same
+	// host twice) each launched their own ProcessHost goroutine against the
+	// same HostWorkerPool, racing on its jobQueue (double close) and running
+	// every credential twice. Collapse exact duplicates up front; the
+	// per-target claim in ProcessHost guards the rest.
+	cfg.Hosts = dedupeHosts(cfg.Hosts)
 
 	cfg.SupportedServices = getSupportedServices(cfg.ServiceType)
 

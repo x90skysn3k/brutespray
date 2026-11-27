@@ -4,6 +4,7 @@ import (
 	"math/rand"
 	"net"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -59,8 +60,22 @@ type HostWorkerPool struct {
 	missedMu    sync.Mutex
 	// User enumeration skip: users confirmed non-existent by the service (e.g. FTP 530)
 	skipUsers sync.Map // user string → struct{}
+	// terminal marks a finished pool: the dynamic scaler must not Add()
+	// new workers onto a closed queue / a WaitGroup whose Wait is already
+	// running (issue #378 lifecycle race). Guarded by mutex together with
+	// every wg.Add in Start/scaleTo, so a close that takes the lock can
+	// never interleave with an Add.
+	terminal bool
 	// Shared lockout scheduler owned by WorkerPool.
 	budgetScheduler *BudgetScheduler
+}
+
+// markTerminal stops the dynamic scaler from adding workers to this pool.
+// Call before close(jobQueue) and whenever ProcessHost abandons a pool.
+func (hwp *HostWorkerPool) markTerminal() {
+	hwp.mutex.Lock()
+	hwp.terminal = true
+	hwp.mutex.Unlock()
 }
 
 // WorkerPool manages the worker goroutines for brute force attempts with per-host allocation
@@ -73,7 +88,7 @@ type WorkerPool struct {
 	globalStopChan  chan struct{}
 	globalStopOnce  sync.Once
 	hostParallelism int
-	hostSem         chan struct{}
+	hostSem         *hostSlotLimiter
 	// Dynamic thread allocation
 	dynamicAllocation bool
 	minThreadsPerHost int
@@ -106,6 +121,27 @@ type WorkerPool struct {
 	// Inline credential pairs from --creds / -c
 	inlineCreds     string
 	budgetScheduler *BudgetScheduler
+	// processedTargets holds one entry per target (poolKey) this run has
+	// ever started driving. Duplicate targets from overlapping sources are
+	// ignored for the WHOLE run — a re-claim after completion would emit a
+	// phantom HostStartedMsg against a stopped pool (issue #378: hosts
+	// appearing to start again after being skipped).
+	processedTargets sync.Map
+	// roundRobin, when non-nil, interleaves credential queueing across
+	// hosts in round-robin order (-schedule round-robin, issue #150).
+	roundRobin *hostTurnScheduler
+}
+
+// PlanTargets records target order for the round-robin rotation so the
+// interleave follows the operator's target order. No-op unless
+// -schedule round-robin is active.
+func (wp *WorkerPool) PlanTargets(hosts []modules.Host) {
+	if wp.roundRobin == nil {
+		return
+	}
+	for _, h := range hosts {
+		wp.roundRobin.plan(poolKey(h))
+	}
 }
 
 // NewHostWorkerPool creates a new host-specific worker pool
@@ -138,7 +174,7 @@ func NewWorkerPool(threadsPerHost int, eventSink tui.EventSink, hostParallelism 
 		eventSink:         eventSink,
 		globalStopChan:    make(chan struct{}),
 		hostParallelism:   hostParallelism,
-		hostSem:           make(chan struct{}, hostParallelism),
+		hostSem:           newHostSlotLimiter(hostParallelism),
 		dynamicAllocation: true,
 		minThreadsPerHost: 1,
 		maxThreadsPerHost: threadsPerHost * 2,
@@ -179,35 +215,52 @@ func (hwp *HostWorkerPool) waitForBudget(cred Credential, domain string) bool {
 
 // Start starts the host-specific worker pool with staggered first attempts so
 // workers don't all hit the target at the same instant (avoids chunked output).
+// It is additive and idempotent: it only spawns until currentWorkers reaches
+// workers, so a scaler tick that already added some workers between
+// ResetForRetry and Start cannot double the pool. wg.Add happens under mutex
+// so it can never race a markTerminal/close (issue #378).
 func (hwp *HostWorkerPool) Start(timeout time.Duration, retry int, output string, cm *modules.ConnectionManager, domain string, noStats bool) {
 	stagger := time.Duration(0)
 	if hwp.workers > 1 {
 		stagger = timeout / time.Duration(hwp.workers)
 		stagger = min(stagger, time.Second)
 	}
-	for i := 0; i < hwp.workers; i++ {
+	hwp.mutex.Lock()
+	if hwp.terminal {
+		hwp.mutex.Unlock()
+		return
+	}
+	for spawned := int(atomic.LoadInt32(&hwp.currentWorkers)); spawned < hwp.workers; spawned++ {
 		hwp.wg.Add(1)
 		atomic.AddInt32(&hwp.currentWorkers, 1)
-		initialDelay := time.Duration(i) * stagger
+		initialDelay := time.Duration(spawned) * stagger
 		go hwp.worker(timeout, retry, output, cm, domain, noStats, initialDelay)
 	}
+	hwp.mutex.Unlock()
 }
 
 // scaleTo adjusts the number of workers towards target. It can only add workers; reducing
 // happens cooperatively when workers finish a job and see they are above target.
+// The terminal check and the wg.Add loop share hwp.mutex with
+// markTerminal/ResetForRetry, so the 2-second scaler tick can never Add a
+// worker after the queue was closed and wg.Wait started (issue #378).
 func (hwp *HostWorkerPool) scaleTo(newTarget int, timeout time.Duration, retry int, output string, cm *modules.ConnectionManager, domain string, noStats bool) {
+	hwp.mutex.Lock()
+	if hwp.terminal {
+		hwp.mutex.Unlock()
+		return
+	}
 	if newTarget < 1 {
 		newTarget = 1
 	}
-	hwp.mutex.Lock()
 	hwp.targetWorkers = newTarget
-	hwp.mutex.Unlock() // safe: no panicking code between lock/unlock
 	// Add workers if below target
 	for int(atomic.LoadInt32(&hwp.currentWorkers)) < newTarget {
 		hwp.wg.Add(1)
 		atomic.AddInt32(&hwp.currentWorkers, 1)
 		go hwp.worker(timeout, retry, output, cm, domain, noStats, 0)
 	}
+	hwp.mutex.Unlock()
 }
 
 // Start starts all host worker pools
@@ -237,9 +290,15 @@ func (wp *WorkerPool) Start(timeout time.Duration, retry int, output string, cm 
 	}()
 }
 
-// Stop stops the host-specific worker pool
+// Stop stops the host-specific worker pool. The terminal mark and the
+// stopChan close happen under hwp.mutex, atomically with respect to every
+// wg.Add in Start/scaleTo and to ResetForRetry, so a pool being torn down
+// can never be handed new workers (issue #378).
 func (hwp *HostWorkerPool) Stop() {
+	hwp.mutex.Lock()
+	hwp.terminal = true
 	hwp.stopOnce.Do(func() { close(hwp.stopChan) })
+	hwp.mutex.Unlock()
 	hwp.wg.Wait()
 	if hwp.rateTicker != nil {
 		hwp.rateTicker.Stop()
@@ -327,21 +386,27 @@ func (hwp *HostWorkerPool) waitIfPaused() bool {
 	}
 }
 
-// PauseHost pauses workers for a specific host.
+// PauseHost pauses worker pools whose key matches hostKey ("ip:port") or
+// any service-scoped variant ("ip:port/service") for that address.
 func (wp *WorkerPool) PauseHost(hostKey string) {
 	wp.hostPoolsMutex.RLock()
 	defer wp.hostPoolsMutex.RUnlock()
-	if hp, ok := wp.hostPools[hostKey]; ok {
-		hp.Pause()
+	for k, hp := range wp.hostPools {
+		if k == hostKey || strings.HasPrefix(k, hostKey+"/") {
+			hp.Pause()
+		}
 	}
 }
 
-// ResumeHost resumes workers for a specific host.
+// ResumeHost resumes worker pools for hostKey ("ip:port"), including all
+// service-scoped pools at that address.
 func (wp *WorkerPool) ResumeHost(hostKey string) {
 	wp.hostPoolsMutex.RLock()
 	defer wp.hostPoolsMutex.RUnlock()
-	if hp, ok := wp.hostPools[hostKey]; ok {
-		hp.Resume()
+	for k, hp := range wp.hostPools {
+		if k == hostKey || strings.HasPrefix(k, hostKey+"/") {
+			hp.Resume()
+		}
 	}
 }
 
@@ -376,29 +441,21 @@ func (wp *WorkerPool) SetThreadsPerHost(n int) {
 }
 
 // SetHostParallelism updates the host parallelism (semaphore size).
+// Raising the limit admits parked hosts immediately; lowering takes
+// effect as current holders release. No channel is replaced, so hosts
+// that captured the limiter before the change release into the same
+// object they acquired from (issue #378).
 func (wp *WorkerPool) SetHostParallelism(n int) {
 	if n < 1 {
 		n = 1
 	}
 	wp.hostPoolsMutex.Lock()
 	wp.hostParallelism = n
-	// Replace the semaphore channel with new capacity
-	newSem := make(chan struct{}, n)
-	// Transfer existing tokens (up to new capacity)
-	for {
-		select {
-		case tok := <-wp.hostSem:
-			select {
-			case newSem <- tok:
-			default:
-				// New capacity is smaller; drop excess tokens
-			}
-		default:
-			goto done
-		}
-	}
-done:
-	wp.hostSem = newSem
+	// Serialize with hostParallelism so concurrent setters can never
+	// leave GetHostParallelism() disagreeing with the live limiter.
+	// Lock order is one-way (pool mutex -> limiter mutex); the limiter
+	// never reaches back into the pool.
+	wp.hostSem.setLimit(n)
 	wp.hostPoolsMutex.Unlock()
 }
 
@@ -688,17 +745,24 @@ func (hwp *HostWorkerPool) updatePerformanceMetrics(success bool, responseTime t
 // ResetForRetry resets the host worker pool state so it can be reused for a
 // retry pass. This clears stop-on-success state, worker counts, backoff
 // counters, and skip lists that would otherwise cause retried credentials to
-// be silently dropped.
+// be silently dropped. The fresh stopChan/stopOnce and jobQueue are
+// installed under the same mutex that guards the terminal flag and every
+// wg.Add: no observer can see a non-terminal pool holding the previous
+// generation's closed queue or closed stop channel (issue #378).
 func (hwp *HostWorkerPool) ResetForRetry() {
-	hwp.stopChan = make(chan struct{})
-	hwp.stopOnce = sync.Once{}
-	atomic.StoreInt32(&hwp.foundSuccess, 0)
-	atomic.StoreInt32(&hwp.currentWorkers, 0)
 	atomic.StoreInt64(&hwp.consecutiveConnFails, 0)
 	hwp.skipUsers = sync.Map{}
 	hwp.missedMu.Lock()
 	hwp.missedQueue = nil
 	hwp.missedMu.Unlock()
+	hwp.mutex.Lock()
+	hwp.stopChan = make(chan struct{})
+	hwp.stopOnce = sync.Once{}
+	hwp.jobQueue = make(chan Credential, hwp.workers*10)
+	atomic.StoreInt32(&hwp.foundSuccess, 0)
+	atomic.StoreInt32(&hwp.currentWorkers, 0)
+	hwp.terminal = false
+	hwp.mutex.Unlock()
 }
 
 // DrainMissedQueue returns and clears the missed credential queue for this host.
@@ -712,7 +776,7 @@ func (hwp *HostWorkerPool) DrainMissedQueue() []Credential {
 
 // AddJob adds a credential to the appropriate host's job queue
 func (wp *WorkerPool) AddJob(cred Credential) {
-	hostKey := net.JoinHostPort(cred.Host.Host, strconv.Itoa(cred.Host.Port))
+	hostKey := poolKey(cred.Host)
 
 	wp.hostPoolsMutex.RLock()
 	hostPool, exists := wp.hostPools[hostKey]
@@ -730,9 +794,18 @@ func (wp *WorkerPool) AddJob(cred Credential) {
 	}
 }
 
+// poolKey is the identity of a target's worker pool: address PLUS service.
+// Issue #378: the old address-only key made two different services on one
+// host:port share a single jobQueue — the second ProcessHost fed and closed
+// a queue the first still owned ("send on closed channel"), silently
+// dropping one service's attempts.
+func poolKey(host modules.Host) string {
+	return net.JoinHostPort(host.Host, strconv.Itoa(host.Port)) + "/" + host.Service
+}
+
 // getOrCreateHostPool gets or creates a host-specific worker pool
 func (wp *WorkerPool) getOrCreateHostPool(host modules.Host) *HostWorkerPool {
-	hostKey := net.JoinHostPort(host.Host, strconv.Itoa(host.Port))
+	hostKey := poolKey(host)
 
 	wp.hostPoolsMutex.RLock()
 	hostPool, exists := wp.hostPools[hostKey]
