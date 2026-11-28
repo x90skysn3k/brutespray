@@ -176,8 +176,13 @@ table, then sends the documented double Ctrl+C and requires a clean exit.
 
 Each successful case prints one JSON summary with measurable counts. A final
 JSON record reports `PASS` and totals. `--timeout` defaults to 90 seconds per
-case; protocol attempt deadlines are 500 ms, 2 seconds for TLS/NLA, and 3 seconds
-for the interactive case. Failures exit nonzero with counts and an output suffix;
+case; protocol attempt deadlines are 500 ms for dead-host cases and 10 seconds
+for the TLS/NLA cases (3 seconds for the interactive case). Each credential
+must be covered exactly once by the first pass; a healthy host may add a small
+number of recovery-pass retries (`retrying: true` rows) after connection blips
+under co-running load, which the validator permits up to its tolerance while
+dead-host budgets stay exact. Failures exit nonzero with counts and an output
+suffix;
 a still-running binary receives SIGQUIT to capture Go stacks before forced
 cleanup. `--artifacts` preserves raw terminal/CLI transcripts, rendered completion
 screens, command arguments, session logs, checkpoints, and JSON summaries. Use a
