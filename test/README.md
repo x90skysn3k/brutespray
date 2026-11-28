@@ -125,3 +125,61 @@ The `config/` directory contains configuration files mounted into the containers
 - The telnet service uses a minimal Alpine container running busybox telnetd with a user created at startup.
 - MySQL may take 20-30 seconds to initialise on first run.
 - The VNC service uses theasp/novnc which provides both VNC (5900) and a web interface (8080).
+
+## Local RDP CLI/TUI regression smoke (issue #378)
+
+This smoke drives the actual binary, not module mocks. It requires Python 3.11+
+and `openssl`; Docker, external RDP servers, and Python packages are not needed.
+Every fixture listens only on `127.0.0.1`, using an ephemeral port.
+
+```bash
+go build -o /tmp/brutespray-rdp-smoke .
+python3 test/smoke-rdp.py --binary /tmp/brutespray-rdp-smoke \
+  --artifacts /tmp/brutespray-rdp-proof
+```
+
+Use `--help` for options, or repeat `--case NAME` to select individual cases.
+The default matrix is:
+
+| Case | Output | Hosts / concurrency | Fixture / credentials per host |
+|------|--------|---------------------|--------------------------------|
+| `garbage-legacy-t5` | Legacy CLI | 64 / 5 | `{0,1}` response; 1,000 × 1,000 |
+| `garbage-json-t50` | JSON CLI | 64 / 50 | `{0,1}` response; 1,000 × 1,000 |
+| `silent-json-t50` | JSON CLI | 64 / 50 | Accept without replying; 1,000 × 1,000 |
+| `malformed-json` | JSON CLI | 64 / 50 | TLS/NLA malformed NTLM challenge; 16 |
+| `healthy-json` | JSON CLI | 64 / 50 | Alternating valid versioned/unversioned NTLM challenges and explicit CredSSP rejection; 16 |
+| `silent-tui-t50` | Default TUI in PTY | 64 / 50 | Accept without replying; 1,000 × 1,000 |
+
+All cases request 30 workers per host, zero retries, the aggressive skip policy,
+an explicit ten-connection-failure threshold, and disabled pre-auth RDP recon.
+Dead hosts must produce **exactly ten actual TCP connections**, not merely ten
+reported attempts. The fixture socket counts, session attempt events,
+host-completed totals, and final checkpoint counts must agree, and every target
+must complete. The five-host-concurrency case additionally proves that a queued
+host starts after an earlier host completes. Large cases write only 1,000-line
+username/password files, while presenting one million combinations per host.
+
+The malformed challenge has the VERSION flag, target-name length 12 and absolute
+offset 48, a 56-byte header, and only four payload bytes: the reporter's
+`uint32(48 - 56) == 4294967288` case. It must fail as a connection/protocol
+failure without a process panic or a recovered module panic. Healthy fixtures
+must reach NTLM AUTHENTICATE and receive a real TSRequest `errorCode`
+`STATUS_LOGON_FAILURE` (`0xc000006d`); all sixteen attempts must remain
+authentication failures, proving the connection breaker does not trip after ten.
+They are rejecting protocol peers, not successful Windows login/session tests.
+
+The PTY case supplies a terminal size, continuously drains output, answers
+terminal queries, visits By Host/Completed/Settings, changes and restores live
+host parallelism, resizes twice, and pauses/resumes while sockets are active.
+It waits for the rendered **All hosts completed** status and the Completed
+table, then sends the documented double Ctrl+C and requires a clean exit.
+
+Each successful case prints one JSON summary with measurable counts. A final
+JSON record reports `PASS` and totals. `--timeout` defaults to 90 seconds per
+case; protocol attempt deadlines are 500 ms, 2 seconds for TLS/NLA, and 3 seconds
+for the interactive case. Failures exit nonzero with counts and an output suffix;
+a still-running binary receives SIGQUIT to capture Go stacks before forced
+cleanup. `--artifacts` preserves raw terminal/CLI transcripts, rendered completion
+screens, command arguments, session logs, checkpoints, and JSON summaries. Use a
+fresh artifact directory for each run. Temporary listeners, processes, TLS keys,
+wordlists, and working directories are cleaned up on success or failure.

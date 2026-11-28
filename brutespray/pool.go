@@ -290,15 +290,18 @@ func (wp *WorkerPool) Start(timeout time.Duration, retry int, output string, cm 
 	}()
 }
 
-// Stop stops the host-specific worker pool. The terminal mark and the
-// stopChan close happen under hwp.mutex, atomically with respect to every
-// wg.Add in Start/scaleTo and to ResetForRetry, so a pool being torn down
-// can never be handed new workers (issue #378).
-func (hwp *HostWorkerPool) Stop() {
+// requestStop can be called by a worker without waiting for itself to exit.
+// It wakes the producer and prevents the scaler from adding workers.
+func (hwp *HostWorkerPool) requestStop() {
 	hwp.mutex.Lock()
 	hwp.terminal = true
 	hwp.stopOnce.Do(func() { close(hwp.stopChan) })
 	hwp.mutex.Unlock()
+}
+
+// Stop retires the pool and joins its workers before releasing the host slot.
+func (hwp *HostWorkerPool) Stop() {
+	hwp.requestStop()
 	hwp.wg.Wait()
 	if hwp.rateTicker != nil {
 		hwp.rateTicker.Stop()
@@ -585,26 +588,20 @@ func (hwp *HostWorkerPool) applyAdaptiveBackoff(cred Credential) bool {
 }
 
 func (hwp *HostWorkerPool) processCredential(cred Credential, timeout time.Duration, retry int, output string, cm *modules.ConnectionManager, domain string, noStats bool) {
+	select {
+	case <-hwp.stopChan:
+		return
+	default:
+	}
 	// Skip users that the service confirmed don't exist (e.g. FTP 530)
 	if _, skipped := hwp.skipUsers.Load(cred.User); skipped {
 		return
 	}
 
-	// Issue #366 (report 2026-11-23): once the breaker tripped, the skip
-	// policy declared this host done. Drain the remaining queued
-	// credentials WITHOUT a per-credential event or network attempt — they
-	// never touch the wire, and emitting each one made a skipped host look
-	// like it was "still bruting" in the TUI (the (169)/(230) counters in
-	// the operator's screenshot were mostly these phantom rows).
+	// Retire the target rather than consuming its unattempted suffix.
 	hostKey := net.JoinHostPort(cred.Host.Host, strconv.Itoa(cred.Host.Port))
 	if brute.GetCircuitBreaker().IsTripped(hostKey) {
-		if hwp.checkpoint != nil && !cred.Retry {
-			hwp.checkpoint.RecordAttemptForHost(cred.Host.Host, cred.Host.Port, cred.Service)
-		}
-		// Count the credential in the progress tracker without an attempt
-		// row, so legacy mode's "N/M combinations tested" still completes.
-		// The TUI ignores ProgressEvent; only LegacyEventSink consumes it.
-		hwp.eventSink.Send(tui.ProgressEvent{Retry: cred.Retry})
+		hwp.requestStop()
 		return
 	}
 
@@ -613,7 +610,11 @@ func (hwp *HostWorkerPool) processCredential(cred Credential, timeout time.Durat
 	maxJitter := timeout / 10
 	maxJitter = min(maxJitter, 500*time.Millisecond)
 	if maxJitter > 0 {
-		time.Sleep(time.Duration(rand.Int63n(int64(maxJitter))))
+		select {
+		case <-time.After(time.Duration(rand.Int63n(int64(maxJitter)))):
+		case <-hwp.stopChan:
+			return
+		}
 	}
 
 	if hwp.applyAdaptiveBackoff(cred) {
@@ -633,11 +634,26 @@ func (hwp *HostWorkerPool) processCredential(cred Credential, timeout time.Durat
 		return
 	}
 
+	select {
+	case <-hwp.stopChan:
+		return
+	default:
+	}
+
 	// Track performance for dynamic adjustment
 	startTime := time.Now()
 
 	// Execute the brute force attempt
 	result := brute.RunBrute(cred.Host, cred.User, cred.Password, timeout, retry, output, "", "", domain, cm, cred.Params)
+	// Workers parked inside dial admission never touched the network.
+	// Do not count them as attempts, retries, checkpoint work, or UI rows.
+	if result.Status == brute.StatusSkippedService {
+		hwp.requestStop()
+		return
+	}
+	if brute.GetCircuitBreaker().IsTripped(hostKey) {
+		hwp.requestStop()
+	}
 
 	// Record statistics (if enabled) — only count connection errors, not auth failures
 	duration := time.Since(startTime)
@@ -671,7 +687,7 @@ func (hwp *HostWorkerPool) processCredential(cred Credential, timeout time.Durat
 	// Stop-on-success: signal host pool to stop processing remaining credentials
 	if result.AuthSuccess && hwp.stopOnSuccess {
 		if atomic.CompareAndSwapInt32(&hwp.foundSuccess, 0, 1) {
-			hwp.stopOnce.Do(func() { close(hwp.stopChan) })
+			hwp.requestStop()
 		}
 	}
 

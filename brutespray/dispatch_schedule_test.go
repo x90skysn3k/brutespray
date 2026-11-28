@@ -1,21 +1,24 @@
 package brutespray
 
-import "testing"
+import (
+	"slices"
+	"testing"
+)
 
-func TestBuildCredentialPairsHostMajor(t *testing.T) {
-	pairs := buildCredentialPairs([]string{"alice", "bob"}, []string{"p1", "p2"}, credentialOrderOptions{mode: "host-major"})
+func TestCredentialPairsHostMajor(t *testing.T) {
+	pairs := slices.Collect(credentialPairs([]string{"alice", "bob"}, []string{"p1", "p2"}, credentialOrderOptions{mode: "host-major"}))
 	want := []credentialPair{{"alice", "p1"}, {"alice", "p2"}, {"bob", "p1"}, {"bob", "p2"}}
 	assertCredentialPairs(t, pairs, want)
 }
 
-func TestBuildCredentialPairsSpray(t *testing.T) {
-	pairs := buildCredentialPairs([]string{"alice", "bob"}, []string{"p1", "p2"}, credentialOrderOptions{mode: "spray"})
+func TestCredentialPairsSpray(t *testing.T) {
+	pairs := slices.Collect(credentialPairs([]string{"alice", "bob"}, []string{"p1", "p2"}, credentialOrderOptions{mode: "spray"}))
 	want := []credentialPair{{"alice", "p1"}, {"bob", "p1"}, {"alice", "p2"}, {"bob", "p2"}}
 	assertCredentialPairs(t, pairs, want)
 }
 
-func TestBuildCredentialPairsPairwise(t *testing.T) {
-	pairs := buildCredentialPairs([]string{"alice", "bob", "carol"}, []string{"p1", "p2"}, credentialOrderOptions{mode: "pairwise"})
+func TestCredentialPairsPairwise(t *testing.T) {
+	pairs := slices.Collect(credentialPairs([]string{"alice", "bob", "carol"}, []string{"p1", "p2"}, credentialOrderOptions{mode: "pairwise"}))
 	want := []credentialPair{{"alice", "p1"}, {"bob", "p2"}}
 	assertCredentialPairs(t, pairs, want)
 }

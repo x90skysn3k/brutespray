@@ -121,6 +121,13 @@ func collectPreAuthFindings(ctx context.Context, host modules.Host, timeout time
 // send, so the rotation skips it instead of deadlocking behind a slow or
 // paused host; it rejoins as soon as the send completes.
 func (wp *WorkerPool) queueForHost(hostPool *HostWorkerPool, pk string, cred Credential) bool {
+	select {
+	case <-hostPool.stopChan:
+		return false
+	case <-wp.globalStopChan:
+		return false
+	default:
+	}
 	if rr := wp.roundRobin; rr != nil {
 		if !rr.waitTurn(pk, hostPool.stopChan, wp.globalStopChan) {
 			return false
@@ -156,6 +163,235 @@ func (wp *WorkerPool) queueForHost(hostPool *HostWorkerPool, pk string, cred Cre
 	case <-wp.globalStopChan:
 		return false
 	}
+}
+
+// queueHostCredentials is ProcessHost's queueing phase: it generates every credential for one host
+// (combo mode, single-secret services, or the user×password schedules, plus inline creds and the
+// SSH bad-keys pre-pass) and queues them on the host pool, honoring the resume cursor and the
+// per-host/global stop channels. It returns wordlistFailed: true when a wordlist load errored, in
+// which case ProcessHost requests a stop and skips host completion. Every other exit — normal
+// completion, a stop signal, queue abandonment, or the --badkeys-only short-circuit — returns
+// false, exactly as the previous inline closure only set wordlistFailed on load errors.
+func (wp *WorkerPool) queueHostCredentials(hostPool *HostWorkerPool, pk string, host modules.Host, service string, combo string, user string, password string, version string, moduleParams brute.ModuleParams, useUsernameAsPass bool, cursor *resumeCursor) bool {
+	// Generate and queue all credentials for this host
+	if combo != "" {
+		users, passwords := modules.GetUsersAndPasswordsCombo(&host, combo, version)
+		n := len(users)
+		n = min(n, len(passwords))
+		for i := 0; i < n; i++ {
+			if cursor.skipNext() {
+				continue
+			}
+			// Check if we should stop before processing each credential
+			select {
+			case <-wp.globalStopChan:
+				return false
+			case <-hostPool.stopChan:
+				return false
+			default:
+			}
+
+			cred := Credential{
+				Host:     host,
+				User:     users[i],
+				Password: passwords[i],
+				Service:  service,
+				Params:   moduleParams,
+			}
+			if !wp.queueForHost(hostPool, pk, cred) {
+				return false
+			}
+		}
+	} else {
+		if modules.IsSingleSecretService(service, moduleParams) {
+			queuePassword := func(p string) bool {
+				// Check if we should stop before processing each credential
+				select {
+				case <-wp.globalStopChan:
+					return false
+				case <-hostPool.stopChan:
+					return false
+				default:
+				}
+
+				if cursor.skipNext() {
+					return true
+				}
+				cred := Credential{
+					Host:     host,
+					User:     "",
+					Password: p,
+					Service:  service,
+					Params:   moduleParams,
+				}
+				return wp.queueForHost(hostPool, pk, cred)
+			}
+
+			if wp.inlineCreds != "" {
+				for _, pair := range ParseInlineCreds(wp.inlineCreds) {
+					if !queuePassword(pair.Password) {
+						return false
+					}
+				}
+			}
+
+			var passwords []string
+			if wp.passwordGen != nil {
+				passwords = wp.passwordGen.Generate()
+			} else {
+				_, pw, err := modules.GetUsersAndPasswords(&host, user, password, version)
+				if err != nil {
+					modules.TUIError("Error loading wordlist for %s: %v\n", service, err)
+					return true
+				}
+				passwords = pw
+			}
+			for _, p := range passwords {
+				if !queuePassword(p) {
+					return false
+				}
+			}
+		} else {
+			var users, passwords []string
+			if wp.passwordGen != nil {
+				// Only load users from wordlist; passwords come from generator
+				u, _, err := modules.GetUsersAndPasswords(&host, user, password, version)
+				if err != nil {
+					modules.TUIError("Error loading wordlist for %s: %v\n", service, err)
+					return true
+				}
+				users = u
+				passwords = wp.passwordGen.Generate()
+			} else {
+				u, p, err := modules.GetUsersAndPasswords(&host, user, password, version)
+				if err != nil {
+					modules.TUIError("Error loading wordlist for %s: %v\n", service, err)
+					return true
+				}
+				users = u
+				passwords = p
+			}
+
+			queueCred := func(u, p string) bool {
+				select {
+				case <-wp.globalStopChan:
+					return false
+				case <-hostPool.stopChan:
+					return false
+				default:
+				}
+				if cursor.skipNext() {
+					return true
+				}
+				cred := Credential{Host: host, User: u, Password: p, Service: service, Params: moduleParams}
+				return wp.queueForHost(hostPool, pk, cred)
+			}
+
+			// Inline credential pairs from --creds / -c — fire first across ALL services.
+			if wp.inlineCreds != "" {
+				for _, p := range ParseInlineCreds(wp.inlineCreds) {
+					if !queueCred(p.User, p.Password) {
+						return false
+					}
+				}
+			}
+
+			// SSH bad-keys pre-pass: try the embedded bundle before any password list.
+			// Opt-out via --no-badkeys; --badkeys-only short-circuits the regular loop.
+			if service == "ssh" && !wp.noBadKeys {
+				// effectiveBadKeyUser is the username to apply across the bad-keys pre-pass.
+				// When -u is a file path (wordlist), we cannot use a single value — fall back
+				// to each entry's metadata-suggested user. When -u is a bare username, use it
+				// as the override.
+				effectiveBadKeyUser := ""
+				if user != "" {
+					if _, statErr := os.Stat(user); statErr != nil {
+						// Not a file → treat as a bare username
+						effectiveBadKeyUser = user
+					}
+				}
+				if bundle, err := badkeys.Load(); err == nil {
+					for _, pair := range BuildBadKeyCreds(bundle, effectiveBadKeyUser) {
+						if !queueCred(pair.User, pair.Password) {
+							return false
+						}
+					}
+				} else {
+					fmt.Fprintf(os.Stderr, "warning: bad-keys bundle load failed (skipping pre-pass): %v\n", err)
+				}
+			}
+
+			if service == "ssh" && wp.badKeysOnly {
+				// This is a complete credential source, not an abandoned host.
+				return false
+			}
+
+			scheduleMode := wp.scheduleMode
+			if scheduleMode == "" || scheduleMode == "auto" {
+				if wp.sprayMode {
+					scheduleMode = "spray"
+				} else {
+					scheduleMode = "host-major"
+				}
+			}
+
+			if scheduleMode == "spray" {
+				// Spray: try each password across all users before next password
+
+				// Prepend username-as-password round if -e s
+				if useUsernameAsPass {
+					for _, u := range users {
+						if !queueCred(u, u) {
+							return false
+						}
+					}
+				}
+
+				// Prepend reversed-username round if -e r
+				if wp.useReversedPass {
+					for _, u := range users {
+						reversed := reverseString(u)
+						if reversed != u { // skip if palindrome (already covered by -e s)
+							if !queueCred(u, reversed) {
+								return false
+							}
+						}
+					}
+				}
+
+				for i, p := range passwords {
+					if wp.sprayMode && i > 0 && wp.sprayDelay > 0 {
+						modules.PrintfColored(pterm.FgLightYellow, "[spray] %s — waiting %v before next password round...\n", host.Host, wp.sprayDelay)
+						select {
+						case <-time.After(wp.sprayDelay):
+						case <-wp.globalStopChan:
+							return false
+						case <-hostPool.stopChan:
+							return false
+						}
+					}
+					for _, u := range users {
+						if !queueCred(u, p) {
+							return false
+						}
+					}
+				}
+			} else {
+				pairs := credentialPairs(users, passwords, credentialOrderOptions{
+					mode:              scheduleMode,
+					sprayMode:         wp.sprayMode,
+					useUsernameAsPass: useUsernameAsPass,
+					useReversedPass:   wp.useReversedPass,
+				})
+				for pair := range pairs {
+					if !queueCred(pair.User, pair.Password) {
+						return false
+					}
+				}
+			}
+		}
+	}
+	return false
 }
 
 // ProcessHost processes a single host with all its credentials using dedicated host worker pool
@@ -210,11 +446,8 @@ func (wp *WorkerPool) ProcessHost(host modules.Host, service string, combo strin
 
 	// Get or create host-specific worker pool
 	hostPool := wp.getOrCreateHostPool(host)
-	// Any exit from ProcessHost retires the pool: the dynamic scaler must
-	// never Add() a worker onto a queue this call has closed or a pool it
-	// has stopped (issue #378 lifecycle race). ResetForRetry re-arms the
-	// pool for the retry pass below.
-	defer hostPool.markTerminal()
+	// Every exit joins workers before the deferred host-slot release.
+	defer hostPool.Stop()
 
 	// Start the host worker pool
 	hostPool.Start(timeout, retry, output, cm, domain, wp.noStats)
@@ -253,226 +486,7 @@ func (wp *WorkerPool) ProcessHost(host modules.Host, service string, combo strin
 		cancel()
 	}
 
-	// Generate and queue all credentials for this host
-	if combo != "" {
-		users, passwords := modules.GetUsersAndPasswordsCombo(&host, combo, version)
-		n := len(users)
-		n = min(n, len(passwords))
-		for i := 0; i < n; i++ {
-			if resumeCursor.skipNext() {
-				continue
-			}
-			// Check if we should stop before processing each credential
-			select {
-			case <-wp.globalStopChan:
-				return
-			case <-hostPool.stopChan:
-				return
-			default:
-			}
-
-			cred := Credential{
-				Host:     host,
-				User:     users[i],
-				Password: passwords[i],
-				Service:  service,
-				Params:   moduleParams,
-			}
-			if !wp.queueForHost(hostPool, pk, cred) {
-				return
-			}
-		}
-	} else {
-		if modules.IsSingleSecretService(service, moduleParams) {
-			queuePassword := func(p string) bool {
-				// Check if we should stop before processing each credential
-				select {
-				case <-wp.globalStopChan:
-					return false
-				case <-hostPool.stopChan:
-					return false
-				default:
-				}
-
-				if resumeCursor.skipNext() {
-					return true
-				}
-				cred := Credential{
-					Host:     host,
-					User:     "",
-					Password: p,
-					Service:  service,
-					Params:   moduleParams,
-				}
-				return wp.queueForHost(hostPool, pk, cred)
-			}
-
-			if wp.inlineCreds != "" {
-				for _, pair := range ParseInlineCreds(wp.inlineCreds) {
-					if !queuePassword(pair.Password) {
-						return
-					}
-				}
-			}
-
-			var passwords []string
-			if wp.passwordGen != nil {
-				passwords = wp.passwordGen.Generate()
-			} else {
-				_, pw, err := modules.GetUsersAndPasswords(&host, user, password, version)
-				if err != nil {
-					modules.TUIError("Error loading wordlist for %s: %v\n", service, err)
-					return
-				}
-				passwords = pw
-			}
-			for _, p := range passwords {
-				if !queuePassword(p) {
-					return
-				}
-			}
-		} else {
-			var users, passwords []string
-			if wp.passwordGen != nil {
-				// Only load users from wordlist; passwords come from generator
-				u, _, err := modules.GetUsersAndPasswords(&host, user, password, version)
-				if err != nil {
-					modules.TUIError("Error loading wordlist for %s: %v\n", service, err)
-					return
-				}
-				users = u
-				passwords = wp.passwordGen.Generate()
-			} else {
-				u, p, err := modules.GetUsersAndPasswords(&host, user, password, version)
-				if err != nil {
-					modules.TUIError("Error loading wordlist for %s: %v\n", service, err)
-					return
-				}
-				users = u
-				passwords = p
-			}
-
-			queueCred := func(u, p string) bool {
-				select {
-				case <-wp.globalStopChan:
-					return false
-				case <-hostPool.stopChan:
-					return false
-				default:
-				}
-				if resumeCursor.skipNext() {
-					return true
-				}
-				cred := Credential{Host: host, User: u, Password: p, Service: service, Params: moduleParams}
-				return wp.queueForHost(hostPool, pk, cred)
-			}
-
-			// Inline credential pairs from --creds / -c — fire first across ALL services.
-			if wp.inlineCreds != "" {
-				for _, p := range ParseInlineCreds(wp.inlineCreds) {
-					if !queueCred(p.User, p.Password) {
-						break
-					}
-				}
-			}
-
-			// SSH bad-keys pre-pass: try the embedded bundle before any password list.
-			// Opt-out via --no-badkeys; --badkeys-only short-circuits the regular loop.
-			if service == "ssh" && !wp.noBadKeys {
-				// effectiveBadKeyUser is the username to apply across the bad-keys pre-pass.
-				// When -u is a file path (wordlist), we cannot use a single value — fall back
-				// to each entry's metadata-suggested user. When -u is a bare username, use it
-				// as the override.
-				effectiveBadKeyUser := ""
-				if user != "" {
-					if _, statErr := os.Stat(user); statErr != nil {
-						// Not a file → treat as a bare username
-						effectiveBadKeyUser = user
-					}
-				}
-				if bundle, err := badkeys.Load(); err == nil {
-					for _, pair := range BuildBadKeyCreds(bundle, effectiveBadKeyUser) {
-						if !queueCred(pair.User, pair.Password) {
-							break
-						}
-					}
-				} else {
-					fmt.Fprintf(os.Stderr, "warning: bad-keys bundle load failed (skipping pre-pass): %v\n", err)
-				}
-			}
-
-			if service == "ssh" && wp.badKeysOnly {
-				// NOTE: --badkeys-only returns before the regular cred loop, which means
-				// hostPool.jobQueue is not closed here. Global wp.Stop() handles eventual
-				// cleanup; tighten if profiling shows the premature exit matters.
-				return
-			}
-
-			scheduleMode := wp.scheduleMode
-			if scheduleMode == "" || scheduleMode == "auto" {
-				if wp.sprayMode {
-					scheduleMode = "spray"
-				} else {
-					scheduleMode = "host-major"
-				}
-			}
-
-			if scheduleMode == "spray" {
-				// Spray: try each password across all users before next password
-
-				// Prepend username-as-password round if -e s
-				if useUsernameAsPass {
-					for _, u := range users {
-						if !queueCred(u, u) {
-							return
-						}
-					}
-				}
-
-				// Prepend reversed-username round if -e r
-				if wp.useReversedPass {
-					for _, u := range users {
-						reversed := reverseString(u)
-						if reversed != u { // skip if palindrome (already covered by -e s)
-							if !queueCred(u, reversed) {
-								return
-							}
-						}
-					}
-				}
-
-				for i, p := range passwords {
-					if wp.sprayMode && i > 0 && wp.sprayDelay > 0 {
-						modules.PrintfColored(pterm.FgLightYellow, "[spray] %s — waiting %v before next password round...\n", host.Host, wp.sprayDelay)
-						select {
-						case <-time.After(wp.sprayDelay):
-						case <-wp.globalStopChan:
-							return
-						case <-hostPool.stopChan:
-							return
-						}
-					}
-					for _, u := range users {
-						if !queueCred(u, p) {
-							return
-						}
-					}
-				}
-			} else {
-				pairs := buildCredentialPairs(users, passwords, credentialOrderOptions{
-					mode:              scheduleMode,
-					sprayMode:         wp.sprayMode,
-					useUsernameAsPass: useUsernameAsPass,
-					useReversedPass:   wp.useReversedPass,
-				})
-				for _, pair := range pairs {
-					if !queueCred(pair.User, pair.Password) {
-						return
-					}
-				}
-			}
-		}
-	}
+	wordlistFailed := wp.queueHostCredentials(hostPool, pk, host, service, combo, user, password, version, moduleParams, useUsernameAsPass, &resumeCursor)
 
 	// Queueing is done: leave the round-robin rotation now so finished
 	// hosts stop gating the remaining hosts (leave is idempotent with the
@@ -481,93 +495,77 @@ func (wp *WorkerPool) ProcessHost(host modules.Host, service string, combo strin
 		wp.roundRobin.leave(pk)
 	}
 
-	// Close the job queue to signal no more jobs will be added.
-	// markTerminal happens BEFORE the close so the dynamic scaler can
-	// never Add() a worker onto the queue we are about to close (the
-	// check-then-Add and the mark share hwp.mutex; issue #378).
-	select {
-	case <-wp.globalStopChan:
-		// If we're stopping, don't close the queue normally, let Stop() handle it
-		hostPool.markTerminal()
-		hostPool.Stop()
-		return
-	case <-hostPool.stopChan:
-		// Host pool already stopped
-		return
-	default:
+	// The producer is the sole queue closer. Stop additions before Wait,
+	// including terminal-success and breaker exits from the producer above.
+	waitForPass := func() {
 		hostPool.markTerminal()
 		close(hostPool.jobQueue)
+		done := make(chan struct{})
+		go func() {
+			hostPool.wg.Wait()
+			close(done)
+		}()
+		select {
+		case <-done:
+		case <-wp.globalStopChan:
+			hostPool.Stop()
+		}
 	}
-
-	// Wait for all jobs to complete or be interrupted
-	done := make(chan struct{})
-	go func() {
-		hostPool.wg.Wait()
-		close(done)
-	}()
+	if wordlistFailed {
+		hostPool.requestStop()
+	}
+	waitForPass()
 
 	select {
-	case <-done:
-		// All jobs completed normally
 	case <-wp.globalStopChan:
-		// Interrupted, stop the host pool
-		hostPool.Stop()
 		return
-	case <-hostPool.stopChan:
-		// Host pool stopped
+	default:
+	}
+	if wordlistFailed {
 		return
 	}
 
-	// Missed credential recovery: retry credentials that failed due to connection errors.
-	// Skipped entirely when the circuit breaker tripped: the operator's skip
-	// policy declared this host done, and a retry pass would re-hammer it
-	// (issue #366: "it just keeps the server busy at a pointless host").
+	// A terminal policy decision must not be undone by missed recovery.
 	missed := hostPool.DrainMissedQueue()
-	if len(missed) > 0 && brute.GetCircuitBreaker().IsTripped(net.JoinHostPort(host.Host, strconv.Itoa(host.Port))) {
-		modules.PrintfColored(pterm.FgLightYellow, "[*] Skipping retry pass for %s:%d (circuit breaker tripped)\n", host.Host, host.Port)
+	if brute.GetCircuitBreaker().IsTripped(net.JoinHostPort(host.Host, strconv.Itoa(host.Port))) {
 		missed = nil
+	}
+	select {
+	case <-hostPool.stopChan:
+		missed = nil
+	default:
 	}
 	if len(missed) > 0 {
 		modules.PrintfColored(pterm.FgLightYellow, "[*] Retrying %d missed credentials for %s:%d\n", len(missed), host.Host, host.Port)
-
-		// Re-create job queue for retry pass and reset stop-on-success
-		// state (ResetForRetry installs the fresh queue atomically with
-		// clearing the terminal flag).
-		retryPool := wp.getOrCreateHostPool(host)
-		retryPool.ResetForRetry()
-		retryPool.Start(timeout, retry, output, cm, domain, wp.noStats)
-
-	credLoop:
+		// All workers from the first generation have exited before its
+		// queue and stop channel are replaced for the one recovery pass.
+		hostPool.ResetForRetry()
+		hostPool.Start(timeout, retry, output, cm, domain, wp.noStats)
+	retryLoop:
 		for _, cred := range missed {
 			cred.Retry = true
 			select {
-			case retryPool.jobQueue <- cred:
-			case <-retryPool.stopChan:
-				break credLoop
+			case <-hostPool.stopChan:
+				break retryLoop
 			case <-wp.globalStopChan:
-				retryPool.Stop()
-				return
+				break retryLoop
+			default:
+			}
+			select {
+			case hostPool.jobQueue <- cred:
+			case <-hostPool.stopChan:
+				break retryLoop
+			case <-wp.globalStopChan:
+				break retryLoop
 			}
 		}
-		retryPool.markTerminal()
-		close(retryPool.jobQueue)
-
-		retryDone := make(chan struct{})
-		go func() {
-			retryPool.wg.Wait()
-			close(retryDone)
-		}()
-
-		select {
-		case <-retryDone:
-		case <-wp.globalStopChan:
-			retryPool.Stop()
-			return
-		}
-		retryPool.Stop()
-	} else {
-		// Now stop the host pool (this will close stopChan but jobQueue is already closed)
-		hostPool.Stop()
+		waitForPass()
+	}
+	hostPool.Stop()
+	select {
+	case <-wp.globalStopChan:
+		return
+	default:
 	}
 
 	// Debug output to show host completion with performance metrics
