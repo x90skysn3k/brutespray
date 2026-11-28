@@ -3,8 +3,11 @@ package brutespray
 import (
 	"fmt"
 	"testing"
+	"time"
 
+	"github.com/x90skysn3k/brutespray/v2/brute"
 	"github.com/x90skysn3k/brutespray/v2/brute/badkeys"
+	"github.com/x90skysn3k/brutespray/v2/modules"
 )
 
 func TestValidateRejectsContradictoryBadKeyFlags(t *testing.T) {
@@ -95,5 +98,46 @@ func TestParseInlineCredsSkipsInvalidPair(t *testing.T) {
 	pairs := ParseInlineCreds("admin:admin,notapair,root:toor")
 	if len(pairs) != 2 {
 		t.Fatalf("invalid middle pair should be skipped: got %d", len(pairs))
+	}
+}
+
+func TestProcessHostBadKeysOnlyCompletesHost(t *testing.T) {
+	original, ok := brute.Lookup("ssh")
+	if !ok {
+		t.Fatal("ssh module not registered")
+	}
+	defer brute.Register("ssh", original)
+	brute.Register("ssh", func(_ string, _ int, _, _ string, _ time.Duration, _ *modules.ConnectionManager, _ brute.ModuleParams) *brute.BruteResult {
+		return &brute.BruteResult{ConnectionSuccess: true}
+	})
+	bundle, err := badkeys.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cm, err := modules.NewConnectionManager("", time.Millisecond)
+	if err != nil {
+		t.Fatal(err)
+	}
+	host := modules.Host{Host: "127.0.0.1", Port: 45934, Service: "ssh"}
+	sink := &captureDispatchEventSink{}
+	wp := NewWorkerPool(1, sink, 1, 1)
+	wp.noStats, wp.badKeysOnly = true, true
+	wp.checkpoint = modules.NewCheckpoint("")
+	wp.ProcessHost(host, "ssh", "", "root", "must-not-run", version, time.Millisecond, 1, t.TempDir(), cm, "", nil, false)
+	wp.Stop()
+	attempts := sink.attemptResults()
+	if len(attempts) != len(bundle) {
+		t.Fatalf("bad-keys attempts = %d, want %d", len(attempts), len(bundle))
+	}
+	for _, attempt := range attempts {
+		if attempt.Password == "must-not-run" {
+			t.Fatal("badkeys-only consumed regular password list")
+		}
+	}
+	if started, completed := sink.lifecycle(); started != 1 || completed != 1 {
+		t.Fatalf("badkeys-only lifecycle = %d/%d, want 1/1", started, completed)
+	}
+	if !wp.checkpoint.IsHostCompleted(host.Host, host.Port, "ssh") {
+		t.Fatal("badkeys-only host missing terminal checkpoint")
 	}
 }

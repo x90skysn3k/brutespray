@@ -33,6 +33,7 @@ func BruteRDP(host string, port int, user, password string, timeout time.Duratio
 		}
 
 		rdpClient := &client.RdpClient{}
+		defer rdpClient.Close()
 		err := rdpClient.LoginAuthOnly(ctx, target, loginUser, password)
 		if err != nil {
 			var rdpErr *core.RDPError
@@ -49,8 +50,6 @@ func BruteRDP(host string, port int, user, password string, timeout time.Duratio
 			}
 			return &BruteResult{AuthSuccess: false, ConnectionSuccess: false, Error: err}
 		}
-		defer rdpClient.Close()
-
 		return &BruteResult{AuthSuccess: true, ConnectionSuccess: true}
 	})
 }

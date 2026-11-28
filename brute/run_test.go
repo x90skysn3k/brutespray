@@ -428,6 +428,38 @@ func TestRunBruteRecoversPanickingModule(t *testing.T) {
 	}
 }
 
+// -r 0 means "no retries", which must still be ONE real attempt, not zero.
+// Before the fix the loop's top-of-iteration check (0 >= 0) returned a
+// synthetic connection_failure without ever dialing, so hosts with -r 0
+// recorded failures the network never saw, the breaker never counted, and
+// skip policies could never trip.
+func TestRunBruteZeroRetriesStillAttempts(t *testing.T) {
+	service := "zero-retry-test"
+	var calls atomic.Int64
+	Register(service, func(host string, port int, user, password string, timeout time.Duration, cm *modules.ConnectionManager, params ModuleParams) *BruteResult {
+		calls.Add(1)
+		return &BruteResult{AuthSuccess: false, ConnectionSuccess: true, Error: errors.New("credentials rejected")}
+	})
+	const hostKey = "127.0.0.1:65015"
+	cb := GetCircuitBreaker()
+	cb.Reset(hostKey)
+	defer cb.Reset(hostKey)
+
+	cm, err := modules.NewConnectionManager("", time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	host := modules.Host{Host: "127.0.0.1", Port: 65015, Service: service}
+	got := RunBrute(host, "user", "wrongpass", time.Second, 0, t.TempDir(), "", "", "", cm, nil)
+
+	if calls.Load() != 1 {
+		t.Fatalf("module calls = %d, want 1 (-r 0 must perform exactly one real attempt)", calls.Load())
+	}
+	if got.Status != StatusAuthFailure {
+		t.Fatalf("status = %q, want %q (the real module result, not a synthetic connection failure)", got.Status, StatusAuthFailure)
+	}
+}
+
 func TestRunBruteTimesOutHungModule(t *testing.T) {
 	cm, err := modules.NewConnectionManager("", time.Second)
 	if err != nil {

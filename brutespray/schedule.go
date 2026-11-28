@@ -1,5 +1,7 @@
 package brutespray
 
+import "iter"
+
 type credentialPair struct {
 	User     string
 	Password string
@@ -12,67 +14,77 @@ type credentialOrderOptions struct {
 	useReversedPass   bool
 }
 
-func buildCredentialPairs(users []string, passwords []string, opts credentialOrderOptions) []credentialPair {
-	mode := opts.mode
-	if mode == "" || mode == "auto" {
-		if opts.sprayMode {
-			mode = "spray"
-		} else {
-			mode = "host-major"
-		}
-	}
-
-	pairs := make([]credentialPair, 0, len(users)*len(passwords))
-	appendUserExtras := func(u string) {
-		if opts.useUsernameAsPass {
-			pairs = append(pairs, credentialPair{User: u, Password: u})
-		}
-		if opts.useReversedPass {
-			reversed := reverseString(u)
-			if reversed != u {
-				pairs = append(pairs, credentialPair{User: u, Password: reversed})
+// credentialPairs traverses the selected order without materializing the
+// Cartesian product. Breaking the range stops generation immediately.
+func credentialPairs(users []string, passwords []string, opts credentialOrderOptions) iter.Seq[credentialPair] {
+	return func(yield func(credentialPair) bool) {
+		mode := opts.mode
+		if mode == "" || mode == "auto" {
+			if opts.sprayMode {
+				mode = "spray"
+			} else {
+				mode = "host-major"
 			}
 		}
-	}
-
-	switch mode {
-	case "spray":
-		if opts.useUsernameAsPass {
-			for _, u := range users {
-				pairs = append(pairs, credentialPair{User: u, Password: u})
+		yieldExtras := func(u string) bool {
+			if opts.useUsernameAsPass && !yield(credentialPair{User: u, Password: u}) {
+				return false
 			}
-		}
-		if opts.useReversedPass {
-			for _, u := range users {
+			if opts.useReversedPass {
 				reversed := reverseString(u)
-				if reversed != u {
-					pairs = append(pairs, credentialPair{User: u, Password: reversed})
+				if reversed != u && !yield(credentialPair{User: u, Password: reversed}) {
+					return false
+				}
+			}
+			return true
+		}
+
+		switch mode {
+		case "spray":
+			if opts.useUsernameAsPass {
+				for _, u := range users {
+					if !yield(credentialPair{User: u, Password: u}) {
+						return
+					}
+				}
+			}
+			if opts.useReversedPass {
+				for _, u := range users {
+					reversed := reverseString(u)
+					if reversed != u && !yield(credentialPair{User: u, Password: reversed}) {
+						return
+					}
+				}
+			}
+			for _, p := range passwords {
+				for _, u := range users {
+					if !yield(credentialPair{User: u, Password: p}) {
+						return
+					}
+				}
+			}
+		case "pairwise":
+			for _, u := range users {
+				if !yieldExtras(u) {
+					return
+				}
+			}
+			for i := range min(len(users), len(passwords)) {
+				if !yield(credentialPair{User: users[i], Password: passwords[i]}) {
+					return
+				}
+			}
+		default:
+			for _, u := range users {
+				if !yieldExtras(u) {
+					return
+				}
+				for _, p := range passwords {
+					if !yield(credentialPair{User: u, Password: p}) {
+						return
+					}
 				}
 			}
 		}
-		for _, p := range passwords {
-			for _, u := range users {
-				pairs = append(pairs, credentialPair{User: u, Password: p})
-			}
-		}
-	case "pairwise":
-		for _, u := range users {
-			appendUserExtras(u)
-		}
-		n := len(users)
-		if len(passwords) < n {
-			n = len(passwords)
-		}
-		for i := 0; i < n; i++ {
-			pairs = append(pairs, credentialPair{User: users[i], Password: passwords[i]})
-		}
-	default:
-		for _, u := range users {
-			appendUserExtras(u)
-			for _, p := range passwords {
-				pairs = append(pairs, credentialPair{User: u, Password: p})
-			}
-		}
 	}
-	return pairs
 }

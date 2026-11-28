@@ -430,10 +430,10 @@ func RunBrute(h modules.Host, u string, p string, timeout time.Duration, maxRetr
 	hostKey := net.JoinHostPort(h.Host, strconv.Itoa(h.Port))
 	cb := GetCircuitBreaker()
 
-	// Check circuit breaker before attempting
+	// Check circuit breaker before attempting. A skipped credential never
+	// touches the network: it must not inflate attempt counters (issue #378
+	// — the drain of a skipped host's suffix looked like live attempts).
 	if cb.IsTripped(hostKey) {
-		metrics.RecordAttempt(false, time.Since(startTime))
-		modules.RecordAttempt(false)
 		return BruteResult{AuthSuccess: false, ConnectionSuccess: false, Status: StatusSkippedService}
 	}
 
@@ -463,7 +463,9 @@ func RunBrute(h modules.Host, u string, p string, timeout time.Duration, maxRetr
 	var modResult *BruteResult
 
 	for {
-		if retries >= maxRetries {
+		// The first pass always dials; maxRetries bounds REPEATS after a
+		// connection failure, so -r 0 = exactly one real attempt, not zero.
+		if retries > 0 && retries >= maxRetries {
 			// Record failed attempt (connection never succeeded)
 			metrics.RecordAttempt(false, time.Since(startTime))
 			modules.RecordAttempt(false)

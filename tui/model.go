@@ -218,6 +218,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
+		// bubbletea coalesces a run of printable characters delivered in
+		// one read (held key, fast repeat, pasted nav sequence) into a
+		// single KeyRunes message. Key bindings match single presses, so
+		// "lllll" would match nothing; process each rune as its own
+		// press. Bracketed pastes (Paste=true) must never trigger
+		// shortcuts, so they pass through untouched.
+		if msg.Type == tea.KeyRunes && !msg.Paste && len(msg.Runes) > 1 {
+			var cmd tea.Cmd
+			for _, r := range msg.Runes {
+				press := msg
+				press.Runes = []rune{r}
+				next, c := m.handleKey(press)
+				m = next.(Model)
+				cmd = tea.Sequence(cmd, c)
+			}
+			return m, cmd
+		}
 		return m.handleKey(msg)
 	}
 
